@@ -1,0 +1,143 @@
+// All state, persistence, and migrations live here.
+
+const STORAGE_KEY = 'beerConverter.v1';
+const UPC_CACHE_KEY = 'beerConverter.upcCache.v1';
+
+// --- defaults ----------------------------------------------------------------
+// Note the canonical Canadian standard drink (341 ml @ 5% ≈ 17.05 ml ethanol)
+// sits at the top and is the default benchmark.
+export const defaultPresets = () => [
+  { id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0,  kcalPer100ml: null },
+  { id: 'p1',   name: 'Regular can',    volumeMl: 355, abv: 5.0,  kcalPer100ml: null },
+  { id: 'p2',   name: 'Tall can',       volumeMl: 473, abv: 5.0,  kcalPer100ml: null },
+  { id: 'p3',   name: 'Bottle',         volumeMl: 341, abv: 5.0,  kcalPer100ml: null },
+  { id: 'p4',   name: 'Pint',           volumeMl: 568, abv: 5.0,  kcalPer100ml: null },
+  { id: 'p5',   name: 'Wine glass',     volumeMl: 142, abv: 12.0, kcalPer100ml: null },
+  { id: 'p6',   name: 'Shot',           volumeMl: 44,  abv: 40.0, kcalPer100ml: null },
+  { id: 'p7',   name: 'Schooner',       volumeMl: 946, abv: 5.0,  kcalPer100ml: null },
+];
+
+export const defaultState = () => ({
+  people: [
+    { name: 'You',    drinks: [] },
+    { name: 'Friend', drinks: [] },
+  ],
+  presets: defaultPresets(),
+  benchmarkPresetId: 'pstd',
+});
+
+// --- load / migrate ---------------------------------------------------------
+export function loadState() {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return defaultState();
+    const parsed = JSON.parse(raw);
+    if (!parsed || !Array.isArray(parsed.people) || parsed.people.length !== 2) return defaultState();
+    if (!Array.isArray(parsed.presets) || parsed.presets.length === 0) parsed.presets = defaultPresets();
+
+    // Ensure the standard drink preset exists; promote it to benchmark if the
+    // user was on the previous default (tall can).
+    const hadStd = parsed.presets.some(p => p.id === 'pstd');
+    if (!hadStd) {
+      parsed.presets.unshift({ id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0, kcalPer100ml: null });
+      if (parsed.benchmarkPresetId === 'p2') parsed.benchmarkPresetId = 'pstd';
+    }
+
+    // Ensure every preset has the kcalPer100ml field (added in this version).
+    parsed.presets.forEach(p => { if (!('kcalPer100ml' in p)) p.kcalPer100ml = null; });
+
+    // Fall back benchmark if it points at something removed.
+    if (!parsed.presets.some(p => p.id === parsed.benchmarkPresetId)) {
+      parsed.benchmarkPresetId = 'pstd';
+    }
+
+    return parsed;
+  } catch {
+    return defaultState();
+  }
+}
+
+// --- state singleton -------------------------------------------------------
+export const state = loadState();
+
+export function saveState() {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  catch (e) { console.warn('Save failed', e); }
+}
+
+export function getBenchmark() {
+  return state.presets.find(p => p.id === state.benchmarkPresetId) || state.presets[0];
+}
+
+// --- UPC cache -------------------------------------------------------------
+// Maps a UPC string to the preset id that represents it, so rescanning the
+// same can is instantaneous even if Open Food Facts has no record.
+function loadUpcCache() {
+  try { return JSON.parse(localStorage.getItem(UPC_CACHE_KEY)) || {}; }
+  catch { return {}; }
+}
+
+const upcCache = loadUpcCache();
+
+export function getPresetIdForUpc(upc) {
+  return upcCache[upc] || null;
+}
+
+export function rememberUpc(upc, presetId) {
+  if (!upc || !presetId) return;
+  upcCache[upc] = presetId;
+  try { localStorage.setItem(UPC_CACHE_KEY, JSON.stringify(upcCache)); }
+  catch (e) { console.warn('UPC cache save failed', e); }
+}
+
+// --- preset mutation helpers ----------------------------------------------
+export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, upc = null }) {
+  const preset = { id: 'u' + Date.now(), name, volumeMl, abv, kcalPer100ml };
+  state.presets.push(preset);
+  if (upc) rememberUpc(upc, preset.id);
+  saveState();
+  return preset;
+}
+
+export function removePreset(id) {
+  if (state.presets.length <= 1) return false;
+  state.presets = state.presets.filter(p => p.id !== id);
+  if (state.benchmarkPresetId === id) state.benchmarkPresetId = state.presets[0].id;
+  // UPC cache entries pointing at a removed preset will just miss next time;
+  // cheap to let them linger rather than scan every cache entry on delete.
+  saveState();
+  return true;
+}
+
+export function setBenchmark(id) {
+  if (state.presets.some(p => p.id === id)) {
+    state.benchmarkPresetId = id;
+    saveState();
+  }
+}
+
+export function addDrink(personIdx, drink) {
+  state.people[personIdx].drinks.push({
+    name: drink.name || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
+    volumeMl: +drink.volumeMl,
+    abv: +drink.abv,
+    presetId: drink.presetId || null,
+    t: Date.now(),
+  });
+  saveState();
+}
+
+export function removeDrink(personIdx, drinkIdx) {
+  state.people[personIdx].drinks.splice(drinkIdx, 1);
+  saveState();
+}
+
+export function setPersonName(personIdx, name) {
+  state.people[personIdx].name = name.trim() || (personIdx === 0 ? 'You' : 'Friend');
+  saveState();
+}
+
+export function clearAllDrinks() {
+  state.people.forEach(p => p.drinks = []);
+  saveState();
+}

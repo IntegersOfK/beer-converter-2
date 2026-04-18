@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="theme-color" content="#17110a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Beer Converter</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="app">
+  <div class="brand">
+    <h1>Beer <em>Converter</em></h1>
+    <span class="tag">Pint-for-Pint · Standard Drink Ledger</span>
+  </div>
+  <div class="header-actions">
+    <button class="icon-btn" id="btnPresets" title="Drink types" aria-label="Manage drink types">
+      <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+    <button class="icon-btn" id="btnReset" title="Clear session" aria-label="Clear session">
+      <svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 1 0 3-6.7"/><polyline points="3 4 3 10 9 10"/></svg>
+    </button>
+  </div>
+</header>
+
+<section class="compare-strip" id="compareStrip">
+  <div class="compare-top">
+    <span class="compare-title">The Tally</span>
+    <span class="compare-title" id="benchmarkLabel"></span>
+  </div>
+  <div class="compare-main" id="compareMain"></div>
+  <div class="compare-equiv" id="compareEquiv" style="display:none;"></div>
+</section>
+
+<main class="people" id="peopleGrid"></main>
+
+<div class="footnote">
+  1 std drink = 17.05 ml ethanol ·
+  <a href="https://www.canada.ca/en/health-canada/services/substance-use/alcohol/low-risk-alcohol-drinking-guidelines.html" target="_blank" rel="noopener noreferrer">
+    Health Canada
+  </a>
+  <br>
+  Data stays on this device
+</div>
+
+<!-- Add drink modal -->
+<div class="modal-overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="addModalTitle">Add a drink</h2>
+      <button class="close-btn" data-close aria-label="Close">×</button>
+    </div>
+
+    <div class="ornament">Quick add</div>
+    <div class="preset-tray" id="addPresetTray"></div>
+
+    <button class="btn btn-scan" id="btnOpenScanner">
+      <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="3" y="5" width="18" height="14" rx="1"/>
+        <line x1="7" y1="9" x2="7" y2="15"/>
+        <line x1="10" y1="9" x2="10" y2="15"/>
+        <line x1="13" y1="9" x2="13" y2="15"/>
+        <line x1="17" y1="9" x2="17" y2="15"/>
+      </svg>
+      Scan a barcode
+    </button>
+
+    <div class="ornament">Custom</div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Name (optional)</label>
+        <input class="input" id="customName" placeholder="Red Stripe tall can" maxlength="40" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Volume</label>
+          <div class="input-wrap">
+            <input class="input mono" id="customVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <select class="unit-sel" id="customUnit" aria-label="Volume unit">
+              <option value="ml">ML</option>
+              <option value="oz">OZ</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>ABV</label>
+          <div class="input-wrap pct">
+            <input class="input mono" id="customAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" />
+          </div>
+        </div>
+      </div>
+      <div class="ethanol-preview">
+        <span>Pure ethanol</span>
+        <span class="val" id="ethanolPreviewVal">—</span>
+      </div>
+      <label class="toggle-row">
+        <input type="checkbox" id="saveAsPreset" /> Save this as a drink type
+      </label>
+      <input type="hidden" id="customUpc" />
+      <input type="hidden" id="customKcal" />
+    </div>
+
+    <div class="actions">
+      <button class="btn btn-ghost" data-close>Cancel</button>
+      <button class="btn btn-primary" id="btnAddCustom">Add drink</button>
+    </div>
+  </div>
+</div>
+
+<!-- Presets management modal -->
+<div class="modal-overlay" id="presetsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Drink Types</h2>
+      <button class="close-btn" data-close aria-label="Close">×</button>
+    </div>
+    <p class="help-text">
+      Tap <span style="color:var(--amber)">★</span> to pick your <b style="color:var(--ink)">benchmark</b> — the drink that "<i>≈ 12 tall cans</i>" refers to on each card.
+    </p>
+    <div class="preset-list" id="presetList"></div>
+
+    <div class="ornament">Add new type</div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Name</label>
+        <input class="input" id="newPresetName" placeholder="e.g. Tall can" maxlength="30" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Volume</label>
+          <div class="input-wrap">
+            <input class="input mono" id="newPresetVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <select class="unit-sel" id="newPresetUnit" aria-label="Volume unit">
+              <option value="ml">ML</option>
+              <option value="oz">OZ</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>ABV</label>
+          <div class="input-wrap pct">
+            <input class="input mono" id="newPresetAbv" type="number" inputmode="decimal" step="0.1" placeholder="5.0" />
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-close>Done</button>
+      <button class="btn btn-primary" id="btnAddPreset">Save type</button>
+    </div>
+  </div>
+</div>
+
+<!-- Scanner modal -->
+<div class="modal-overlay" id="scannerModal">
+  <div class="modal scanner-modal">
+    <div class="modal-head">
+      <h2>Scan barcode</h2>
+      <button class="close-btn" data-close-scanner aria-label="Close">×</button>
+    </div>
+    <div class="scanner-body" id="scannerBody">
+      <div class="scanner-stage">
+        <video id="scannerVideo" playsinline muted></video>
+        <div class="scanner-reticle"></div>
+      </div>
+      <div class="scanner-status" id="scannerStatus">Point the camera at a UPC/EAN barcode…</div>
+      <div class="field" id="manualUpcField" style="display:none;">
+        <label>Enter UPC manually</label>
+        <input class="input mono" id="manualUpc" type="text" inputmode="numeric" placeholder="0 12345 67890 5" />
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-close-scanner>Cancel</button>
+      <button class="btn btn-primary" id="btnManualLookup" style="display:none;">Look up</button>
+    </div>
+    <p class="scanner-credit">
+      Lookups via <a href="https://world.openfoodfacts.org" target="_blank" rel="noopener noreferrer">Open Food Facts</a>.
+      If nothing is found, you can still fill it in manually and the UPC will be saved.
+    </p>
+  </div>
+</div>
+
+<script type="module" src="js/app.js"></script>
+</body>
+</html>
