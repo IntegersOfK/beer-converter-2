@@ -214,24 +214,43 @@ export function openAddModal(personIdx) {
 
 export function getAddModalPersonIdx() { return addModalPersonIdx; }
 
+const DEFAULT_VOLUME_PLACEHOLDER = '473';
+
 function resetCustomForm() {
   $('#customName').value = '';
   $('#customVolume').value = '';
   $('#customAbv').value = '';
   $('#customUpc').value = '';
   $('#customKcal').value = '';
+  $('#customVolume').setAttribute('placeholder', DEFAULT_VOLUME_PLACEHOLDER);
   $('#saveAsPreset').checked = false;
   updateEthanolPreview();
 }
 
 // Pre-fill the custom form after a barcode scan / lookup.
-export function prefillCustomForm({ name = '', volumeMl = null, abv = null, upc = '', kcalPer100ml = null }) {
+//
+// `volumeMl` is set when the catalogue volume *is* the drink (e.g. a 355 ml
+// beer can). For spirits / wine, callers pass `volumeMl: null` and a
+// `volumePlaceholder` hint instead — pouring 44 ml of whisky from a 750 ml
+// bottle is a per-drink decision the user has to make.
+export function prefillCustomForm({
+  name = '',
+  volumeMl = null,
+  abv = null,
+  upc = '',
+  kcalPer100ml = null,
+  volumePlaceholder = null,
+} = {}) {
   $('#customName').value = name || '';
-  $('#customVolume').value = volumeMl != null ? Math.round(volumeMl) : '';
+  $('#customVolume').value = volumeMl != null && isFinite(volumeMl) ? Math.round(volumeMl) : '';
   $('#customUnit').value = 'ml';
-  $('#customAbv').value = abv != null ? (+abv).toFixed(1) : '';
-  $('#customUpc').value = upc || '';
+  $('#customAbv').value  = abv != null && isFinite(abv) ? (+abv).toFixed(1) : '';
+  $('#customUpc').value  = upc || '';
   $('#customKcal').value = kcalPer100ml != null ? kcalPer100ml : '';
+  $('#customVolume').setAttribute(
+    'placeholder',
+    volumePlaceholder != null ? String(volumePlaceholder) : DEFAULT_VOLUME_PLACEHOLDER
+  );
   // If we got the barcode, suggest saving as a preset so rescans are instant.
   $('#saveAsPreset').checked = !!upc;
   updateEthanolPreview();

@@ -140,13 +140,31 @@ async function handleUpcFound(upc) {
   }
   const info = lookupBcLiquor(upc);
   if (info) {
-    setScannerStatus('Found in BC Liquor catalogue. Review & add.', 'ok');
+    // Category-aware prefill. For beer & coolers the catalogue volume IS the
+    // drink (a 355 ml can is one drink). For spirits & wine the catalogue
+    // volume is the *bottle* (750 ml etc.) — a single drink is a pour from
+    // it, so we leave the volume blank and just hint a typical pour size.
+    const cat = (info.category || '').toLowerCase();
+    const containerIsDrink = cat === 'beer' || cat === 'refreshment beverages';
+    const pourHint =
+      cat === 'spirits' ? 44 :   // ~1.5 oz shot
+      cat === 'wine'    ? 142 :  // ~5 oz pour
+      null;
+
     prefillCustomForm({
       name: info.name || '',
-      volumeMl: info.volumeMl,
+      volumeMl: containerIsDrink ? info.volumeMl : null,
       abv: info.abv,
       upc,
+      volumePlaceholder: containerIsDrink ? null : pourHint,
     });
+
+    setScannerStatus(
+      containerIsDrink
+        ? 'Found in BC Liquor catalogue. Review & add.'
+        : 'Found in BC Liquor catalogue. Set your pour size & add.',
+      'ok',
+    );
     setTimeout(closeScannerOnly, 600);
     return;
   }
