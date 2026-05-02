@@ -14,7 +14,7 @@ npx serve
 caddy file-server --listen :8080
 ```
 
-**Note:** ES modules require an actual HTTP server (not `file://`). The Open Food Facts lookup requires internet; the rest works offline once loaded.
+**Note:** ES modules require an actual HTTP server (not `file://`). Everything is fully offline once loaded — the BC Liquor catalogue ships with the app.
 
 ## Structure
 
@@ -22,12 +22,15 @@ caddy file-server --listen :8080
 beer-converter/
 ├── index.html      — shell
 ├── styles.css      — all styling
+├── bc_liquor_store_product_price_list_december_2025.csv
+│                   — bundled product catalogue (UPC source of truth)
 └── js/
     ├── app.js      — entry point, event wiring
     ├── ui.js       — rendering & modals
     ├── state.js    — localStorage + migrations + UPC cache
     ├── calc.js     — ethanol math (pure functions)
-    ├── scanner.js  — camera scanning + Open Food Facts lookup
+    ├── products.js — BC Liquor CSV loader + UPC index
+    ├── scanner.js  — camera scanning (BarcodeDetector wrapper)
     └── util.js     — shared helpers
 ```
 
@@ -44,9 +47,11 @@ Uses the native `BarcodeDetector` API. Supported on:
 
 Firefox doesn't ship it; the UI falls back to a manual UPC text input.
 
-Lookups go to the free [Open Food Facts](https://world.openfoodfacts.org) JSON API over CORS. Coverage for alcohol is imperfect — when it misses, the user fills in the blanks and the UPC is cached locally. Subsequent scans of the same product are instant.
+Lookups hit the bundled [BC Liquor Stores price list](https://www.bcldb.com/publications/bc-liquor-stores-product-price-list-current) CSV — fully offline, no API keys, no third-party requests. When the catalogue misses (a beer not stocked at BCL, an out-of-province import, etc.), the user fills in the blanks and the UPC is cached locally. Subsequent scans of the same product are instant — saved to *that* device only.
 
-Calorie data (`kcalPer100ml`) is captured when available but not yet shown in the UI — it's there for future features.
+To refresh the catalogue, replace `bc_liquor_store_product_price_list_december_2025.csv` with a newer monthly export and update `CSV_PATH` in `js/products.js`.
+
+Calorie data (`kcalPer100ml`) is captured on user-added presets but not yet shown in the UI — it's there for future features.
 
 ## LocalStorage keys
 

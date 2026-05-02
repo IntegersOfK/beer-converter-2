@@ -1,71 +1,17 @@
-// UPC scanning + Open Food Facts lookup. No backend required.
+// UPC scanning via the native BarcodeDetector API. No backend required.
 //
-// Uses the native BarcodeDetector API, shipped in:
+// Supported in:
 //   - Chrome for Android
 //   - Chrome / Edge on desktop
 //   - Safari on iOS 17+
 // Firefox does not ship it yet (the UI falls back to manual UPC entry).
+//
+// Product lookup is handled separately by ./products.js (BC Liquor catalogue)
+// and ./state.js (the user's local UPC cache).
 
 import { ML_PER_OZ } from './calc.js';
 
-// --- Open Food Facts lookup ------------------------------------------------
-// Free, CORS-enabled. Returns normalised product info or null.
-export async function lookupUpc(upc) {
-  if (!upc) return null;
-  const url = `https://world.openfoodfacts.org/api/v2/product/${encodeURIComponent(upc)}.json` +
-              `?fields=product_name,product_name_en,brands,quantity,serving_size,` +
-              `alcohol_by_volume_value,alcohol_by_volume_100g,nutriments`;
-  let res;
-  try { res = await fetch(url, { headers: { Accept: 'application/json' } }); }
-  catch { return null; }
-  if (!res.ok) return null;
-
-  let data;
-  try { data = await res.json(); }
-  catch { return null; }
-
-  if (data.status !== 1 || !data.product) return null;
-  const p = data.product;
-
-  return {
-    upc,
-    name: (p.product_name_en || p.product_name || p.brands || '').trim() || null,
-    volumeMl: parseVolumeToMl(p.quantity) ?? parseVolumeToMl(p.serving_size),
-    abv: pickAbv(p),
-    kcalPer100ml: pickKcalPer100ml(p),
-    raw: p,
-  };
-}
-
-function pickAbv(p) {
-  const n = p?.nutriments || {};
-  const candidates = [
-    p.alcohol_by_volume_value,
-    n.alcohol_value,
-    n['alcohol_100g'],
-    p.alcohol_by_volume_100g,
-  ];
-  for (const v of candidates) {
-    const num = parseFloat(v);
-    if (isFinite(num) && num > 0 && num <= 100) return num;
-  }
-  return null;
-}
-
-function pickKcalPer100ml(p) {
-  const n = p?.nutriments || {};
-  const candidates = [
-    n['energy-kcal_100ml'],
-    n['energy-kcal_100g'], // close enough for beverages (~1 g/ml)
-  ];
-  for (const v of candidates) {
-    const num = parseFloat(v);
-    if (isFinite(num) && num >= 0) return num;
-  }
-  return null;
-}
-
-// --- quantity parsing ------------------------------------------------------
+// --- volume parsing helpers (used by manual entry / future imports) --------
 // Inputs seen in practice:
 //   "473 ml", "1.5 L", "12 fl oz", "16 oz", "6 x 355 ml", "355ml", "50 cl"
 export function parseVolumeToMl(str) {

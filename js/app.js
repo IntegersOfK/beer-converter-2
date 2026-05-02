@@ -7,7 +7,13 @@ import {
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
 } from './ui.js';
-import { startScanner, lookupUpc, barcodeScannerAvailable } from './scanner.js';
+import { startScanner, barcodeScannerAvailable } from './scanner.js';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js';
+
+// Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
+// time the user finishes scanning. Failures are logged but non-fatal — the
+// user can still add the product manually.
+loadProducts().catch(() => { /* already logged inside loadProducts */ });
 
 // --- Header actions -------------------------------------------------------
 $('#btnPresets').addEventListener('click', openPresetsModal);
@@ -113,7 +119,8 @@ async function handleUpcFound(upc) {
   stopActiveScanner();
   setScannerStatus(`Found ${upc}. Looking up…`, 'working');
 
-  // 1. Local cache — we've seen this UPC before. Instant add.
+  // 1. Local cache — we've scanned this UPC before, or saved it ourselves.
+  // Instant add.
   const cachedId = getPresetIdForUpc(upc);
   if (cachedId) {
     const preset = state.presets.find(p => p.id === cachedId);
@@ -126,27 +133,27 @@ async function handleUpcFound(upc) {
     }
   }
 
-  // 2. Open Food Facts lookup.
-  let info = null;
-  try { info = await lookupUpc(upc); }
-  catch (e) { console.warn('OFF lookup failed', e); }
-
-  if (info && (info.volumeMl || info.abv || info.name)) {
-    setScannerStatus('Found on Open Food Facts. Review & add.', 'ok');
+  // 2. BC Liquor catalogue (bundled CSV). May still be loading on a cold
+  // start — wait for it before declaring a miss.
+  if (!productsLoaded()) {
+    try { await loadProducts(); } catch { /* fall through; lookup will miss */ }
+  }
+  const info = lookupBcLiquor(upc);
+  if (info) {
+    setScannerStatus('Found in BC Liquor catalogue. Review & add.', 'ok');
     prefillCustomForm({
       name: info.name || '',
       volumeMl: info.volumeMl,
       abv: info.abv,
       upc,
-      kcalPer100ml: info.kcalPer100ml,
     });
     setTimeout(closeScannerOnly, 600);
     return;
   }
 
-  // 3. Not found anywhere — user fills it in; checking "save as type" stores
-  // the UPC→preset link so the next scan is instant.
-  setScannerStatus("Not in the database. Fill it in below — it'll be remembered.", 'err');
+  // 3. Not found anywhere — user fills it in. The "save as type" toggle is
+  // pre-checked so the UPC is remembered locally and the next scan is instant.
+  setScannerStatus("Not in the catalogue. Fill it in below — it'll be saved on this device for next time.", 'err');
   prefillCustomForm({ upc });
   $('#saveAsPreset').checked = true;
   setTimeout(closeScannerOnly, 1400);
