@@ -452,6 +452,15 @@ header.app::after {
 
 .preset-tray::-webkit-scrollbar { display: none; }
 
+@media (min-width: 760px) {
+  .preset-tray {
+    flex-wrap: wrap;
+    overflow-x: visible;
+    overflow-y: visible;
+    padding-bottom: 2px;
+  }
+}
+
 .preset-chip {
   flex-shrink: 0;
   background: var(--bg-card);
@@ -742,12 +751,19 @@ header.app::after {
 
 /* Per-preset barcode list */
 .preset-upcs {
-  display: flex;
-  flex-wrap: wrap;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   gap: 6px;
   align-items: center;
   padding-top: 6px;
   border-top: 1px dashed var(--line-soft);
+}
+
+.upc-summary {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
 }
 
 .upc-list-label {
@@ -763,6 +779,21 @@ header.app::after {
   font-size: 11px;
   color: var(--ink-soft);
   font-style: italic;
+}
+
+.upc-count {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+
+.upc-chip-row {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
 }
 
 .upc-chip {
@@ -796,20 +827,59 @@ header.app::after {
 
 .upc-chip .upc-x:hover { background: rgba(212, 82, 58, 0.18); color: var(--danger); }
 
-.upc-add {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  margin-left: auto;
+.upc-manage-btn {
+  justify-self: end;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--ink-soft);
+  border-radius: 999px;
+  padding: 5px 9px;
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.upc-manage-btn:hover,
+.preset-upcs.editing .upc-manage-btn {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+  background: rgba(224, 163, 74, 0.06);
+}
+
+.upc-popover {
+  grid-column: 1 / -1;
+  padding: 9px;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+}
+
+.upc-popover label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.upc-popover-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 28px;
+  gap: 6px;
 }
 
 .upc-add-input {
-  width: 130px;
+  width: 100%;
   padding: 5px 9px;
   font-size: 11px;
-  background: var(--bg-input);
+  background: var(--bg-elev);
   border: 1px dashed var(--line);
-  border-radius: 999px;
+  border-radius: 8px;
   color: var(--ink);
   outline: none;
   font-family: 'IBM Plex Mono', monospace;
@@ -821,8 +891,8 @@ header.app::after {
   background: var(--bg-input);
   border: 1px solid var(--line);
   color: var(--ink-dim);
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   cursor: pointer;
   font-size: 14px;

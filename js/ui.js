@@ -1,16 +1,17 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=4';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=4';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=5';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=5';
 import {
   state, saveState, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=4';
+} from './state.js?v=5';
 
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
+let barcodeEditorPresetId = null;
 
 // --- Rendering --------------------------------------------------------------
 export function render() {
@@ -361,6 +362,7 @@ function renderPresetList() {
   list.innerHTML = '';
   state.presets.forEach(preset => {
     const upcs = getUpcsForPreset(preset.id);
+    const editingBarcodes = barcodeEditorPresetId === preset.id;
     const row = document.createElement('div');
     row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '');
     row.innerHTML = `
@@ -372,21 +374,36 @@ function renderPresetList() {
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>
       </div>
-      <div class="preset-upcs">
-        <span class="upc-list-label">Barcodes</span>
-        ${upcs.length === 0
-          ? '<span class="upc-empty">none yet</span>'
-          : upcs.map(u => `
+      <div class="preset-upcs${editingBarcodes ? ' editing' : ''}">
+        <div class="upc-summary">
+          <span class="upc-list-label">Barcodes</span>
+          ${upcs.length === 0
+            ? '<span class="upc-empty">No barcode</span>'
+            : `<span class="upc-count">${upcs.length} saved</span>`}
+        </div>
+        ${upcs.length === 0 ? '' : `
+          <div class="upc-chip-row">
+            ${upcs.map(u => `
               <span class="upc-chip">
                 <span class="mono">${escapeHtml(u)}</span>
                 <button class="upc-x" data-forget-upc="${escapeHtml(u)}" title="Forget this barcode" aria-label="Forget barcode">×</button>
               </span>
             `).join('')}
-        <span class="upc-add">
-          <input class="input mono upc-add-input" type="text" inputmode="numeric"
-                 placeholder="add UPC" data-add-upc-for="${preset.id}" autocomplete="off" />
-          <button class="upc-add-btn" data-add-upc-submit="${preset.id}" title="Link this barcode" aria-label="Add barcode">+</button>
-        </span>
+          </div>
+        `}
+        <button class="upc-manage-btn" data-toggle-upcs="${preset.id}">
+          ${editingBarcodes ? 'Done' : (upcs.length ? 'Manage' : '+ Barcode')}
+        </button>
+        ${editingBarcodes ? `
+          <div class="upc-popover">
+            <label for="upc-${preset.id}">Add barcode</label>
+            <div class="upc-popover-row">
+              <input class="mono upc-add-input" id="upc-${preset.id}" type="text" inputmode="numeric"
+                     placeholder="0 12345 67890 5" data-add-upc-for="${preset.id}" autocomplete="off" />
+              <button class="upc-add-btn" data-add-upc-submit="${preset.id}" title="Link this barcode" aria-label="Add barcode">+</button>
+            </div>
+          </div>
+        ` : ''}
       </div>
     `;
     list.appendChild(row);
@@ -406,6 +423,7 @@ function renderPresetList() {
       else {
         // Hard-detach the UPCs we just orphaned so they don't dangle in the cache.
         linked.forEach(u => forgetUpc(u));
+        if (barcodeEditorPresetId === id) barcodeEditorPresetId = null;
         renderPresetList();
         render();
       }
@@ -418,6 +436,17 @@ function renderPresetList() {
       if (forgetUpc(upc)) renderPresetList();
     });
   });
+  $$('[data-toggle-upcs]', list).forEach(btn => {
+    btn.addEventListener('click', e => {
+      const id = e.currentTarget.dataset.toggleUpcs;
+      barcodeEditorPresetId = barcodeEditorPresetId === id ? null : id;
+      renderPresetList();
+      if (barcodeEditorPresetId) {
+        const input = list.querySelector(`[data-add-upc-for="${barcodeEditorPresetId}"]`);
+        input?.focus();
+      }
+    });
+  });
   // Attach a new barcode to an existing preset.
   $$('[data-add-upc-submit]', list).forEach(btn => {
     btn.addEventListener('click', e => {
@@ -426,7 +455,7 @@ function renderPresetList() {
       if (!input) return;
       const upc = input.value.trim();
       if (!upc) return;
-      if (rememberUpc(upc, presetId)) { input.value = ''; renderPresetList(); }
+      if (rememberUpc(upc, presetId)) { input.value = ''; barcodeEditorPresetId = presetId; renderPresetList(); }
     });
   });
   // Allow hitting Enter inside the inline UPC input as a shortcut for the +.
