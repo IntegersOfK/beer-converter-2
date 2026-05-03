@@ -85,10 +85,31 @@ export function getPresetIdForUpc(upc) {
 }
 
 export function rememberUpc(upc, presetId) {
-  if (!upc || !presetId) return;
-  upcCache[upc] = presetId;
+  if (!upc || !presetId) return false;
+  const clean = String(upc).trim();
+  if (!clean) return false;
+  upcCache[clean] = presetId;
   try { localStorage.setItem(UPC_CACHE_KEY, JSON.stringify(upcCache)); }
   catch (e) { console.warn('UPC cache save failed', e); }
+  return true;
+}
+
+// Returns every UPC currently mapped to the given preset id.
+export function getUpcsForPreset(presetId) {
+  return Object.entries(upcCache)
+    .filter(([, id]) => id === presetId)
+    .map(([upc]) => upc);
+}
+
+// Detach a single UPC from whatever preset it points at. Returns true if it
+// was actually present.
+export function forgetUpc(upc) {
+  const clean = String(upc || '').trim();
+  if (!clean || !(clean in upcCache)) return false;
+  delete upcCache[clean];
+  try { localStorage.setItem(UPC_CACHE_KEY, JSON.stringify(upcCache)); }
+  catch (e) { console.warn('UPC cache save failed', e); }
+  return true;
 }
 
 // --- preset mutation helpers ----------------------------------------------

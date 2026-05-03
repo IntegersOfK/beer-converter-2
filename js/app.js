@@ -5,19 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=2';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=2';
+import { $, $$, vibe } from './util.js?v=3';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=3';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
-} from './ui.js?v=2';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=2';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=2';
+  updateSaveAsPresetCopy,
+} from './ui.js?v=3';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=3';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=3';
 
 // Visible build marker so you can confirm the new bundle is loaded:
-// open DevTools → Console → look for "Beer Converter build v2 (BC Liquor)".
-console.log('Beer Converter build v2 (BC Liquor catalogue, no third-party API)');
+// open DevTools → Console → look for the "Beer Converter build v3" line.
+console.log('Beer Converter build v3 (visible UPC + drink-type UPC management)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -60,6 +61,10 @@ $('#customVolume').addEventListener('input', updateEthanolPreview);
 $('#customAbv').addEventListener('input', updateEthanolPreview);
 $('#customUnit').addEventListener('change', updateEthanolPreview);
 $('#btnAddCustom').addEventListener('click', submitCustomDrink);
+// Keep the "Save as type" toggle copy/hint honest as the user types.
+$('#customName').addEventListener('input', updateSaveAsPresetCopy);
+$('#customUpc').addEventListener('input', updateSaveAsPresetCopy);
+$('#saveAsPreset').addEventListener('change', updateSaveAsPresetCopy);
 
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);

@@ -695,6 +695,24 @@ header.app::after {
 
 .toggle-row input { accent-color: var(--amber); width: 16px; height: 16px; }
 
+.toggle-hint {
+  margin: -2px 0 0 24px;
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+}
+
+.label-aux {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.18em;
+  color: var(--ink-soft);
+  margin-left: 4px;
+  text-transform: lowercase;
+}
+
 .preset-list {
   display: flex;
   flex-direction: column;
@@ -704,7 +722,7 @@ header.app::after {
 
 .preset-list-item {
   display: flex;
-  align-items: center;
+  flex-direction: column;
   gap: 8px;
   padding: 10px 12px;
   background: var(--bg-card);
@@ -712,9 +730,108 @@ header.app::after {
   border-radius: 10px;
 }
 
+.preset-row-main {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .preset-list-item .info { flex: 1; min-width: 0; }
 .preset-list-item .name { font-size: 14px; color: var(--ink); }
 .preset-list-item .meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+/* Per-preset barcode list */
+.preset-upcs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+  padding-top: 6px;
+  border-top: 1px dashed var(--line-soft);
+}
+
+.upc-list-label {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+  margin-right: 2px;
+}
+
+.upc-empty {
+  font-size: 11px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.upc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 4px 3px 10px;
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+}
+
+.upc-chip .upc-x {
+  background: transparent;
+  border: none;
+  color: var(--ink-soft);
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 13px;
+  line-height: 1;
+  display: grid;
+  place-items: center;
+  font-family: inherit;
+  padding: 0;
+}
+
+.upc-chip .upc-x:hover { background: rgba(212, 82, 58, 0.18); color: var(--danger); }
+
+.upc-add {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.upc-add-input {
+  width: 130px;
+  padding: 5px 9px;
+  font-size: 11px;
+  background: var(--bg-input);
+  border: 1px dashed var(--line);
+  border-radius: 999px;
+  color: var(--ink);
+  outline: none;
+  font-family: 'IBM Plex Mono', monospace;
+}
+
+.upc-add-input:focus { border-color: var(--amber-deep); border-style: solid; }
+
+.upc-add-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  font-family: inherit;
+  padding: 0;
+}
+
+.upc-add-btn:hover { color: var(--amber); border-color: var(--amber-deep); }
 
 .preset-list-item .star-btn {
   background: transparent;

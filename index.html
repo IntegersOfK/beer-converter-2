@@ -103,10 +103,18 @@
         <span>Pure ethanol</span>
         <span class="val" id="ethanolPreviewVal">—</span>
       </div>
+      <div class="field" id="customUpcField">
+        <label for="customUpc">Barcode <span class="label-aux">(optional)</span></label>
+        <input class="input mono" id="customUpc" type="text" inputmode="numeric"
+               placeholder="leave blank if none" autocomplete="off" />
+      </div>
       <label class="toggle-row">
-        <input type="checkbox" id="saveAsPreset" /> Save this as a drink type
+        <input type="checkbox" id="saveAsPreset" />
+        <span id="saveAsPresetLabel">Save this as a drink type</span>
       </label>
-      <input type="hidden" id="customUpc" />
+      <p class="toggle-hint" id="saveAsPresetHint" style="display:none;">
+        Required to remember this barcode — needs a name above.
+      </p>
       <input type="hidden" id="customKcal" />
     </div>
 
@@ -191,6 +199,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=2"></script>
+<script type="module" src="js/app.js?v=3"></script>
 </body>
 </html>
