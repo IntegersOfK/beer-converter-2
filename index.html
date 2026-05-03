@@ -6,6 +6,9 @@
 <meta name="theme-color" content="#17110a">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<!-- Don't let intermediaries hand back a stale shell. The JS modules also
+     carry ?v=N query strings to bust the per-module cache. -->
+<meta http-equiv="Cache-Control" content="no-store, max-age=0">
 <title>Beer Converter</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🍺</text></svg>">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -188,6 +191,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js"></script>
+<script type="module" src="js/app.js?v=2"></script>
 </body>
 </html>

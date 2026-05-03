@@ -1,14 +1,23 @@
 // Entry point. Wires DOM events to state + UI, and orchestrates the scan flow.
+//
+// NOTE: every internal import below carries a `?v=...` query. ES module URLs
+// are cached aggressively by browsers — bumping this version invalidates all
+// cached modules in one go, which is essential when shipping data-source or
+// behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js';
+import { $, $$, vibe } from './util.js?v=2';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=2';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
-} from './ui.js';
-import { startScanner, barcodeScannerAvailable } from './scanner.js';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js';
+} from './ui.js?v=2';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=2';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=2';
+
+// Visible build marker so you can confirm the new bundle is loaded:
+// open DevTools → Console → look for "Beer Converter build v2 (BC Liquor)".
+console.log('Beer Converter build v2 (BC Liquor catalogue, no third-party API)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -159,13 +168,17 @@ async function handleUpcFound(upc) {
       volumePlaceholder: containerIsDrink ? null : pourHint,
     });
 
+    // Echo the parsed values in the status line so it's obvious on screen
+    // exactly what was prefilled (and to make it clear if the form somehow
+    // didn't pick them up).
+    const abvStr = `${(+info.abv).toFixed(1)}%`;
+    const volStr = containerIsDrink ? ` · ${Math.round(info.volumeMl)} ml` : '';
+    const tail   = containerIsDrink ? '' : ' · set pour size';
     setScannerStatus(
-      containerIsDrink
-        ? 'Found in BC Liquor catalogue. Review & add.'
-        : 'Found in BC Liquor catalogue. Set your pour size & add.',
+      `Found: ${info.name} · ${abvStr}${volStr}${tail}`,
       'ok',
     );
-    setTimeout(closeScannerOnly, 600);
+    setTimeout(closeScannerOnly, 800);
     return;
   }
 

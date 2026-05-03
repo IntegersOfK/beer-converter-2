@@ -71,7 +71,8 @@ export function getBenchmark() {
 
 // --- UPC cache -------------------------------------------------------------
 // Maps a UPC string to the preset id that represents it, so rescanning the
-// same can is instantaneous even if Open Food Facts has no record.
+// same can is instantaneous even when the BC Liquor catalogue has no record
+// (e.g. an out-of-province import the user filled in by hand).
 function loadUpcCache() {
   try { return JSON.parse(localStorage.getItem(UPC_CACHE_KEY)) || {}; }
   catch { return {}; }
