@@ -1,13 +1,13 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=4';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=4';
 import {
   state, saveState, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js';
+} from './state.js?v=4';
 
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
