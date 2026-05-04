@@ -32,7 +32,7 @@ export function loadState() {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.people) || parsed.people.length !== 2) return defaultState();
+    if (!parsed || !Array.isArray(parsed.people) || parsed.people.length < 1) return defaultState();
     if (!Array.isArray(parsed.presets) || parsed.presets.length === 0) parsed.presets = defaultPresets();
 
     // Ensure the standard drink preset exists; promote it to benchmark if the
@@ -155,8 +155,26 @@ export function removeDrink(personIdx, drinkIdx) {
 }
 
 export function setPersonName(personIdx, name) {
-  state.people[personIdx].name = name.trim() || (personIdx === 0 ? 'You' : 'Friend');
+  const fallback = personIdx === 0 ? 'You' : `Friend ${personIdx}`;
+  state.people[personIdx].name = name.trim() || fallback;
   saveState();
+}
+
+export function addPerson(name) {
+  const trimmed = (name == null ? '' : String(name)).trim();
+  const idx = state.people.length;
+  const fallback = idx === 0 ? 'You' : `Friend ${idx}`;
+  state.people.push({ name: trimmed || fallback, drinks: [] });
+  saveState();
+  return idx;
+}
+
+export function removePerson(personIdx) {
+  if (state.people.length <= 1) return false;
+  if (personIdx < 0 || personIdx >= state.people.length) return false;
+  state.people.splice(personIdx, 1);
+  saveState();
+  return true;
 }
 
 export function clearAllDrinks() {

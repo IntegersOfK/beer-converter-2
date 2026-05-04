@@ -5,20 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=5';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=5';
+import { $, $$, vibe } from './util.js?v=6';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=6';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy,
-} from './ui.js?v=5';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=5';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=5';
+} from './ui.js?v=6';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=6';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=6';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v5 (subtle drink-type barcode controls)');
+console.log('Beer Converter build v6 (multi-person tally)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -31,7 +31,7 @@ $('#btnPresets').addEventListener('click', openPresetsModal);
 $('#btnReset').addEventListener('click', () => {
   const any = state.people.some(p => p.drinks.length > 0);
   if (!any) return;
-  if (!confirm('Clear all drinks for both people?')) return;
+  if (!confirm('Clear all logged drinks for everyone?')) return;
   clearAllDrinks();
   render();
 });

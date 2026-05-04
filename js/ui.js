@@ -1,13 +1,19 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=5';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=5';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=6';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=6';
 import {
   state, saveState, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
+  addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=5';
+} from './state.js?v=6';
+
+// Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
+function personBadge(idx) {
+  return idx < 26 ? String.fromCharCode(65 + idx) : `#${idx + 1}`;
+}
 
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
@@ -31,6 +37,8 @@ function renderPeople() {
 
   grid.innerHTML = '';
 
+  const canRemove = state.people.length > 1;
+
   state.people.forEach((person, idx) => {
     const stats = personStats(person);
     const benchEquiv = bench ? stats.ethanolMl / ethanolOf(bench) : 0;
@@ -40,7 +48,8 @@ function renderPeople() {
     card.innerHTML = `
       <div class="person-head">
         <input class="name-input" data-person-name="${idx}" value="${escapeHtml(person.name)}" maxlength="16" spellcheck="false" />
-        <span class="person-badge">${idx === 0 ? 'A' : 'B'}</span>
+        <span class="person-badge">${personBadge(idx)}</span>
+        ${canRemove ? `<button class="x-btn person-remove" data-remove-person="${idx}" title="Remove ${escapeHtml(person.name)}" aria-label="Remove person">×</button>` : ''}
       </div>
       <div class="stats" data-stats="${idx}">
         <div class="stat hero" data-hero="${idx}">
@@ -90,6 +99,12 @@ function renderPeople() {
     });
   });
 
+  // "+ Add person" tile, full-width below the cards.
+  const addRow = document.createElement('div');
+  addRow.className = 'add-person-row';
+  addRow.innerHTML = `<button class="btn btn-add-person" id="btnAddPerson">+ Add person</button>`;
+  grid.appendChild(addRow);
+
   // Events
   $$('[data-person-name]').forEach(input => {
     input.addEventListener('change', e => {
@@ -108,6 +123,28 @@ function renderPeople() {
   $$('[data-add]').forEach(btn => {
     btn.addEventListener('click', e => openAddModal(+e.currentTarget.dataset.add));
   });
+  $$('[data-remove-person]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = +e.currentTarget.dataset.removePerson;
+      const person = state.people[idx];
+      if (!person) return;
+      if (person.drinks.length > 0 &&
+          !confirm(`Remove ${person.name} and their ${person.drinks.length} logged drink${person.drinks.length === 1 ? '' : 's'}?`)) {
+        return;
+      }
+      if (removePerson(idx)) { vibe(8); render(); }
+    });
+  });
+  $('#btnAddPerson')?.addEventListener('click', () => {
+    addPerson();
+    vibe(8);
+    render();
+    // Focus the new card's name field so the user can rename right away.
+    const newIdx = state.people.length - 1;
+    const newInput = $(`[data-person-name="${newIdx}"]`);
+    newInput?.focus();
+    newInput?.select();
+  });
 
   // Restore focus if needed.
   if (activeNameIdx !== null) {
@@ -117,16 +154,16 @@ function renderPeople() {
 }
 
 function renderCompare() {
-  const [a, b] = state.people;
-  const sa = personStats(a), sb = personStats(b);
-  const bench = getBenchmark();
-  const main  = $('#compareMain');
-  const equiv = $('#compareEquiv');
+  const peopleStats = state.people.map(p => ({ name: p.name, s: personStats(p) }));
+  const totalCount  = peopleStats.reduce((n, p) => n + p.s.count, 0);
+  const bench  = getBenchmark();
+  const main   = $('#compareMain');
+  const equiv  = $('#compareEquiv');
   const bLabel = $('#benchmarkLabel');
 
   bLabel.textContent = bench ? `Benchmark · ${bench.name} @ ${fmt(bench.abv,1)}%` : '';
 
-  if (sa.count === 0 && sb.count === 0) {
+  if (totalCount === 0) {
     main.innerHTML = `
       <div style="color:var(--ink-dim)">Log a drink to start tallying.</div>
       <ul class="hint-list">
@@ -139,40 +176,57 @@ function renderCompare() {
     return;
   }
 
+  // Drinkers ranked by ethanol — leader first. Non-drinkers sit out the sentence.
+  const drinkers = peopleStats
+    .filter(p => p.s.ethanolMl > 0)
+    .sort((x, y) => y.s.ethanolMl - x.s.ethanolMl);
+
   let sentence;
-  if (sa.ethanolMl === 0) {
-    sentence = `<b>${escapeHtml(b.name)}</b> has had <span class="big">${fmt(sb.standardDrinks,1)}</span> standard drinks. <b>${escapeHtml(a.name)}</b> is still dry.`;
-  } else if (sb.ethanolMl === 0) {
-    sentence = `<b>${escapeHtml(a.name)}</b> has had <span class="big">${fmt(sa.standardDrinks,1)}</span> standard drinks. <b>${escapeHtml(b.name)}</b> is still dry.`;
+  if (drinkers.length === 1) {
+    const only = drinkers[0];
+    const dryCount = state.people.length - 1;
+    const tail = dryCount === 0 ? ''
+               : dryCount === 1 ? ` ${escapeHtml(peopleStats.find(p => p.s.ethanolMl === 0).name)} is still dry.`
+               : ` Everyone else is still dry.`;
+    sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big">${fmt(only.s.standardDrinks,1)}</span> standard drinks.${tail}`;
   } else {
-    const ratio = sa.ethanolMl / sb.ethanolMl;
-    if (Math.abs(ratio - 1) < 0.03) {
-      sentence = `<b>${escapeHtml(a.name)}</b> and <b>${escapeHtml(b.name)}</b> are <span class="big">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
-    } else if (ratio > 1) {
-      sentence = `<b>${escapeHtml(a.name)}</b> has had <span class="big">${fmt(ratio, 2)}×</span> the ethanol of <b>${escapeHtml(b.name)}</b>.`;
+    const leader = drinkers[0];
+    const second = drinkers[1];
+    const ratio  = leader.s.ethanolMl / second.s.ethanolMl;
+    const tied   = Math.abs(ratio - 1) < 0.03;
+
+    if (drinkers.length === 2) {
+      // Pair sentence — preserve the original two-person phrasing.
+      if (tied) {
+        sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
+      } else {
+        sentence = `<b>${escapeHtml(leader.name)}</b> has had <span class="big">${fmt(ratio, 2)}×</span> the ethanol of <b>${escapeHtml(second.name)}</b>.`;
+      }
     } else {
-      sentence = `<b>${escapeHtml(b.name)}</b> has had <span class="big">${fmt(1/ratio, 2)}×</span> the ethanol of <b>${escapeHtml(a.name)}</b>.`;
+      // 3+ drinkers — leaderboard style.
+      if (tied) {
+        sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+      } else {
+        sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big">${fmt(leader.s.standardDrinks,1)}</span> standard drinks — <span class="big">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
+      }
     }
   }
   main.innerHTML = sentence;
 
   if (bench) {
     const be = ethanolOf(bench);
-    const aEq = sa.ethanolMl / be;
-    const bEq = sb.ethanolMl / be;
     const unit = bench.name.toLowerCase();
     const abvTag = `@ ${fmt(bench.abv,1)}%`;
     equiv.style.display = 'grid';
-    equiv.innerHTML = `
-      <div>
-        <span class="who">${escapeHtml(a.name)}</span>
-        <span><span class="num">${fmt(aEq,1)}</span> ${escapeHtml(unit)}${aEq === 1 ? '' : 's'} <span class="abv-tag">${abvTag}</span></span>
-      </div>
-      <div>
-        <span class="who">${escapeHtml(b.name)}</span>
-        <span><span class="num">${fmt(bEq,1)}</span> ${escapeHtml(unit)}${bEq === 1 ? '' : 's'} <span class="abv-tag">${abvTag}</span></span>
-      </div>
-    `;
+    equiv.innerHTML = peopleStats.map(p => {
+      const eq = p.s.ethanolMl / be;
+      return `
+        <div>
+          <span class="who">${escapeHtml(p.name)}</span>
+          <span><span class="num">${fmt(eq,1)}</span> ${escapeHtml(unit)}${eq === 1 ? '' : 's'} <span class="abv-tag">${abvTag}</span></span>
+        </div>
+      `;
+    }).join('');
   } else {
     equiv.style.display = 'none';
   }
