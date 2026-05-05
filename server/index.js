@@ -14,6 +14,7 @@
 //        POST ${ADMIN_PATH}/api/curated  — upsert one curated record
 //        DEL  ${ADMIN_PATH}/api/curated  — remove a curated record by UPC
 //        POST ${ADMIN_PATH}/api/reject   — mark a UPC as rejected (hide from queue)
+//        POST ${ADMIN_PATH}/api/deploy   — git pull latest, data files preserved
 //
 // Run:
 //   node server/index.js                         # listens on $PORT or 8787
@@ -24,9 +25,12 @@
 //   curated.json       — array of canonical { upc, name, abv, volumeMl?, group? }
 //   rejected.jsonl     — append-only log of UPCs marked junk
 
-const http = require('node:http');
-const fs   = require('node:fs');
-const path = require('node:path');
+const http       = require('node:http');
+const fs         = require('node:fs');
+const path       = require('node:path');
+const { execFile } = require('node:child_process');
+
+const REPO_ROOT = path.join(__dirname, '..');
 
 const PORT       = Number(process.env.PORT) || 8787;
 const DATA_DIR   = process.env.DATA_DIR || __dirname;
@@ -391,6 +395,32 @@ const server = http.createServer(async (req, res) => {
       catch (e) { console.error('reject log failed', e); res.writeHead(500); res.end('write failed'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    if (req.method === 'POST' && apiPath === 'deploy') {
+      // Snapshot all three data files before pulling. curated.json and
+      // rejected.jsonl are tracked in git (seed data), so `git pull` would
+      // overwrite them. submissions.jsonl is gitignored but we snapshot it
+      // too for safety. After the pull we restore every file unconditionally.
+      const dataFiles = [SUBMIT_LOG, CURATED, REJECTED];
+      const snapshots = dataFiles.map(f => {
+        try { return { f, buf: fs.existsSync(f) ? fs.readFileSync(f) : null }; }
+        catch { return { f, buf: null }; }
+      });
+
+      execFile('git', ['-C', REPO_ROOT, 'pull', '--ff-only'], { timeout: 30000 }, (err, stdout, stderr) => {
+        // Always restore data files — even if the pull failed we don't want
+        // a partial pull to leave the repo files in place.
+        for (const { f, buf } of snapshots) {
+          if (buf !== null) try { fs.writeFileSync(f, buf); } catch {}
+        }
+
+        const body = { ok: !err, stdout: stdout || '', stderr: stderr || '' };
+        if (err) body.error = err.message;
+        res.writeHead(err ? 500 : 200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify(body));
+      });
       return;
     }
 
