@@ -5,20 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=11';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=11';
+import { $, $$, vibe } from './util.js?v=13';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=13';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-} from './ui.js?v=11';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=11';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=11';
+} from './ui.js?v=13';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=13';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=13';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v11 (volume in submissions, name-based aggregation)');
+console.log('Beer Converter build v13 (same-origin /submit + /catalog.json in prod)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the

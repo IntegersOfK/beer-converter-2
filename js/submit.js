@@ -7,7 +7,12 @@
 //
 // To enable: set SUBMIT_URL to your deployment's /submit endpoint.
 
-const SUBMIT_URL = 'http://localhost:8787/submit';   // local dev; swap for prod URL on deploy
+// Local dev hits the Node server on :8787. Prod uses a same-origin relative
+// path — the host is expected to reverse-proxy /submit to the backend.
+// Pointing prod at localhost would trigger Chrome's Private Network Access
+// prompt ("Apps on device") because a public origin can't reach 127.0.0.1.
+const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+const SUBMIT_URL = IS_LOCAL ? 'http://localhost:8787/submit' : '/submit';
 
 // Avoid double-submitting the same UPC from the same session — a single
 // mistyped ABV otherwise floods the log when the user re-adds the drink.

@@ -17,8 +17,12 @@
 const CSV_PATH = 'bc_liquor_store_product_price_list_december_2025.csv';
 
 // Crowdsourced curated catalogue. Fetched in parallel with the BC CSV; entries
-// here override BC entries for the same UPC. Set to '' to disable.
-const CATALOG_URL = 'http://localhost:8787/catalog.json';
+// here override BC entries for the same UPC. Local dev hits the Node server
+// directly; prod uses a same-origin relative path (the host reverse-proxies
+// /catalog.json to the backend). Avoids the Private Network Access prompt
+// that fires when a public origin tries to reach localhost.
+const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
+const CATALOG_URL = IS_LOCAL ? 'http://localhost:8787/catalog.json' : '/catalog.json';
 
 let _byUpc = null;          // Map<string, Product>
 let _loadPromise = null;    // de-dupes concurrent loads

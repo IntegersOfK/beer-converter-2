@@ -9,7 +9,7 @@
 // Product lookup is handled separately by ./products.js (BC Liquor catalogue)
 // and ./state.js (the user's local UPC cache).
 
-import { ML_PER_OZ } from './calc.js?v=11';
+import { ML_PER_OZ } from './calc.js?v=13';
 
 // --- volume parsing helpers (used by manual entry / future imports) --------
 // Inputs seen in practice:
