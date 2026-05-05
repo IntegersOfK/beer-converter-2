@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Beer Converter · Curation</title>
+<style>
+  :root {
+    --bg: #17110a;
+    --bg-elev: #1f1710;
+    --bg-card: #2a1f15;
+    --bg-input: #0f0a06;
+    --ink: #f4e9d0;
+    --ink-dim: #c9b894;
+    --ink-soft: #8b7b5f;
+    --amber: #e0a34a;
+    --amber-bright: #f5be5e;
+    --amber-deep: #b87a2e;
+    --rust: #c56434;
+    --line: #3a2d1e;
+    --line-soft: #241a11;
+    --danger: #d4523a;
+    --good:   #6db672;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, system-ui, sans-serif; }
+  body { padding: 24px clamp(16px, 4vw, 40px) 80px; max-width: 1200px; margin: 0 auto; }
+  h1 { font-size: 22px; margin: 0 0 4px; letter-spacing: -0.01em; }
+  h2 { font-size: 14px; margin: 28px 0 10px; color: var(--ink-dim); letter-spacing: 0.16em; text-transform: uppercase; font-weight: 600; }
+  .sub { color: var(--ink-soft); font-size: 12px; letter-spacing: 0.04em; margin-bottom: 20px; }
+  .mono { font-family: ui-monospace, "IBM Plex Mono", monospace; }
+  .pill {
+    display: inline-block; padding: 2px 8px; border-radius: 999px;
+    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.1em;
+    background: var(--bg-card); color: var(--ink-soft); border: 1px solid var(--line-soft);
+  }
+  .pill.amber { color: var(--amber); border-color: var(--amber-deep); }
+  .pill.danger { color: var(--danger); border-color: var(--danger); }
+  .pill.good   { color: var(--good); border-color: #3b6d3f; }
+
+  .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .toolbar input[type="text"] {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; color: var(--ink); font: inherit; min-width: 220px;
+  }
+  .toolbar button { font-family: inherit; }
+
+  .empty {
+    padding: 18px; border: 1px dashed var(--line); border-radius: 12px;
+    color: var(--ink-soft); text-align: center; font-style: italic;
+  }
+
+  .card {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 12px;
+  }
+  .card.pending { border-left: 3px solid var(--amber); }
+
+  .card-head {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
+  }
+  .card-head .upc { font-family: ui-monospace, monospace; font-size: 13px; color: var(--ink); letter-spacing: 0.04em; }
+  .card-head .meta { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
+
+  .samples { font-size: 12px; color: var(--ink-dim); display: grid; gap: 4px; margin: 6px 0 12px; }
+  .samples b { color: var(--ink); font-weight: 600; }
+  .samples .sample-row { display: flex; gap: 10px; align-items: baseline; }
+  .samples .count { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); min-width: 24px; text-align: right; }
+
+  .suggestions { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .suggestion {
+    border: 1px dashed var(--amber-deep); background: rgba(224,163,74,0.06); color: var(--amber);
+    border-radius: 999px; padding: 5px 10px; font-size: 11px; cursor: pointer;
+    font-family: inherit;
+  }
+  .suggestion:hover { background: rgba(224,163,74,0.15); }
+  .suggestion .score { color: var(--ink-soft); margin-left: 6px; font-family: ui-monospace, monospace; font-size: 10px; }
+
+  .form-grid {
+    display: grid; gap: 8px; grid-template-columns: 2.4fr 1fr 1fr;
+    margin-bottom: 10px;
+  }
+  @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr 1fr; } }
+  .form-grid label { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.16em; color: var(--ink-soft); text-transform: uppercase; }
+  .form-grid input {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; color: var(--ink); font: inherit; width: 100%;
+  }
+  .form-grid input:focus { outline: none; border-color: var(--amber); }
+  .form-grid .field { display: flex; flex-direction: column; gap: 4px; }
+
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .btn {
+    border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
+    border-radius: 8px; padding: 8px 14px; cursor: pointer; font: inherit;
+    transition: border-color 0.15s, color 0.15s, background 0.15s;
+  }
+  .btn:hover { border-color: var(--amber-deep); color: var(--amber); }
+  .btn.primary { background: var(--amber); color: #1a140d; border-color: var(--amber-bright); font-weight: 600; }
+  .btn.primary:hover { background: var(--amber-bright); color: #1a140d; }
+  .btn.danger { color: var(--danger); }
+  .btn.danger:hover { border-color: var(--danger); background: rgba(212,82,58,0.1); }
+  .btn.ghost { background: transparent; color: var(--ink-soft); }
+
+  .curated-list {
+    display: grid; gap: 14px;
+  }
+  .curated-group {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    padding: 10px 12px;
+  }
+  .curated-group-head {
+    display: flex; gap: 10px; align-items: baseline;
+    padding: 2px 4px 8px; border-bottom: 1px dashed var(--line-soft); margin-bottom: 8px;
+  }
+  .curated-group-head .name { font-size: 14px; color: var(--ink); font-weight: 600; flex: 1; min-width: 0;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .curated-group-head .badge { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); }
+  .curated-row {
+    display: grid; grid-template-columns: 160px 1fr 80px 90px auto;
+    gap: 8px; align-items: center;
+    padding: 6px 4px; font-size: 13px;
+  }
+  .curated-row + .curated-row { border-top: 1px dashed var(--line-soft); }
+  .curated-row .upc-cell { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
+  .curated-row input {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
+  }
+  .curated-row input:focus { outline: none; border-color: var(--amber); }
+  @media (max-width: 720px) {
+    .curated-row { grid-template-columns: 1fr 1fr; }
+    .curated-row .upc-cell { grid-column: 1 / -1; }
+  }
+
+  .toast {
+    position: fixed; bottom: 20px; right: 20px;
+    background: var(--bg-elev); border: 1px solid var(--amber-deep); color: var(--amber);
+    padding: 10px 14px; border-radius: 8px; font-size: 13px;
+    transform: translateY(20px); opacity: 0; transition: all 0.18s;
+    pointer-events: none; z-index: 100;
+  }
+  .toast.show { transform: none; opacity: 1; }
+  .toast.danger { border-color: var(--danger); color: var(--danger); }
+</style>
+</head>
+<body>
+
+<h1>Curation · <span class="mono" style="color:var(--amber); font-weight:normal;">Beer Converter</span></h1>
+<div class="sub">Triage the submission queue, build the canonical catalogue served at <span class="mono">/catalog.json</span>.</div>
+
+<div class="toolbar">
+  <span class="pill" id="pillPending">— pending</span>
+  <span class="pill amber" id="pillCurated">— curated</span>
+  <span class="pill danger" id="pillRejected">— rejected</span>
+  <button class="btn ghost" id="btnRefresh">Refresh</button>
+</div>
+
+<h2>Pending submissions</h2>
+<div id="pendingList"><div class="empty">Loading…</div></div>
+
+<h2>Curated catalogue</h2>
+<div class="toolbar">
+  <input type="text" id="curatedFilter" placeholder="Filter by name or UPC…" />
+  <span class="pill" id="curatedShowing">—</span>
+</div>
+<div class="curated-list" id="curatedList"></div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+  // ---- API base: same path as this page, minus the trailing '/'
+  const ADMIN_BASE = location.pathname.replace(/\/+$/, '');
+  const API = ADMIN_BASE + '/api';
+
+  let currentState = { pending: [], curated: [], rejectedCount: 0 };
+
+  function $(s, ctx = document) { return ctx.querySelector(s); }
+  function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
+
+  function escape(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  let toastTimer = null;
+  function toast(msg, kind = '') {
+    const el = $('#toast');
+    el.textContent = msg;
+    el.className = 'toast show ' + kind;
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => { el.className = 'toast ' + kind; }, 2400);
+  }
+
+  async function api(path, opts = {}) {
+    const res = await fetch(API + path, {
+      ...opts,
+      headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    });
+    if (!res.ok) throw new Error(`${res.status}: ${await res.text()}`);
+    const ct = res.headers.get('content-type') || '';
+    return ct.includes('json') ? res.json() : res.text();
+  }
+
+  async function loadQueue() {
+    try {
+      currentState = await api('/queue');
+      render();
+    } catch (e) {
+      toast('Load failed: ' + e.message, 'danger');
+    }
+  }
+
+  function render() {
+    const { pending, curated, rejectedCount } = currentState;
+    $('#pillPending').textContent  = `${pending.length} pending`;
+    $('#pillCurated').textContent  = `${curated.length} curated`;
+    $('#pillRejected').textContent = `${rejectedCount} rejected`;
+    renderPending();
+    renderCurated();
+  }
+
+  function renderPending() {
+    const wrap = $('#pendingList');
+    const items = currentState.pending;
+    if (!items.length) {
+      wrap.innerHTML = `<div class="empty">Inbox zero. Nothing to triage.</div>`;
+      return;
+    }
+    wrap.innerHTML = items.map(renderPendingCard).join('');
+    $$('.card.pending').forEach(card => {
+      const upc = card.dataset.upc;
+      $('button.save', card).addEventListener('click', () => savePending(card, upc));
+      $('button.reject', card).addEventListener('click', () => rejectPending(card, upc));
+      $$('button.suggestion', card).forEach(b => {
+        b.addEventListener('click', () => {
+          const data = JSON.parse(b.dataset.suggest);
+          $('input[name=name]', card).value = data.name;
+        });
+      });
+    });
+  }
+
+  function renderPendingCard(item) {
+    const topName = item.names[0]?.name || '';
+    const topAbv  = item.abvs[0]?.abv ?? '';
+    const topVol  = item.volumes && item.volumes[0] ? item.volumes[0].volumeMl : '';
+    const sampleNames = item.names.slice(0, 4).map(n =>
+      `<div class="sample-row"><span class="count">${n.n}×</span><b>${escape(n.name)}</b></div>`
+    ).join('');
+    const samplePills = [
+      ...item.abvs.slice(0, 4).map(a =>
+        `<span class="pill">${a.abv}% <span style="color:var(--ink-soft); margin-left:4px;">(${a.n})</span></span>`),
+      ...((item.volumes || []).slice(0, 4).map(v =>
+        `<span class="pill">${v.volumeMl} ml <span style="color:var(--ink-soft); margin-left:4px;">(${v.n})</span></span>`)),
+    ].join(' ');
+    const suggestions = (item.suggestions || []).map(s => {
+      const payload = escape(JSON.stringify({ name: s.name }));
+      return `<button class="btn suggestion" data-suggest='${payload}'>${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span></button>`;
+    }).join('');
+
+    return `
+      <div class="card pending" data-upc="${escape(item.upc)}">
+        <div class="card-head">
+          <span class="upc">${escape(item.upc)}</span>
+          <span class="meta">${item.count} submission${item.count === 1 ? '' : 's'} · last ${formatTime(item.lastSeen)}</span>
+        </div>
+        <div class="samples">
+          ${sampleNames}
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${samplePills}</div>
+        </div>
+        ${suggestions ? `<div class="suggestions">${suggestions}</div>` : ''}
+        <div class="form-grid">
+          <div class="field"><label>Name</label><input name="name" value="${escape(topName)}" placeholder="Product name" /></div>
+          <div class="field"><label>ABV %</label><input name="abv"  type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
+          <div class="field"><label>Vol. (ml)</label><input name="volumeMl" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
+        </div>
+        <div class="actions">
+          <button class="btn primary save">Save to catalogue</button>
+          <button class="btn danger reject">Reject</button>
+        </div>
+      </div>
+    `;
+  }
+
+  async function savePending(card, upc) {
+    const get = n => $(`input[name=${n}]`, card).value.trim();
+    const payload = {
+      upc,
+      name: get('name'),
+      abv:  Number(get('abv')),
+      volumeMl: get('volumeMl') ? Number(get('volumeMl')) : undefined,
+    };
+    if (!payload.name) return toast('Name is required', 'danger');
+    if (!Number.isFinite(payload.abv)) return toast('ABV is required', 'danger');
+    try {
+      await api('/curated', { method: 'POST', body: JSON.stringify(payload) });
+      toast(`Curated ${payload.name}`);
+      await loadQueue();
+    } catch (e) {
+      toast('Save failed: ' + e.message, 'danger');
+    }
+  }
+
+  async function rejectPending(card, upc) {
+    const reason = prompt(`Reject ${upc}? Optional reason:`);
+    if (reason === null) return;
+    try {
+      await api('/reject', { method: 'POST', body: JSON.stringify({ upc, reason }) });
+      toast('Rejected');
+      await loadQueue();
+    } catch (e) {
+      toast('Reject failed: ' + e.message, 'danger');
+    }
+  }
+
+  // ---- Curated list ------------------------------------------------------
+  // Curated UPCs are bucketed by exact (case-sensitive) name. The admin
+  // collapses variants of the same product by editing them to share a name.
+  function renderCurated() {
+    const filterEl = $('#curatedFilter');
+    const filter = filterEl.value.trim().toLowerCase();
+    const all = currentState.curated.slice();
+    const list = filter
+      ? all.filter(c =>
+          c.upc.includes(filter) ||
+          c.name.toLowerCase().includes(filter))
+      : all;
+
+    // Group by exact name.
+    const byName = new Map();
+    for (const c of list) {
+      if (!byName.has(c.name)) byName.set(c.name, []);
+      byName.get(c.name).push(c);
+    }
+    const groups = [...byName.entries()].sort(([a], [b]) => a.localeCompare(b));
+    $('#curatedShowing').textContent =
+      `${list.length} / ${all.length} UPCs · ${byName.size} product${byName.size === 1 ? '' : 's'}`;
+
+    const wrap = $('#curatedList');
+    if (!all.length) {
+      wrap.innerHTML = `<div class="empty">No curated entries yet. Save one from the queue above.</div>`;
+      return;
+    }
+    if (!list.length) {
+      wrap.innerHTML = `<div class="empty">No curated entries match the filter.</div>`;
+      return;
+    }
+    wrap.innerHTML = groups.map(([name, items]) => `
+      <div class="curated-group">
+        <div class="curated-group-head">
+          <span class="name">${escape(name)}</span>
+          <span class="badge">${items.length} UPC${items.length === 1 ? '' : 's'}</span>
+        </div>
+        ${items.sort((a, b) => a.upc.localeCompare(b.upc)).map(c => `
+          <div class="curated-row" data-upc="${escape(c.upc)}">
+            <div class="upc-cell">${escape(c.upc)}</div>
+            <input name="name" value="${escape(c.name)}" />
+            <input name="abv"  type="number" step="0.1" min="0" max="100" value="${escape(c.abv)}" />
+            <input name="volumeMl" type="number" step="1" min="0" value="${escape(c.volumeMl ?? '')}" placeholder="ml" />
+            <div class="actions">
+              <button class="btn save">Save</button>
+              <button class="btn danger del">Delete</button>
+            </div>
+          </div>
+        `).join('')}
+      </div>
+    `).join('');
+
+    $$('.curated-row').forEach(row => {
+      const upc = row.dataset.upc;
+      $('button.save', row).addEventListener('click', () => updateCurated(row, upc));
+      $('button.del',  row).addEventListener('click', () => deleteCurated(upc));
+    });
+  }
+
+  async function updateCurated(row, upc) {
+    const get = n => $(`input[name=${n}]`, row).value.trim();
+    const payload = {
+      upc,
+      name: get('name'),
+      abv:  Number(get('abv')),
+      volumeMl: get('volumeMl') ? Number(get('volumeMl')) : undefined,
+    };
+    if (!payload.name) return toast('Name is required', 'danger');
+    if (!Number.isFinite(payload.abv)) return toast('ABV is required', 'danger');
+    try {
+      await api('/curated', { method: 'POST', body: JSON.stringify(payload) });
+      toast(`Updated ${payload.name}`);
+      await loadQueue();
+    } catch (e) {
+      toast('Save failed: ' + e.message, 'danger');
+    }
+  }
+
+  async function deleteCurated(upc) {
+    if (!confirm(`Delete curated entry for ${upc}? Future submissions will resurface in the queue.`)) return;
+    try {
+      await api('/curated/' + encodeURIComponent(upc), { method: 'DELETE' });
+      toast('Deleted');
+      await loadQueue();
+    } catch (e) {
+      toast('Delete failed: ' + e.message, 'danger');
+    }
+  }
+
+  function formatTime(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    if (isNaN(d)) return '—';
+    const now = new Date();
+    const diff = (now - d) / 1000;
+    if (diff < 60)  return 'just now';
+    if (diff < 3600)  return Math.floor(diff / 60) + ' min ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + ' hr ago';
+    return d.toISOString().slice(0, 16).replace('T', ' ');
+  }
+
+  $('#btnRefresh').addEventListener('click', loadQueue);
+  $('#curatedFilter').addEventListener('input', renderCurated);
+
+  loadQueue();
+</script>
+</body>
+</html>

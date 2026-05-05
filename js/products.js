@@ -16,6 +16,10 @@
 
 const CSV_PATH = 'bc_liquor_store_product_price_list_december_2025.csv';
 
+// Crowdsourced curated catalogue. Fetched in parallel with the BC CSV; entries
+// here override BC entries for the same UPC. Set to '' to disable.
+const CATALOG_URL = 'http://localhost:8787/catalog.json';
+
 let _byUpc = null;          // Map<string, Product>
 let _loadPromise = null;    // de-dupes concurrent loads
 
@@ -26,18 +30,50 @@ export function productsLoaded() { return _byUpc !== null; }
 export function loadProducts() {
   if (_byUpc) return Promise.resolve();
   if (_loadPromise) return _loadPromise;
-  _loadPromise = fetch(CSV_PATH)
-    .then(r => {
-      if (!r.ok) throw new Error('CSV fetch failed: ' + r.status);
-      return r.text();
-    })
-    .then(text => { _byUpc = buildIndex(parseCsv(text)); })
-    .catch(err => {
-      console.warn('BC Liquor catalogue failed to load', err);
-      _byUpc = new Map();        // empty map → lookups just miss
-      throw err;
-    });
+
+  // BC CSV — required for offline-first behaviour.
+  const bcLoad = fetch(CSV_PATH)
+    .then(r => { if (!r.ok) throw new Error('CSV fetch failed: ' + r.status); return r.text(); })
+    .then(text => buildIndex(parseCsv(text)))
+    .catch(err => { console.warn('BC Liquor catalogue failed to load', err); return new Map(); });
+
+  // Curated catalogue — optional; never block the app on it.
+  const curatedLoad = !CATALOG_URL ? Promise.resolve([]) :
+    fetch(CATALOG_URL, { cache: 'no-cache' })
+      .then(r => { if (!r.ok) throw new Error('catalog fetch failed: ' + r.status); return r.json(); })
+      .catch(err => { console.warn('Curated catalogue failed to load', err); return []; });
+
+  _loadPromise = Promise.all([bcLoad, curatedLoad]).then(([bcMap, curated]) => {
+    // Curated entries win on conflict (the whole point of curating them).
+    mergeCurated(bcMap, Array.isArray(curated) ? curated : []);
+    _byUpc = bcMap;
+  });
   return _loadPromise;
+}
+
+function mergeCurated(map, curated) {
+  for (const c of curated) {
+    if (!c || typeof c.upc !== 'string') continue;
+    const product = {
+      upc:         c.upc,
+      name:        typeof c.name === 'string' ? c.name : '',
+      volumeMl:    Number.isFinite(+c.volumeMl) ? +c.volumeMl : null,
+      abv:         Number.isFinite(+c.abv) ? +c.abv : null,
+      category:    null,
+      subcategory: null,
+      curated:     true,
+    };
+    indexProductAllForms(map, product);
+  }
+}
+
+function indexProductAllForms(map, product) {
+  const upc = product.upc;
+  map.set(upc, product);
+  const digits = upc.replace(/\D/g, '');
+  if (digits && digits !== upc)        map.set(digits, product);
+  const stripped = digits.replace(/^0+/, '');
+  if (stripped && stripped !== digits) map.set(stripped, product);
 }
 
 // Synchronous lookup. Returns a normalised product object or null.
@@ -126,12 +162,7 @@ function buildIndex(rows) {
       category: row[iCat] || null,
       subcategory: row[iSub] || null,
     };
-    // Index under raw UPC and digits-only forms for tolerant matching.
-    map.set(upc, product);
-    const digits = upc.replace(/\D/g, '');
-    if (digits && digits !== upc) map.set(digits, product);
-    const stripped = digits.replace(/^0+/, '');
-    if (stripped && stripped !== digits) map.set(stripped, product);
+    indexProductAllForms(map, product);
   }
   return map;
 }

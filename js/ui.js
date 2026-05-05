@@ -1,14 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=7';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=7';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=11';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=11';
 import {
   state, saveState, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=7';
+} from './state.js?v=11';
+import { submitProduct } from './submit.js?v=11';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -504,6 +505,11 @@ export function submitCustomDrink() {
     const preset = addPreset({ name, volumeMl, abv, kcalPer100ml, upc });
     presetId = preset.id;
   }
+
+  // Crowdsource the UPC → name/ABV/volume mapping back to the central log so
+  // we can expand the catalogue. Fire-and-forget: a failure here never blocks
+  // the user's local add. Skipped silently if no UPC, no name, or backend unset.
+  if (upc && name) submitProduct({ upc, name, abv, volumeMl });
 
   logDrink(addModalPersonIdx, {
     name: name || `${fmt(volumeMl,0)} ml · ${fmt(abv,1)}%`,
