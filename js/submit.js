@@ -14,8 +14,9 @@
 const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 const SUBMIT_URL = IS_LOCAL ? 'http://localhost:8787/submit' : '/submit';
 
-// Avoid double-submitting the same UPC from the same session — a single
-// mistyped ABV otherwise floods the log when the user re-adds the drink.
+// Avoid double-submitting the same UPC+ABV+volume combo from the same session.
+// Keying on all three allows a corrected re-add (different ABV or volume) to
+// go through, while still deduplicating true duplicates.
 const submittedThisSession = new Set();
 
 export function submitProduct({ upc, name, abv, volumeMl }) {
@@ -23,12 +24,13 @@ export function submitProduct({ upc, name, abv, volumeMl }) {
   const cleanUpc  = String(upc  || '').replace(/\s+/g, '');
   const cleanName = String(name || '').trim();
   const numAbv    = Number(abv);
+  const numVol    = Number(volumeMl);
   if (!cleanUpc || !cleanName || !Number.isFinite(numAbv)) return;
-  if (submittedThisSession.has(cleanUpc)) return;
-  submittedThisSession.add(cleanUpc);
+  const dedupeKey = `${cleanUpc}|${numAbv}|${Number.isFinite(numVol) ? numVol : ''}`;
+  if (submittedThisSession.has(dedupeKey)) return;
+  submittedThisSession.add(dedupeKey);
 
   const body = { upc: cleanUpc, name: cleanName, abv: numAbv };
-  const numVol = Number(volumeMl);
   if (Number.isFinite(numVol) && numVol > 0) body.volumeMl = numVol;
   const payload = JSON.stringify(body);
   // `keepalive` lets the request survive a page-hide on mobile, since the
