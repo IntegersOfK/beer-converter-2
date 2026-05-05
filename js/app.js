@@ -5,20 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=13';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=13';
+import { $, $$, vibe } from './util.js?v=14';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=14';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-} from './ui.js?v=13';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=13';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=13';
+} from './ui.js?v=14';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=14';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=14';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v13 (same-origin /submit + /catalog.json in prod)');
+console.log('Beer Converter build v14 (curated entries prefill volume on scan)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -161,8 +161,11 @@ async function handleUpcFound(upc) {
     // drink (a 355 ml can is one drink). For spirits & wine the catalogue
     // volume is the *bottle* (750 ml etc.) — a single drink is a pour from
     // it, so we leave the volume blank and just hint a typical pour size.
+    //
+    // Curated entries skip this guesswork: a human entered the volume, so
+    // it's the per-drink volume by definition.
     const cat = (info.category || '').toLowerCase();
-    const containerIsDrink = cat === 'beer' || cat === 'refreshment beverages';
+    const containerIsDrink = info.curated || cat === 'beer' || cat === 'refreshment beverages';
     const pourHint =
       cat === 'spirits' ? 44 :   // ~1.5 oz shot
       cat === 'wine'    ? 142 :  // ~5 oz pour
