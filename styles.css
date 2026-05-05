@@ -220,6 +220,171 @@ header.app::after {
   margin-left: 2px;
 }
 
+/* Compare-everyone toggle + detail panel (3+ people) */
+.compare-expand {
+  margin-top: 12px;
+  width: 100%;
+  background: transparent;
+  border: 1px dashed rgba(224,163,74,0.25);
+  color: var(--amber);
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  transition: all 0.15s;
+}
+
+.compare-expand:hover {
+  border-color: var(--amber-deep);
+  background: rgba(224,163,74,0.06);
+}
+
+.compare-expand-caret {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.compare-detail {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed rgba(224,163,74,0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  animation: fadeIn 0.18s ease;
+}
+
+.compare-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compare-breakdown-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.2fr) auto minmax(0, 1.6fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 7px 10px;
+  background: rgba(15, 10, 6, 0.4);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+}
+
+.compare-breakdown-row .who {
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compare-breakdown-row .std {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.compare-breakdown-row .std .num {
+  color: var(--amber);
+  font-weight: 600;
+  font-size: 13px;
+  margin-right: 3px;
+}
+
+.compare-breakdown-row .vs-leader,
+.compare-breakdown-row .vs-behind,
+.compare-breakdown-row .vs-dry {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10.5px;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.compare-breakdown-row .vs-leader { color: var(--amber); }
+.compare-breakdown-row .vs-behind .num {
+  color: var(--ink);
+  font-weight: 600;
+  margin-right: 4px;
+}
+.compare-breakdown-row .vs-dry { font-style: italic; }
+
+.compare-matrix-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.compare-matrix-title,
+.compare-matrix-hint {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.compare-matrix-hint {
+  letter-spacing: 0.04em;
+  text-transform: none;
+  font-style: italic;
+}
+
+.compare-matrix {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  background: rgba(15, 10, 6, 0.4);
+  border: 1px solid var(--line-soft);
+  border-radius: 8px;
+  overflow: hidden;
+  table-layout: fixed;
+}
+
+.compare-matrix th,
+.compare-matrix td {
+  padding: 6px 4px;
+  text-align: center;
+  border-right: 1px dashed var(--line-soft);
+  border-bottom: 1px dashed var(--line-soft);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+
+.compare-matrix th { color: var(--ink-soft); font-weight: 500; letter-spacing: 0.04em; font-size: 10px; }
+.compare-matrix thead th { background: rgba(224,163,74,0.04); }
+.compare-matrix tbody th { text-align: left; padding-left: 8px; color: var(--ink); }
+
+.compare-matrix tr:last-child th,
+.compare-matrix tr:last-child td { border-bottom: none; }
+.compare-matrix th:last-child,
+.compare-matrix td:last-child { border-right: none; }
+
+.compare-matrix td.self   { color: var(--ink-soft); }
+.compare-matrix td.tie    { color: var(--ink); }
+.compare-matrix td.lead   { color: var(--amber); font-weight: 600; }
+.compare-matrix td.behind { color: var(--ink-dim); }
+.compare-matrix td.dry    { color: var(--ink-soft); font-style: italic; }
+
 /* ===== People grid ===== */
 .people {
   padding: 0 16px 80px;

@@ -1,23 +1,30 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=6';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=6';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=7';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=7';
 import {
   state, saveState, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=6';
+} from './state.js?v=7';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
   return idx < 26 ? String.fromCharCode(65 + idx) : `#${idx + 1}`;
 }
 
+export function toggleCompareDetail() {
+  compareDetailOpen = !compareDetailOpen;
+  renderCompare();
+}
+
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
 let barcodeEditorPresetId = null;
+// Whether the multi-person comparison detail panel is expanded.
+let compareDetailOpen = false;
 
 // --- Rendering --------------------------------------------------------------
 export function render() {
@@ -160,6 +167,8 @@ function renderCompare() {
   const main   = $('#compareMain');
   const equiv  = $('#compareEquiv');
   const bLabel = $('#benchmarkLabel');
+  const expandBtn = $('#compareExpandBtn');
+  const detail = $('#compareDetail');
 
   bLabel.textContent = bench ? `Benchmark · ${bench.name} @ ${fmt(bench.abv,1)}%` : '';
 
@@ -173,6 +182,8 @@ function renderCompare() {
       </ul>
     `;
     equiv.style.display = 'none';
+    if (expandBtn) expandBtn.style.display = 'none';
+    if (detail)    { detail.style.display = 'none'; detail.innerHTML = ''; }
     return;
   }
 
@@ -230,6 +241,108 @@ function renderCompare() {
   } else {
     equiv.style.display = 'none';
   }
+
+  // Detail panel: per-person breakdown plus a pairwise ratio matrix.
+  // Only meaningful with 3+ people — for 2 people the headline already says everything.
+  if (expandBtn && detail) {
+    if (state.people.length >= 3) {
+      expandBtn.style.display = '';
+      expandBtn.setAttribute('aria-expanded', compareDetailOpen ? 'true' : 'false');
+      expandBtn.querySelector('.compare-expand-label').textContent =
+        compareDetailOpen ? 'Hide detail' : 'Compare everyone';
+      expandBtn.querySelector('.compare-expand-caret').textContent =
+        compareDetailOpen ? '▴' : '▾';
+      if (compareDetailOpen) {
+        detail.style.display = '';
+        detail.innerHTML = renderCompareDetail(peopleStats);
+      } else {
+        detail.style.display = 'none';
+        detail.innerHTML = '';
+      }
+    } else {
+      expandBtn.style.display = 'none';
+      detail.style.display = 'none';
+      detail.innerHTML = '';
+    }
+  }
+}
+
+// Per-row "Alice vs everyone" breakdowns + a compact pairwise matrix.
+// Cells show how many times the row's ethanol the column person has had:
+//   row Alice, col Bob  = Bob.ethanol / Alice.ethanol
+// So a row reads as "Alice's day vs each other person".
+function renderCompareDetail(peopleStats) {
+  const sortedDrinkers = peopleStats
+    .filter(p => p.s.ethanolMl > 0)
+    .sort((x, y) => y.s.ethanolMl - x.s.ethanolMl);
+
+  // Per-person breakdown card: leader has nothing to compare up to; others
+  // get "X× behind leader" plus their own absolute tally.
+  let breakdown = '';
+  if (sortedDrinkers.length > 0) {
+    const leader = sortedDrinkers[0];
+    breakdown = `
+      <div class="compare-breakdown">
+        ${peopleStats.map(p => {
+          const std = fmt(p.s.standardDrinks, 1);
+          let tail;
+          if (p.s.ethanolMl === 0) {
+            tail = `<span class="vs-dry">still dry</span>`;
+          } else if (p === leader || Math.abs(leader.s.ethanolMl / p.s.ethanolMl - 1) < 0.03) {
+            tail = sortedDrinkers.length === 1 || p === leader
+              ? `<span class="vs-leader">leading</span>`
+              : `<span class="vs-leader">tied with ${escapeHtml(leader.name)}</span>`;
+          } else {
+            const behind = leader.s.ethanolMl / p.s.ethanolMl;
+            tail = `<span class="vs-behind"><span class="num">${fmt(behind, 2)}×</span> behind ${escapeHtml(leader.name)}</span>`;
+          }
+          return `
+            <div class="compare-breakdown-row">
+              <span class="who">${escapeHtml(p.name)}</span>
+              <span class="std"><span class="num">${std}</span> std</span>
+              ${tail}
+            </div>
+          `;
+        }).join('')}
+      </div>
+    `;
+  }
+
+  // Pairwise matrix. Ratios shown as col/row (column person relative to row person).
+  const matrix = `
+    <div class="compare-matrix-wrap">
+      <div class="compare-matrix-title">Each row vs the others</div>
+      <table class="compare-matrix">
+        <thead>
+          <tr>
+            <th></th>
+            ${peopleStats.map(p => `<th title="${escapeHtml(p.name)}">${escapeHtml(p.name)}</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>
+          ${peopleStats.map((row, ri) => `
+            <tr>
+              <th title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</th>
+              ${peopleStats.map((col, ci) => {
+                if (ri === ci) return `<td class="self">—</td>`;
+                if (row.s.ethanolMl === 0 && col.s.ethanolMl === 0) return `<td class="dry">·</td>`;
+                if (row.s.ethanolMl === 0) return `<td class="lead">∞</td>`;
+                if (col.s.ethanolMl === 0) return `<td class="dry">0</td>`;
+                const r = col.s.ethanolMl / row.s.ethanolMl;
+                const cls = Math.abs(r - 1) < 0.03 ? 'tie'
+                          : r > 1 ? 'lead'
+                          : 'behind';
+                return `<td class="${cls}">${fmt(r, 2)}×</td>`;
+              }).join('')}
+            </tr>
+          `).join('')}
+        </tbody>
+      </table>
+      <div class="compare-matrix-hint">Cell = column person's ethanol ÷ row person's ethanol.</div>
+    </div>
+  `;
+
+  return breakdown + matrix;
 }
 
 function presetToDrink(preset) {

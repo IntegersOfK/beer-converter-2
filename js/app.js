@@ -5,20 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=6';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=6';
+import { $, $$, vibe } from './util.js?v=7';
+import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=7';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
-  updateSaveAsPresetCopy,
-} from './ui.js?v=6';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=6';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=6';
+  updateSaveAsPresetCopy, toggleCompareDetail,
+} from './ui.js?v=7';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=7';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=7';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v6 (multi-person tally)');
+console.log('Beer Converter build v7 (multi-person tally + compare-everyone panel)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -27,6 +27,9 @@ loadProducts().catch(() => { /* already logged inside loadProducts */ });
 
 // --- Header actions -------------------------------------------------------
 $('#btnPresets').addEventListener('click', openPresetsModal);
+
+// Toggle the "compare everyone" detail panel under the tally strip.
+$('#compareExpandBtn').addEventListener('click', toggleCompareDetail);
 
 $('#btnReset').addEventListener('click', () => {
   const any = state.people.some(p => p.drinks.length > 0);
