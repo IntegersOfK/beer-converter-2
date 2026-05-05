@@ -162,6 +162,23 @@
 <div id="pendingList"><div class="empty">Loading…</div></div>
 
 <h2>Curated catalogue</h2>
+<div class="card" id="manualAddCard">
+  <div class="card-head" style="margin-bottom:6px;">
+    <span style="color:var(--ink); font-weight:600;">Add a drink manually</span>
+    <span class="meta" style="color:var(--ink-soft);">Direct to <span class="mono">curated.json</span> — bypasses the queue.</span>
+  </div>
+  <div class="form-grid" id="manualAddGrid" style="grid-template-columns: 160px 2.4fr 1fr 1fr;">
+    <div class="field"><label>UPC</label><input id="manualUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+    <div class="field"><label>Name</label><input id="manualName" type="text" placeholder="e.g. White Claw" /></div>
+    <div class="field"><label>ABV %</label><input id="manualAbv" type="number" step="0.1" min="0" max="100" placeholder="5.0" /></div>
+    <div class="field"><label>Vol. (ml)</label><input id="manualVol" type="number" step="1" min="0" placeholder="optional" /></div>
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="btnManualAdd">Add to catalogue</button>
+    <button class="btn ghost" id="btnManualClear">Clear</button>
+  </div>
+</div>
+
 <div class="toolbar">
   <input type="text" id="curatedFilter" placeholder="Filter by name or UPC…" />
   <span class="pill" id="curatedShowing">—</span>
@@ -421,6 +438,47 @@
 
   $('#btnRefresh').addEventListener('click', loadQueue);
   $('#curatedFilter').addEventListener('input', renderCurated);
+  $('#btnManualAdd').addEventListener('click', addManualCurated);
+  $('#btnManualClear').addEventListener('click', clearManualForm);
+  // Hitting Enter in any manual field submits the form.
+  $$('#manualAddGrid input').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addManualCurated(); } });
+  });
+
+  function clearManualForm() {
+    ['#manualUpc', '#manualName', '#manualAbv', '#manualVol'].forEach(s => { $(s).value = ''; });
+    $('#manualUpc').focus();
+  }
+
+  async function addManualCurated() {
+    const upc  = $('#manualUpc').value.replace(/\s+/g, '');
+    const name = $('#manualName').value.trim();
+    const abv  = Number($('#manualAbv').value);
+    const volRaw = $('#manualVol').value.trim();
+    const volumeMl = volRaw ? Number(volRaw) : undefined;
+
+    if (!/^\d{6,20}$/.test(upc))            return toast('UPC must be 6–20 digits', 'danger');
+    if (!name)                              return toast('Name is required', 'danger');
+    if (!Number.isFinite(abv) || abv < 0 || abv > 100) return toast('ABV must be 0–100', 'danger');
+    if (volumeMl !== undefined && (!Number.isFinite(volumeMl) || volumeMl <= 0))
+      return toast('Volume must be a positive number', 'danger');
+
+    // Warn if this UPC already has a curated record — the POST upserts, so a
+    // typo silently overwrites the wrong row otherwise.
+    const existing = currentState.curated.find(c => c.upc === upc);
+    if (existing && !confirm(
+      `UPC ${upc} is already curated as "${existing.name}" (ABV ${existing.abv}%). Overwrite with "${name}"?`
+    )) return;
+
+    try {
+      await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl }) });
+      toast(`Added ${name}`);
+      clearManualForm();
+      await loadQueue();
+    } catch (e) {
+      toast('Add failed: ' + e.message, 'danger');
+    }
+  }
 
   loadQueue();
 </script>
