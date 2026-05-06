@@ -7,6 +7,7 @@
 
 import { $, $$, vibe } from './util.js?v=14';
 import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=14';
+import { submitProduct } from './submit.js?v=14';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -144,6 +145,7 @@ async function handleUpcFound(upc) {
     if (preset) {
       const idx = getAddModalPersonIdx();
       logDrink(idx, { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv, presetId: preset.id });
+      submitProduct({ upc, name: preset.name, abv: preset.abv, volumeMl: preset.volumeMl });
       closeScannerOnly();
       closeModal();
       return;
