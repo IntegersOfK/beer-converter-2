@@ -409,7 +409,10 @@ const server = http.createServer(async (req, res) => {
         catch { return { f, buf: null }; }
       });
 
-      execFile('git', ['-C', REPO_ROOT, 'pull', '--ff-only'], { timeout: 30000 }, (err, stdout, stderr) => {
+      // -c safe.directory=<path> works around git's "dubious ownership" check
+      // when the repo on disk is owned by a different user than the one running
+      // node. Avoids needing a manual `git config --global` step on the host.
+      execFile('git', ['-c', `safe.directory=${REPO_ROOT}`, '-C', REPO_ROOT, 'pull', '--ff-only'], { timeout: 30000 }, (err, stdout, stderr) => {
         // Always restore data files — even if the pull failed we don't want
         // a partial pull to leave the repo files in place.
         for (const { f, buf } of snapshots) {
