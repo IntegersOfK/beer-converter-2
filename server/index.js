@@ -147,16 +147,27 @@ function isValidUpc(s) {
 
 function normaliseSubmission(raw) {
   if (!raw || typeof raw !== 'object') return null;
-  const upc = normaliseUpc(raw.upc);
-  if (!isValidUpc(upc)) return null;
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
   if (!name || name.length > 80) return null;
   const abv = Number(raw.abv);
   if (!Number.isFinite(abv) || abv < 0 || abv > 100) return null;
-  const out = { upc, name, abv: +abv.toFixed(2), receivedAt: new Date().toISOString() };
+  const out = { name, abv: +abv.toFixed(2), receivedAt: new Date().toISOString() };
+  // upc is optional — non-UPC drink-log events are welcome for aggregate data.
+  const upc = normaliseUpc(raw.upc || '');
+  if (upc && isValidUpc(upc)) out.upc = upc;
   if (raw.volumeMl != null) {
     const v = Number(raw.volumeMl);
     if (Number.isFinite(v) && v > 0 && v < 100000) out.volumeMl = +v.toFixed(2);
+  }
+  if (typeof raw.from === 'string' && raw.from.trim()) {
+    out.from = raw.from.trim().slice(0, 40);
+  }
+  if (Array.isArray(raw.people) && raw.people.length) {
+    const ps = raw.people
+      .filter(p => typeof p === 'string' && p.trim())
+      .map(p => p.trim().slice(0, 40))
+      .slice(0, 20);
+    if (ps.length) out.people = ps;
   }
   return out;
 }

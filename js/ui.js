@@ -1,15 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=15';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=15';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=16';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=16';
 import {
   state, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=15';
-import { submitProduct } from './submit.js?v=15';
+} from './state.js?v=16';
+import { submitProduct } from './submit.js?v=16';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -350,9 +350,17 @@ function presetToDrink(preset) {
   return { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv, presetId: preset.id };
 }
 
-export function logDrink(personIdx, drink) {
+export function logDrink(personIdx, drink, { upc } = {}) {
   addDrink(personIdx, drink);
   vibe(12);
+  submitProduct({
+    upc,
+    name: drink.name,
+    abv: drink.abv,
+    volumeMl: drink.volumeMl,
+    from: state.people[personIdx]?.name,
+    people: state.people.map(p => p.name),
+  });
   render();
   const hero = $(`[data-hero="${personIdx}"]`);
   if (hero) {
@@ -506,17 +514,12 @@ export function submitCustomDrink() {
     presetId = preset.id;
   }
 
-  // Crowdsource the UPC → name/ABV/volume mapping back to the central log so
-  // we can expand the catalogue. Fire-and-forget: a failure here never blocks
-  // the user's local add. Skipped silently if no UPC, no name, or backend unset.
-  if (upc && name) submitProduct({ upc, name, abv, volumeMl });
-
   logDrink(addModalPersonIdx, {
     name: name || `${fmt(volumeMl,0)} ml · ${fmt(abv,1)}%`,
     volumeMl,
     abv,
     presetId,
-  });
+  }, { upc });
   closeModal();
   return true;
 }
@@ -630,7 +633,7 @@ function renderPresetList() {
       if (!upc) return;
       if (rememberUpc(upc, presetId)) {
         const preset = state.presets.find(p => p.id === presetId);
-        if (preset) submitProduct({ upc, name: preset.name, abv: preset.abv, volumeMl: preset.volumeMl });
+        if (preset) submitProduct({ upc, name: preset.name, abv: preset.abv, volumeMl: preset.volumeMl, people: state.people.map(p => p.name) });
         input.value = ''; barcodeEditorPresetId = presetId; renderPresetList();
       }
     });

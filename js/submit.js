@@ -1,40 +1,45 @@
-// Crowdsourced product submissions. Fires { upc, name, abv, volumeMl? } at
-// the central log when a user fills in a custom drink that includes a UPC.
+// Crowdsourced product submissions. Fires drink data at the central log on
+// every drink addition. UPC submissions are deduplicated per session (they
+// feed the product catalogue). Non-UPC events are not deduplicated — every
+// drink addition is distinct data.
 //
 // Fail-quiet: if the backend is unconfigured, unreachable, or returns an
-// error, we just console.warn — never block the user's flow. The local
-// drink log + UPC cache work entirely without this endpoint.
-//
-// To enable: set SUBMIT_URL to your deployment's /submit endpoint.
+// error, we just console.warn — never block the user's flow.
 
-// Local dev hits the Node server on :8787. Prod uses a same-origin relative
-// path — the host is expected to reverse-proxy /submit to the backend.
-// Pointing prod at localhost would trigger Chrome's Private Network Access
-// prompt ("Apps on device") because a public origin can't reach 127.0.0.1.
 const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
 const SUBMIT_URL = IS_LOCAL ? 'http://localhost:8787/submit' : '/submit';
 
-// Avoid double-submitting the same UPC+ABV+volume combo from the same session.
-// Keying on all three allows a corrected re-add (different ABV or volume) to
-// go through, while still deduplicating true duplicates.
+// Dedup set for UPC-tagged submissions only — avoids re-submitting the same
+// product when the same can is rescanned or the cached path fires again.
 const submittedThisSession = new Set();
 
-export function submitProduct({ upc, name, abv, volumeMl }) {
+export function submitProduct({ upc, name, abv, volumeMl, from, people }) {
   if (!SUBMIT_URL) return;
   const cleanUpc  = String(upc  || '').replace(/\s+/g, '');
   const cleanName = String(name || '').trim();
   const numAbv    = Number(abv);
   const numVol    = Number(volumeMl);
-  if (!cleanUpc || !cleanName || !Number.isFinite(numAbv)) return;
-  const dedupeKey = `${cleanUpc}|${numAbv}|${Number.isFinite(numVol) ? numVol : ''}`;
-  if (submittedThisSession.has(dedupeKey)) return;
-  submittedThisSession.add(dedupeKey);
+  if (!cleanName || !Number.isFinite(numAbv)) return;
 
-  const body = { upc: cleanUpc, name: cleanName, abv: numAbv };
+  // Only dedup UPC submissions — they're for catalogue crowdsourcing and the
+  // same product shouldn't appear multiple times. Non-UPC drink-log events
+  // are intentionally un-deduplicated: three tall cans in one session = three entries.
+  if (cleanUpc) {
+    const dedupeKey = `${cleanUpc}|${numAbv}|${Number.isFinite(numVol) ? numVol : ''}`;
+    if (submittedThisSession.has(dedupeKey)) return;
+    submittedThisSession.add(dedupeKey);
+  }
+
+  const body = { name: cleanName, abv: numAbv };
+  if (cleanUpc) body.upc = cleanUpc;
   if (Number.isFinite(numVol) && numVol > 0) body.volumeMl = numVol;
+  if (from) body.from = String(from).trim().slice(0, 40);
+  if (Array.isArray(people) && people.length) {
+    body.people = people.map(p => String(p).trim().slice(0, 40)).filter(Boolean);
+  }
+
   const payload = JSON.stringify(body);
-  // `keepalive` lets the request survive a page-hide on mobile, since the
-  // user often closes the modal/tab right after hitting "Add drink".
+  // `keepalive` lets the request survive a page-hide on mobile.
   try {
     fetch(SUBMIT_URL, {
       method: 'POST',
