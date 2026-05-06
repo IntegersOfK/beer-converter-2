@@ -628,7 +628,11 @@ function renderPresetList() {
       if (!input) return;
       const upc = input.value.trim();
       if (!upc) return;
-      if (rememberUpc(upc, presetId)) { input.value = ''; barcodeEditorPresetId = presetId; renderPresetList(); }
+      if (rememberUpc(upc, presetId)) {
+        const preset = state.presets.find(p => p.id === presetId);
+        if (preset) submitProduct({ upc, name: preset.name, abv: preset.abv, volumeMl: preset.volumeMl });
+        input.value = ''; barcodeEditorPresetId = presetId; renderPresetList();
+      }
     });
   });
   // Allow hitting Enter inside the inline UPC input as a shortcut for the +.
