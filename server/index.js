@@ -28,9 +28,13 @@
 const http       = require('node:http');
 const fs         = require('node:fs');
 const path       = require('node:path');
-const { execFile } = require('node:child_process');
+const { execFile, spawn } = require('node:child_process');
 
-const REPO_ROOT = path.join(__dirname, '..');
+const REPO_ROOT         = path.join(__dirname, '..');
+// systemd unit to restart after a successful deploy. Set RESTART_ON_DEPLOY=0
+// to disable (e.g. when running outside systemd).
+const SYSTEMD_UNIT      = process.env.SYSTEMD_UNIT || 'bc-node.service';
+const RESTART_ON_DEPLOY = process.env.RESTART_ON_DEPLOY !== '0';
 
 const PORT       = Number(process.env.PORT) || 8787;
 const DATA_DIR   = process.env.DATA_DIR || __dirname;
@@ -419,10 +423,23 @@ const server = http.createServer(async (req, res) => {
           if (buf !== null) try { fs.writeFileSync(f, buf); } catch {}
         }
 
-        const body = { ok: !err, stdout: stdout || '', stderr: stderr || '' };
+        const restarting = !err && RESTART_ON_DEPLOY;
+        const body = { ok: !err, stdout: stdout || '', stderr: stderr || '', restarting };
         if (err) body.error = err.message;
+
+        // Flush the response BEFORE killing ourselves. systemd (Restart=always)
+        // brings us back instantly; the detached shell is what actually issues
+        // the restart so it survives our SIGTERM.
         res.writeHead(err ? 500 : 200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(body));
+        res.end(JSON.stringify(body), () => {
+          if (!restarting) return;
+          try {
+            const child = spawn('sh', ['-c', `sleep 1 && systemctl restart ${SYSTEMD_UNIT}`], {
+              detached: true, stdio: 'ignore',
+            });
+            child.unref();
+          } catch (e) { console.error('restart spawn failed', e); }
+        });
       });
       return;
     }
