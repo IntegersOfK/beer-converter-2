@@ -1,8 +1,21 @@
-// All state, persistence, and migrations live here.
+// State + sessions client.
+//
+// Architecture in two sentences: the app always operates on a server-side
+// session identified by ?s=<sid>. The in-memory `state` mirror is hydrated
+// from the server on load and on each poll, and every mutation is
+// optimistic-then-server (sync local update, async API call, revert on error).
+//
+// localStorage is reduced to:
+//   beerConverter.recentSessions  — [{ sid, name, lastSeen }] for the picker
+//   beerConverter.unit            — 'ml' | 'oz' display preference
+//   beerConverter.theme           — handled by app.js, not here
 
-const STORAGE_KEY = 'beerConverter.v1';
-const UPC_CACHE_KEY = 'beerConverter.upcCache.v1';
-const UNIT_KEY = 'beerConverter.unit';
+import { api, ApiError } from './api.js?v=36';
+
+const RECENT_KEY = 'beerConverter.recentSessions';
+const UNIT_KEY   = 'beerConverter.unit';
+
+// ---- unit preference ----------------------------------------------------
 
 export function getUnitPref() {
   try { return localStorage.getItem(UNIT_KEY) === 'oz' ? 'oz' : 'ml'; } catch { return 'ml'; }
@@ -11,367 +24,527 @@ export function setUnitPref(u) {
   try { localStorage.setItem(UNIT_KEY, u === 'oz' ? 'oz' : 'ml'); } catch {}
 }
 
-// --- defaults ----------------------------------------------------------------
+// ---- defaults (used when seeding a brand-new server session) ------------
+
 export const defaultPresets = () => [
-  { id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0,  kcalPer100ml: null },
-  { id: 'p1',   name: 'Regular can',    volumeMl: 355, abv: 5.0,  kcalPer100ml: null },
-  { id: 'p2',   name: 'Tall can',       volumeMl: 473, abv: 5.0,  kcalPer100ml: null },
-  { id: 'p3',   name: 'Bottle',         volumeMl: 341, abv: 5.0,  kcalPer100ml: null },
-  { id: 'p4',   name: 'Pint',           volumeMl: 568, abv: 5.0,  kcalPer100ml: null },
-  { id: 'p5',   name: 'Wine glass',     volumeMl: 142, abv: 12.0, kcalPer100ml: null },
-  { id: 'p6',   name: 'Shot',           volumeMl: 44,  abv: 40.0, kcalPer100ml: null },
-  { id: 'p7',   name: 'Schooner',       volumeMl: 946, abv: 5.0,  kcalPer100ml: null },
+  { presetKey: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0 },
+  { presetKey: 'p1',   name: 'Regular can',    volumeMl: 355, abv: 5.0 },
+  { presetKey: 'p2',   name: 'Tall can',       volumeMl: 473, abv: 5.0 },
+  { presetKey: 'p3',   name: 'Bottle',         volumeMl: 341, abv: 5.0 },
+  { presetKey: 'p4',   name: 'Pint',           volumeMl: 568, abv: 5.0 },
+  { presetKey: 'p5',   name: 'Wine glass',     volumeMl: 142, abv: 12.0 },
+  { presetKey: 'p6',   name: 'Shot',           volumeMl: 44,  abv: 40.0 },
+  { presetKey: 'p7',   name: 'Schooner',       volumeMl: 946, abv: 5.0 },
 ];
 
-function sessionLabel(ts) {
-  return new Date(ts).toLocaleDateString('en-CA', { month: 'long', day: 'numeric' });
-}
+const DEFAULT_PEOPLE = () => [{ name: 'You' }, { name: 'Friend' }];
 
-function makeSession(people, benchmarkPresetId = 'pstd', ts = Date.now()) {
-  return { id: 's' + ts, name: sessionLabel(ts), ts, people, benchmarkPresetId };
-}
+// ---- recent sessions list ----------------------------------------------
 
-function freshPeople() {
-  return [{ name: 'You', drinks: [] }, { name: 'Friend', drinks: [] }];
-}
-
-// --- load / migrate ----------------------------------------------------------
-export function loadState() {
+export function getRecentSessions() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return defaultState();
-    const parsed = JSON.parse(raw);
-    if (!parsed) return defaultState();
-
-    if (parsed.schemaVersion === 2 && Array.isArray(parsed.sessions) && parsed.sessions.length > 0) {
-      return loadV2(parsed);
-    }
-
-    // Legacy v1: top-level people array
-    if (Array.isArray(parsed.people) && parsed.people.length > 0) {
-      return migrateV1(parsed);
-    }
-
-    return defaultState();
-  } catch {
-    return defaultState();
-  }
+    const raw = localStorage.getItem(RECENT_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr.filter(s => s && s.sid) : [];
+  } catch { return []; }
 }
 
-function ensurePresets(parsed) {
-  if (!Array.isArray(parsed.presets) || parsed.presets.length === 0) parsed.presets = defaultPresets();
-  if (!parsed.presets.some(p => p.id === 'pstd')) {
-    parsed.presets.unshift({ id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0, kcalPer100ml: null });
-  }
-  parsed.presets.forEach(p => { if (!('kcalPer100ml' in p)) p.kcalPer100ml = null; });
+export function rememberSession(sid, name, extras = {}) {
+  if (!sid) return;
+  const list = getRecentSessions();
+  const existing = list.find(s => s.sid === sid) || {};
+  const merged = {
+    ...existing,
+    sid,
+    name: name || existing.name || sid,
+    lastSeen: Date.now(),
+    ...extras,
+  };
+  const next = list.filter(s => s.sid !== sid);
+  next.unshift(merged);
+  while (next.length > 20) next.pop();
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
 }
 
-function loadV2(parsed) {
-  ensurePresets(parsed);
+export function forgetSessionLocal(sid) {
+  const list = getRecentSessions().filter(s => s.sid !== sid);
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+}
 
-  // Ensure every session has a valid people array.
-  parsed.sessions.forEach(s => {
-    if (!Array.isArray(s.people) || s.people.length === 0) s.people = freshPeople();
-    if (!s.benchmarkPresetId) s.benchmarkPresetId = 'pstd';
+// ---- in-memory state mirror --------------------------------------------
+//
+// Shape kept compatible with the UI's existing reads:
+//   state.sid, state.name, state.updatedAt
+//   state.benchmarkPresetId    (mirrors server's benchmarkPresetKey)
+//   state.presets[i] = { id, name, volumeMl, abv, kcalPer100ml, lastUsedAt }
+//   state.people[i]  = { id, name, drinks: [
+//       { id, name, flavour?, volumeMl, abv, presetId, t }
+//     ]
+//   }
+// `id` on people/drinks is the numeric server id. `id` on presets is the
+// stable preset_key string. The frontend never touches the auto-increment
+// id on the session_presets row.
+
+export const state = {
+  sid: null,
+  name: '',
+  updatedAt: null,
+  benchmarkPresetId: null,
+  presets: [],
+  people: [],
+};
+
+let inFlight = 0;
+let pollTimer = null;
+let pollMs = 5000;
+let lastFetchedAt = 0;
+
+function hydrate(serverPayload) {
+  const s = serverPayload || {};
+  state.sid = s.id || null;
+  state.name = s.name || '';
+  state.updatedAt = s.updatedAt || null;
+  state.benchmarkPresetId = s.benchmarkPresetKey || null;
+  state.presets = (s.presets || []).map(p => ({
+    id:           p.presetKey,
+    name:         p.name,
+    volumeMl:     p.volumeMl,
+    abv:          p.abv,
+    kcalPer100ml: p.kcalPer100ml,
+    lastUsedAt:   p.lastUsedAt,
+  }));
+  // Sort presets by their original creation order (insertion order is preserved
+  // by SQLite default; presetKey 'pstd', 'p1'..'p7', 'u<ts>' sorts naturally
+  // for the seeded ones, but recency is what the chip tray actually uses).
+  const drinksByPerson = new Map();
+  for (const d of (s.drinks || [])) {
+    if (!drinksByPerson.has(d.personId)) drinksByPerson.set(d.personId, []);
+    drinksByPerson.get(d.personId).push({
+      id:        d.id,
+      name:      d.name,
+      flavour:   d.flavour || undefined,
+      volumeMl:  d.volumeMl,
+      abv:       d.abv,
+      presetId:  d.presetKey || null,
+      t:         d.t,
+    });
+  }
+  state.people = (s.people || []).map(p => ({
+    id:     p.id,
+    name:   p.name,
+    drinks: drinksByPerson.get(p.id) || [],
+  }));
+  // Snapshot people + drink count into the recents list so the session
+  // switcher can show context without re-fetching every session.
+  rememberSession(state.sid, state.name, {
+    peopleNames: state.people.map(p => p.name),
+    drinkCount:  state.people.reduce((n, p) => n + p.drinks.length, 0),
   });
+}
 
-  let active = parsed.sessions.find(s => s.id === parsed.activeSessionId);
-  if (!active) {
-    active = parsed.sessions[parsed.sessions.length - 1];
-    parsed.activeSessionId = active.id;
+// ---- session lifecycle -------------------------------------------------
+
+export async function loadSession(sid) {
+  const data = await api.get(`/api/sessions/${encodeURIComponent(sid)}`);
+  hydrate(data);
+  lastFetchedAt = Date.now();
+  return state;
+}
+
+export async function createSession({ name, importPresetsFromSid } = {}) {
+  let presets = defaultPresets();
+  if (importPresetsFromSid) {
+    try {
+      const src = await api.get(`/api/sessions/${encodeURIComponent(importPresetsFromSid)}`);
+      if (src && Array.isArray(src.presets) && src.presets.length) {
+        presets = src.presets.map(p => ({
+          presetKey:    p.presetKey,
+          name:         p.name,
+          volumeMl:     p.volumeMl,
+          abv:          p.abv,
+          kcalPer100ml: p.kcalPer100ml,
+        }));
+      }
+    } catch (e) { console.warn('preset import failed; using defaults', e); }
   }
+  const data = await api.post('/api/sessions', {
+    name: name || undefined,
+    people: DEFAULT_PEOPLE(),
+    presets,
+    benchmarkPresetKey: 'pstd',
+  });
+  rememberSession(data.id, data.name);
+  return data.id;
+}
 
-  if (!parsed.presets.some(p => p.id === active.benchmarkPresetId)) {
-    active.benchmarkPresetId = 'pstd';
+// "Switch to this session" = navigate. Full page load for simplicity, so the
+// boot flow re-runs and any in-flight state is dropped cleanly.
+export function switchSession(sid) {
+  if (!sid) return;
+  location.search = '?s=' + encodeURIComponent(sid);
+}
+
+export async function renameSession(sid, name) {
+  if (!sid || sid !== state.sid) {
+    // Renaming another session you've been to: only update the local list.
+    const list = getRecentSessions();
+    const e = list.find(s => s.sid === sid);
+    if (!e) return false;
+    e.name = name;
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+    return true;
   }
-
-  // Runtime aliases — not serialized, always mirror active session.
-  parsed.people = active.people;
-  parsed.benchmarkPresetId = active.benchmarkPresetId;
-
-  return parsed;
-}
-
-function migrateV1(parsed) {
-  ensurePresets(parsed);
-  if (!parsed.presets.some(p => p.id === parsed.benchmarkPresetId)) {
-    parsed.benchmarkPresetId = 'pstd';
-  }
-  // Promote old tall-can benchmark to standard drink.
-  if (parsed.benchmarkPresetId === 'p2') parsed.benchmarkPresetId = 'pstd';
-
-  const ts = Date.now();
-  const session = makeSession(parsed.people, parsed.benchmarkPresetId || 'pstd', ts);
-  parsed.schemaVersion = 2;
-  parsed.sessions = [session];
-  parsed.activeSessionId = session.id;
-  parsed.people = session.people;
-  parsed.benchmarkPresetId = session.benchmarkPresetId;
-  return parsed;
-}
-
-function defaultState() {
-  const ts = Date.now();
-  const session = makeSession(freshPeople(), 'pstd', ts);
-  return {
-    schemaVersion: 2,
-    presets: defaultPresets(),
-    sessions: [session],
-    activeSessionId: session.id,
-    people: session.people,
-    benchmarkPresetId: session.benchmarkPresetId,
-  };
-}
-
-// --- state singleton -------------------------------------------------------
-export const state = loadState();
-
-function activeSession() {
-  return state.sessions.find(s => s.id === state.activeSessionId) || state.sessions[0];
-}
-
-export function saveState() {
-  // Sync primitive fields back before serializing (people is already same reference).
-  const sess = activeSession();
-  if (sess) {
-    sess.people = state.people;
-    sess.benchmarkPresetId = state.benchmarkPresetId;
-  }
-  const toSave = {
-    schemaVersion: 2,
-    presets: state.presets,
-    sessions: state.sessions,
-    activeSessionId: state.activeSessionId,
-  };
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave)); }
-  catch (e) { console.warn('Save failed', e); }
-}
-
-// --- Session management ---------------------------------------------------
-export function newSession() {
-  const ts = Date.now();
-  const sess = makeSession(freshPeople(), 'pstd', ts);
-  state.sessions.push(sess);
-  state.activeSessionId = sess.id;
-  state.people = sess.people;
-  state.benchmarkPresetId = sess.benchmarkPresetId;
-  saveState();
-  return sess.id;
-}
-
-export function switchSession(id) {
-  const sess = state.sessions.find(s => s.id === id);
-  if (!sess || sess.id === state.activeSessionId) return;
-  state.activeSessionId = id;
-  state.people = sess.people;
-  state.benchmarkPresetId = sess.benchmarkPresetId || 'pstd';
-  saveState();
-}
-
-export function renameSession(id, name) {
-  const sess = state.sessions.find(s => s.id === id);
-  if (!sess) return false;
-  const trimmed = String(name == null ? '' : name).trim().slice(0, 40);
-  // Empty name reverts to the auto label so the user can never wipe it blank.
-  sess.name = trimmed || sessionLabel(sess.ts);
-  saveState();
+  const trimmed = String(name == null ? '' : name).trim().slice(0, 60);
+  if (!trimmed) return false;
+  const prev = state.name;
+  state.name = trimmed;
+  rememberSession(sid, trimmed);
+  inFlight++;
+  try { await api.patch(`/api/sessions/${encodeURIComponent(sid)}`, { name: trimmed }); }
+  catch (e) { state.name = prev; console.error('rename failed', e); alert('Rename failed'); }
+  finally { inFlight--; }
   return true;
 }
 
-export function deleteSession(id) {
-  if (state.sessions.length <= 1) return false;
-  const idx = state.sessions.findIndex(s => s.id === id);
-  if (idx === -1) return false;
-  state.sessions.splice(idx, 1);
-  if (state.activeSessionId === id) {
-    const next = state.sessions[Math.min(idx, state.sessions.length - 1)];
-    state.activeSessionId = next.id;
-    state.people = next.people;
-    state.benchmarkPresetId = next.benchmarkPresetId || 'pstd';
-  }
-  saveState();
+export async function deleteSession(sid) {
+  if (!sid) return false;
+  forgetSessionLocal(sid);
+  try { await api.del(`/api/sessions/${encodeURIComponent(sid)}`); }
+  catch (e) { console.error('delete failed', e); /* still gone from local list */ }
   return true;
 }
+
+// ---- polling -----------------------------------------------------------
+
+export function startPolling(onChange) {
+  stopPolling();
+  pollTimer = setInterval(async () => {
+    if (document.visibilityState !== 'visible') return;
+    if (inFlight > 0) return;
+    if (!state.sid) return;
+    try {
+      const data = await api.get(`/api/sessions/${encodeURIComponent(state.sid)}`);
+      if (!data) return;
+      if (data.updatedAt && data.updatedAt === state.updatedAt) return;
+      hydrate(data);
+      lastFetchedAt = Date.now();
+      onChange?.();
+    } catch (e) { /* network blip — quiet, try again next tick */ }
+  }, pollMs);
+}
+
+export function stopPolling() {
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+}
+
+// Manual one-shot refresh (e.g. after error). Resolves with the latest state.
+export async function refreshSession() {
+  if (!state.sid) return null;
+  const data = await api.get(`/api/sessions/${encodeURIComponent(state.sid)}`);
+  hydrate(data);
+  return state;
+}
+
+// ---- benchmark ----------------------------------------------------------
 
 export function getBenchmark() {
   return state.presets.find(p => p.id === state.benchmarkPresetId) || state.presets[0];
 }
 
-// --- UPC cache -------------------------------------------------------------
-function loadUpcCache() {
-  try { return JSON.parse(localStorage.getItem(UPC_CACHE_KEY)) || {}; }
-  catch { return {}; }
+export async function setBenchmark(presetId) {
+  if (!state.sid) return;
+  if (!state.presets.some(p => p.id === presetId)) return;
+  const prev = state.benchmarkPresetId;
+  state.benchmarkPresetId = presetId;
+  inFlight++;
+  try { await api.patch(`/api/sessions/${encodeURIComponent(state.sid)}`, { benchmarkPresetKey: presetId }); }
+  catch (e) { state.benchmarkPresetId = prev; console.error('benchmark set failed', e); }
+  finally { inFlight--; }
 }
 
-const upcCache = loadUpcCache();
+// ---- presets ------------------------------------------------------------
 
-export function getPresetIdForUpc(upc) {
-  return upcCache[upc] || null;
+// Returns synchronously so call sites can immediately reference the new
+// preset's id. The server save runs in the background; failure rolls the
+// optimistic add back and alerts.
+export function addPreset({ name, volumeMl, abv, kcalPer100ml = null } = {}) {
+  if (!state.sid) return null;
+  const presetKey = 'u' + Date.now();
+  const local = { id: presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: Date.now() };
+  state.presets.push(local);
+  inFlight++;
+  api.post(`/api/sessions/${encodeURIComponent(state.sid)}/presets`, {
+    presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: local.lastUsedAt,
+  }).catch(e => {
+    console.error('addPreset failed', e); alert('Save type failed');
+    state.presets = state.presets.filter(p => p !== local);
+  }).finally(() => { inFlight--; });
+  return local;
 }
 
-export function rememberUpc(upc, presetId) {
-  if (!upc || !presetId) return false;
-  const clean = String(upc).trim();
-  if (!clean) return false;
-  upcCache[clean] = presetId;
-  try { localStorage.setItem(UPC_CACHE_KEY, JSON.stringify(upcCache)); }
-  catch (e) { console.warn('UPC cache save failed', e); }
-  return true;
+export async function removePreset(id) {
+  if (!state.sid) return false;
+  if (state.presets.length <= 1) return false;
+  const idx = state.presets.findIndex(p => p.id === id);
+  if (idx < 0) return false;
+  const removed = state.presets.splice(idx, 1)[0];
+  // If we removed the benchmark, snap to the first remaining.
+  let prevBench = state.benchmarkPresetId;
+  if (state.benchmarkPresetId === id) {
+    state.benchmarkPresetId = state.presets[0]?.id || null;
+  }
+  inFlight++;
+  try {
+    await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(id)}`);
+    if (state.benchmarkPresetId !== prevBench) {
+      // Best-effort: tell the server the benchmark moved too.
+      try { await api.patch(`/api/sessions/${encodeURIComponent(state.sid)}`, { benchmarkPresetKey: state.benchmarkPresetId }); } catch {}
+    }
+    return true;
+  } catch (e) {
+    console.error('removePreset failed', e); alert('Delete failed');
+    state.presets.splice(idx, 0, removed);
+    state.benchmarkPresetId = prevBench;
+    return false;
+  } finally { inFlight--; }
 }
 
-export function getUpcsForPreset(presetId) {
-  return Object.entries(upcCache)
-    .filter(([, id]) => id === presetId)
-    .map(([upc]) => upc);
+// "Edit type and all its drinks" — server cascades the volume/abv/name
+// onto every drink linked to this preset in one transaction.
+export async function updatePresetAndDrinks(id, { name, volumeMl, abv }) {
+  if (!state.sid) return;
+  const preset = state.presets.find(p => p.id === id);
+  if (!preset) return;
+  const prev = { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv };
+  if (name) preset.name = name;
+  preset.volumeMl = +volumeMl;
+  preset.abv = +abv;
+  // Apply to local drinks too so the UI updates instantly.
+  state.people.forEach(person => person.drinks.forEach(d => {
+    if (d.presetId !== id) return;
+    d.name = preset.name;
+    d.volumeMl = preset.volumeMl;
+    d.abv = preset.abv;
+  }));
+  inFlight++;
+  try {
+    await api.patch(
+      `/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(id)}`,
+      { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv }
+    );
+  } catch (e) {
+    console.error('updatePresetAndDrinks failed', e); alert('Save failed; refreshing.');
+    Object.assign(preset, prev);
+    refreshSession().catch(() => {});
+  } finally { inFlight--; }
 }
 
-export function forgetUpc(upc) {
-  const clean = String(upc || '').trim();
-  if (!clean || !(clean in upcCache)) return false;
-  delete upcCache[clean];
-  try { localStorage.setItem(UPC_CACHE_KEY, JSON.stringify(upcCache)); }
-  catch (e) { console.warn('UPC cache save failed', e); }
-  return true;
-}
-
-// --- preset mutation helpers ----------------------------------------------
-export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, upc = null }) {
-  const now = Date.now();
-  // lastUsedAt seeded at creation so a brand-new preset bubbles to the top
-  // of the chip tray right away (matches user intent: just-saved → use again).
-  const preset = { id: 'u' + now, name, volumeMl, abv, kcalPer100ml, lastUsedAt: now };
-  state.presets.push(preset);
-  if (upc) rememberUpc(upc, preset.id);
-  saveState();
-  return preset;
-}
-
-// Stamp lastUsedAt on a preset (called from addDrink when the drink links to
-// a preset). Cheap; chip-tray rendering reads this to sort by recency.
-export function touchPreset(presetId) {
-  if (!presetId) return;
+export async function touchPreset(presetId) {
+  if (!state.sid || !presetId) return;
   const p = state.presets.find(x => x.id === presetId);
   if (!p) return;
   p.lastUsedAt = Date.now();
-  saveState();
+  inFlight++;
+  try { await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(presetId)}/touch`); }
+  catch (e) { /* recency hint; non-critical */ }
+  finally { inFlight--; }
 }
 
-export function removePreset(id) {
-  if (state.presets.length <= 1) return false;
-  state.presets = state.presets.filter(p => p.id !== id);
-  if (state.benchmarkPresetId === id) {
-    state.benchmarkPresetId = state.presets[0].id;
-    const sess = activeSession();
-    if (sess) sess.benchmarkPresetId = state.benchmarkPresetId;
-  }
-  saveState();
-  return true;
+// ---- people ------------------------------------------------------------
+
+export async function setPersonName(personIdx, name) {
+  if (!state.sid) return;
+  const p = state.people[personIdx];
+  if (!p) return;
+  const fallback = personIdx === 0 ? 'You' : `Friend ${personIdx}`;
+  const next = (name || '').trim() || fallback;
+  const prev = p.name;
+  p.name = next;
+  inFlight++;
+  try { await api.patch(`/api/sessions/${encodeURIComponent(state.sid)}/people/${p.id}`, { name: next }); }
+  catch (e) { p.name = prev; console.error('rename person failed', e); }
+  finally { inFlight--; }
 }
 
-export function setBenchmark(id) {
-  if (state.presets.some(p => p.id === id)) {
-    state.benchmarkPresetId = id;
-    saveState();
-  }
+export async function addPerson(name) {
+  if (!state.sid) return -1;
+  const trimmed = (name || '').toString().trim();
+  // Optimistic insert with a placeholder id; replaced on response.
+  const placeholder = { id: -Date.now(), name: trimmed || `Friend ${state.people.length}`, drinks: [] };
+  state.people.push(placeholder);
+  const idx = state.people.length - 1;
+  inFlight++;
+  try {
+    const saved = await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/people`, { name: trimmed });
+    placeholder.id = saved.id;
+    placeholder.name = saved.name;
+    return idx;
+  } catch (e) {
+    console.error('addPerson failed', e); alert('Add person failed');
+    state.people.splice(idx, 1);
+    return -1;
+  } finally { inFlight--; }
 }
 
-export function addDrink(personIdx, drink) {
-  const entry = {
-    name: drink.name || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
-    volumeMl: +drink.volumeMl,
-    abv: +drink.abv,
-    presetId: drink.presetId || null,
-    t: Date.now(),
-  };
-  // Optional flavour metadata — set when the drink came from a curated UPC
-  // scan that knew which flavour of a multi-flavour product it was. Presets
-  // do NOT carry flavour (they're product-level), so quick-add chips never
-  // populate this. Phase 3.
+export async function removePerson(personIdx) {
+  if (!state.sid) return false;
+  if (state.people.length <= 1) return false;
+  const removed = state.people.splice(personIdx, 1)[0];
+  if (!removed) return false;
+  inFlight++;
+  try {
+    await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/people/${removed.id}`);
+    return true;
+  } catch (e) {
+    console.error('removePerson failed', e); alert('Remove person failed');
+    state.people.splice(personIdx, 0, removed);
+    return false;
+  } finally { inFlight--; }
+}
+
+// ---- drinks ------------------------------------------------------------
+
+export async function addDrink(personIdx, drink) {
+  if (!state.sid) return;
+  const person = state.people[personIdx];
+  if (!person) return;
   const flavour = typeof drink.flavour === 'string' ? drink.flavour.trim() : '';
-  if (flavour) entry.flavour = flavour;
-  state.people[personIdx].drinks.push(entry);
-  // Track recency so the chip tray surfaces the just-used preset first.
-  if (entry.presetId) {
-    const p = state.presets.find(x => x.id === entry.presetId);
+  const optimistic = {
+    id:        -Date.now(),
+    name:      drink.name || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
+    volumeMl:  +drink.volumeMl,
+    abv:       +drink.abv,
+    presetId:  drink.presetId || null,
+    t:         Date.now(),
+  };
+  if (flavour) optimistic.flavour = flavour;
+  person.drinks.push(optimistic);
+  if (optimistic.presetId) {
+    const p = state.presets.find(x => x.id === optimistic.presetId);
     if (p) p.lastUsedAt = Date.now();
   }
-  saveState();
+  inFlight++;
+  try {
+    const saved = await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/drinks`, {
+      personId:  person.id,
+      presetKey: optimistic.presetId,
+      name:      optimistic.name,
+      flavour:   flavour || undefined,
+      volumeMl:  optimistic.volumeMl,
+      abv:       optimistic.abv,
+      t:         optimistic.t,
+    });
+    if (saved) {
+      optimistic.id = saved.id;
+      optimistic.t  = saved.t;
+    }
+  } catch (e) {
+    console.error('addDrink failed', e); alert('Add drink failed');
+    person.drinks = person.drinks.filter(d => d !== optimistic);
+  } finally { inFlight--; }
 }
 
-export function removeDrink(personIdx, drinkIdx) {
-  state.people[personIdx].drinks.splice(drinkIdx, 1);
-  saveState();
+export async function removeDrink(personIdx, drinkIdx) {
+  if (!state.sid) return;
+  const person = state.people[personIdx];
+  if (!person) return;
+  const removed = person.drinks.splice(drinkIdx, 1)[0];
+  if (!removed) return;
+  inFlight++;
+  try {
+    await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/drinks/${removed.id}`);
+  } catch (e) {
+    console.error('removeDrink failed', e); alert('Remove drink failed');
+    person.drinks.splice(drinkIdx, 0, removed);
+  } finally { inFlight--; }
 }
 
-// Set just the flavour on a logged drink. Unlike updateDrink, this does NOT
-// null the presetId — flavour is per-drink metadata that lives orthogonally
-// to whether the drink is still linked to its saved type.
-export function setDrinkFlavour(personIdx, drinkIdx, flavour) {
-  const d = state.people[personIdx]?.drinks[drinkIdx];
+// Per-drink flavour update (no n/v/a change). Doesn't unlink from preset.
+export async function setDrinkFlavour(personIdx, drinkIdx, flavour) {
+  if (!state.sid) return;
+  const person = state.people[personIdx];
+  const d = person?.drinks[drinkIdx];
   if (!d) return;
+  const prev = d.flavour;
   const trimmed = typeof flavour === 'string' ? flavour.trim() : '';
-  if (trimmed) d.flavour = trimmed;
-  else delete d.flavour;
-  saveState();
+  if (trimmed) d.flavour = trimmed; else delete d.flavour;
+  inFlight++;
+  try {
+    await api.patch(
+      `/api/sessions/${encodeURIComponent(state.sid)}/drinks/${d.id}`,
+      { flavour: trimmed }
+    );
+  } catch (e) {
+    console.error('setDrinkFlavour failed', e); alert('Save flavour failed');
+    if (prev) d.flavour = prev; else delete d.flavour;
+  } finally { inFlight--; }
 }
 
-export function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour }) {
-  const d = state.people[personIdx]?.drinks[drinkIdx];
+// Edit a single drink's name/volume/abv (and optionally flavour). Unlinks
+// from its preset, matching the existing UI semantics where "edit just this
+// one" diverges from the saved type.
+export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour }) {
+  if (!state.sid) return;
+  const person = state.people[personIdx];
+  const d = person?.drinks[drinkIdx];
   if (!d) return;
+  const prev = { ...d };
   d.name = name || `${Math.round(volumeMl)} ml · ${abv}%`;
   d.volumeMl = +volumeMl;
   d.abv = +abv;
   d.presetId = null;
-  // Treat undefined as "leave alone"; treat empty string explicitly as clear.
   if (flavour !== undefined) {
     const trimmed = typeof flavour === 'string' ? flavour.trim() : '';
-    if (trimmed) d.flavour = trimmed;
-    else delete d.flavour;
+    if (trimmed) d.flavour = trimmed; else delete d.flavour;
   }
-  saveState();
+  inFlight++;
+  try {
+    await api.patch(
+      `/api/sessions/${encodeURIComponent(state.sid)}/drinks/${d.id}`,
+      {
+        name: d.name, volumeMl: d.volumeMl, abv: d.abv,
+        flavour: d.flavour || '',
+        unlinkPreset: true,
+      }
+    );
+  } catch (e) {
+    console.error('updateDrink failed', e); alert('Save failed');
+    Object.assign(d, prev);
+  } finally { inFlight--; }
 }
 
-export function updatePresetAndDrinks(presetId, { name, volumeMl, abv }) {
-  const preset = state.presets.find(p => p.id === presetId);
-  if (!preset) return;
-  if (name) preset.name = name;
-  preset.volumeMl = +volumeMl;
-  preset.abv = +abv;
-  state.people.forEach(person => {
-    person.drinks.forEach(d => {
-      if (d.presetId !== presetId) return;
-      d.name = preset.name;
-      d.volumeMl = +volumeMl;
-      d.abv = +abv;
-    });
-  });
-  saveState();
-}
-
-export function setPersonName(personIdx, name) {
-  const fallback = personIdx === 0 ? 'You' : `Friend ${personIdx}`;
-  state.people[personIdx].name = name.trim() || fallback;
-  saveState();
-}
-
-export function addPerson(name) {
-  const trimmed = (name == null ? '' : String(name)).trim();
-  const idx = state.people.length;
-  const fallback = idx === 0 ? 'You' : `Friend ${idx}`;
-  state.people.push({ name: trimmed || fallback, drinks: [] });
-  saveState();
-  return idx;
-}
-
-export function removePerson(personIdx) {
-  if (state.people.length <= 1) return false;
-  if (personIdx < 0 || personIdx >= state.people.length) return false;
-  state.people.splice(personIdx, 1);
-  saveState();
-  return true;
-}
-
-export function clearAllDrinks() {
+export async function clearAllDrinks() {
+  if (!state.sid) return;
+  // Easiest correct path: remove each drink one-by-one. Could optimize later
+  // with a bulk endpoint, but clearing is rare.
+  const all = [];
+  for (let pi = 0; pi < state.people.length; pi++) {
+    const p = state.people[pi];
+    for (const d of p.drinks) all.push({ pi, did: d.id });
+  }
   state.people.forEach(p => p.drinks = []);
-  saveState();
+  inFlight++;
+  try {
+    for (const { did } of all) {
+      try { await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/drinks/${did}`); }
+      catch (e) { console.warn('drink delete failed', did, e); }
+    }
+  } finally { inFlight--; }
 }
+
+// `newSession` exists for compatibility with the existing button wiring.
+// Behaviour: create on the server, navigate to it (full reload).
+export async function newSession() {
+  const sid = await createSession({});
+  switchSession(sid);
+  return sid;
+}
+
+// ---- shims for behaviours we no longer support --------------------------
+// Kept only so existing UI code that imported these doesn't crash. The
+// preset-modal UPC manager is being rebuilt in a follow-up phase; for now
+// these are quiet no-ops so the rest of the app boots cleanly.
+export function getPresetIdForUpc()    { return null; }
+export function rememberUpc()          { return false; }
+export function getUpcsForPreset()     { return []; }
+export function forgetUpc()            { return false; }

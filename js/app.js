@@ -5,22 +5,24 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=35';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=35';
+import { $, $$, vibe } from './util.js?v=36';
+import {
+  state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
+  loadSession, createSession, switchSession, startPolling,
+  getRecentSessions, forgetSessionLocal,
+} from './state.js?v=36';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=35';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=35';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=35';
-import { ML_PER_OZ } from './calc.js?v=35';
+} from './ui.js?v=36';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=36';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=36';
+import { ML_PER_OZ } from './calc.js?v=36';
 
-// Visible build marker so you can confirm the new bundle is loaded:
-// open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v35 (imperial fl oz, hide spinners, Measurement Canada link)');
+console.log('Beer Converter build v36 (server-side shared sessions)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -70,10 +72,20 @@ $('#btnUnit').addEventListener('click', () => {
 // --- Header actions -------------------------------------------------------
 $('#btnSessions').addEventListener('click', openSessionsModal);
 $('#btnCurrentSession').addEventListener('click', openSessionsModal);
-$('#btnNewSession').addEventListener('click', () => {
-  newSession();
-  closeModal();
-  render();
+$('#btnNewSession').addEventListener('click', async () => {
+  // Optional preset import: if there are other sessions in the recents
+  // list, offer to copy types from the most recent. Skip the prompt for
+  // first-time users so the friction stays at zero.
+  const others = getRecentSessions().filter(s => s.sid !== state.sid);
+  let importFrom = null;
+  if (others.length > 0) {
+    const pick = others[0];
+    if (confirm(`Copy drink types from "${pick.name}"?`)) importFrom = pick.sid;
+  }
+  try {
+    const sid = await createSession({ importPresetsFromSid: importFrom });
+    switchSession(sid);   // navigates; full reload picks up the new session
+  } catch (e) { console.error('newSession failed', e); alert('New session failed'); }
 });
 
 $('#btnPresets').addEventListener('click', openPresetsModal);
@@ -84,27 +96,14 @@ $('#lnkChangelog').addEventListener('click', e => {
 });
 
 $('#btnReport').addEventListener('click', () => {
+  if (!state.sid) return;
   if (!state.people.some(p => p.drinks.length > 0)) {
     alert('Log some drinks first — nothing to report yet!');
     return;
   }
-  const bench = getBenchmark();
-  const payload = {
-    v: 1,
-    ts: Date.now(),
-    p: state.people.map(p => ({
-      n: p.name,
-      d: p.drinks.map(d => {
-        const o = { n: d.name, v: +d.volumeMl.toFixed(1), a: +d.abv.toFixed(2) };
-        if (d.flavour) o.f = d.flavour;
-        return o;
-      }),
-    })),
-    bm: bench ? { n: bench.name, v: bench.volumeMl, a: bench.abv } : null,
-  };
-  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  // Report fetches the session live by id — no base64 blob, no copy of state.
   const a = Object.assign(document.createElement('a'), {
-    href: 'report.html?d=' + encoded,
+    href: 'report.html?s=' + encodeURIComponent(state.sid),
     target: '_blank', rel: 'noopener noreferrer',
   });
   document.body.appendChild(a);
@@ -240,60 +239,18 @@ $('#btnManualLookup').addEventListener('click', () => {
   scannerOnFound(upc);
 });
 
-// Camera button inside the preset-modal "Add barcode" popover. Scans into
-// the matching popover input and submits without going through the
-// drink-add flow.
-document.addEventListener('click', e => {
-  const btn = e.target.closest('[data-scan-upc-for]');
-  if (!btn) return;
-  e.preventDefault();
-  const presetId = btn.dataset.scanUpcFor;
-  const input = document.querySelector(`[data-add-upc-for="${presetId}"]`);
-  if (!input) return;
-  const preset = state.presets.find(p => p.id === presetId);
-  openScanner((upc) => {
-    vibe(25);
-    stopActiveScanner();
-    closeScannerOnly();
-    input.value = upc;
-    document.querySelector(`[data-add-upc-submit="${presetId}"]`)?.click();
-  }, preset ? `Scan to add a barcode to "${preset.name}"…` : 'Scan a barcode…');
-});
+// (The preset-modal "scan barcode into popover" path was removed in Phase 2
+// along with the per-device UPC cache — barcodes now flow through the
+// shared catalogue via /submit when a drink is logged.)
 
 async function handleUpcFound(upc) {
   vibe(25);
   stopActiveScanner();
   setScannerStatus(`Found ${upc}. Looking up…`, 'working');
 
-  // 1. Local cache — we've scanned this UPC before, or saved it ourselves.
-  // Instant add. Flavour comes from the central catalogue (when known) so a
-  // cached preset for a multi-flavour product still records WHICH flavour was
-  // scanned this time, even though the preset itself stays product-level.
-  const cachedId = getPresetIdForUpc(upc);
-  if (cachedId) {
-    const preset = state.presets.find(p => p.id === cachedId);
-    if (preset) {
-      const idx = getAddModalPersonIdx();
-      // Look up the catalogue side-channel for flavour; non-fatal if unloaded.
-      let flavour = '';
-      try {
-        if (productsLoaded()) {
-          const cat = lookupBcLiquor(upc);
-          if (cat && cat.flavour) flavour = cat.flavour;
-        }
-      } catch {}
-      logDrink(idx, {
-        name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv,
-        presetId: preset.id, flavour,
-      }, { upc });
-      closeScannerOnly();
-      closeModal();
-      return;
-    }
-  }
-
-  // 2. BC Liquor catalogue (bundled CSV). May still be loading on a cold
-  // start — wait for it before declaring a miss.
+  // BC Liquor catalogue (bundled CSV) + curated entries. The old per-device
+  // UPC→preset cache went away with Phase 2 — every scan goes through the
+  // shared catalogue now.
   if (!productsLoaded()) {
     try { await loadProducts(); } catch { /* fall through; lookup will miss */ }
   }
@@ -338,9 +295,9 @@ async function handleUpcFound(upc) {
     return;
   }
 
-  // 3. Not found anywhere — user fills it in. The "save as type" toggle is
-  // pre-checked so the UPC is remembered locally and the next scan is instant.
-  setScannerStatus("Not in the catalogue. Fill it in below — it'll be saved on this device for next time.", 'err');
+  // Not found anywhere — user fills it in. Saving as a drink type adds it
+  // to this session's preset list so other contributors can use it too.
+  setScannerStatus("Not in the catalogue. Fill it in below — saving as a type makes it available to everyone in this session.", 'err');
   prefillCustomForm({ upc });
   $('#saveAsPreset').checked = true;
   setTimeout(closeScannerOnly, 1400);
@@ -351,5 +308,49 @@ document.addEventListener('dblclick', e => {
   if (e.target.closest('button, .preset-chip, .x-btn')) e.preventDefault();
 }, { passive: false });
 
-// --- Initial render -------------------------------------------------------
-render();
+// --- Boot ------------------------------------------------------------------
+// The app always opens "into" a server-side session via ?s=<sid>. If the
+// URL has none we redirect — to the most recent session in localStorage if
+// any, else create a fresh one. This means a bare visit to bc.ajwest.ca
+// always lands in a valid session within one round trip.
+
+async function boot() {
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('s');
+
+  if (!sid) {
+    const recents = getRecentSessions();
+    if (recents.length > 0) {
+      switchSession(recents[0].sid);   // navigates
+      return;
+    }
+    try {
+      const newSid = await createSession({});
+      switchSession(newSid);
+    } catch (e) {
+      console.error('initial session creation failed', e);
+      document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#a08d6e;font-family:Fraunces,serif;">Could not reach the server. Try refreshing.</div>';
+    }
+    return;
+  }
+
+  try {
+    await loadSession(sid);
+  } catch (e) {
+    if (e?.status === 404) {
+      // Session was deleted server-side. Drop it from recents and start fresh.
+      forgetSessionLocal(sid);
+      try { const newSid = await createSession({}); switchSession(newSid); } catch {}
+      return;
+    }
+    console.error('loadSession failed', e);
+    alert('Could not load session — refreshing in 3 seconds.');
+    setTimeout(() => location.reload(), 3000);
+    return;
+  }
+
+  render();
+  startPolling(render);
+}
+
+boot();

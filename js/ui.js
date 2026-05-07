@@ -1,18 +1,18 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=35';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=35';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=36';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=36';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
-  rememberUpc, getUpcsForPreset, forgetUpc,
-  switchSession, deleteSession, renameSession,
+  switchSession, renameSession,
+  getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
-} from './state.js?v=35';
-import { submitProduct } from './submit.js?v=35';
-import { getFlavoursForName } from './products.js?v=35';
+} from './state.js?v=36';
+import { submitProduct } from './submit.js?v=36';
+import { getFlavoursForName } from './products.js?v=36';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -47,7 +47,6 @@ export function toggleCompareDetail() {
 
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
-let barcodeEditorPresetId = null;
 // Which drink the edit modal is targeting.
 let editPersonIdx = 0;
 let editDrinkIdx = 0;
@@ -230,10 +229,7 @@ function renderCompare() {
   bLabel.title = bench ? `${bench.name} is the reference drink — equivalence counts show how many of these each person has had` : '';
 
   const sessBtn = $('#btnCurrentSession');
-  if (sessBtn) {
-    const activeSess = state.sessions.find(s => s.id === state.activeSessionId);
-    sessBtn.textContent = activeSess ? activeSess.name : '';
-  }
+  if (sessBtn) sessBtn.textContent = state.name || '';
 
   if (totalCount === 0) {
     main.innerHTML = `
@@ -646,8 +642,6 @@ function renderPresetList() {
   const list = $('#presetList');
   list.innerHTML = '';
   state.presets.forEach(preset => {
-    const upcs = getUpcsForPreset(preset.id);
-    const editingBarcodes = barcodeEditorPresetId === preset.id;
     const row = document.createElement('div');
     row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '');
     row.innerHTML = `
@@ -659,46 +653,6 @@ function renderPresetList() {
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>
       </div>
-      <div class="preset-upcs${editingBarcodes ? ' editing' : ''}">
-        <div class="upc-summary">
-          <span class="upc-list-label">Barcodes</span>
-          ${upcs.length === 0
-            ? '<span class="upc-empty">No barcode</span>'
-            : `<span class="upc-count">${upcs.length} saved</span>`}
-        </div>
-        ${upcs.length === 0 ? '' : `
-          <div class="upc-chip-row">
-            ${upcs.map(u => `
-              <span class="upc-chip">
-                <span class="mono">${escapeHtml(u)}</span>
-                <button class="upc-x" data-forget-upc="${escapeHtml(u)}" title="Forget this barcode" aria-label="Forget barcode">×</button>
-              </span>
-            `).join('')}
-          </div>
-        `}
-        <button class="upc-manage-btn" data-toggle-upcs="${preset.id}">
-          ${editingBarcodes ? 'Done' : (upcs.length ? 'Manage' : '+ Barcode')}
-        </button>
-        ${editingBarcodes ? `
-          <div class="upc-popover">
-            <label for="upc-${preset.id}">Add barcode</label>
-            <div class="upc-popover-row">
-              <input class="mono upc-add-input" id="upc-${preset.id}" type="text" inputmode="numeric"
-                     placeholder="0 12345 67890 5" data-add-upc-for="${preset.id}" autocomplete="off" />
-              <button class="upc-scan-btn" data-scan-upc-for="${preset.id}" title="Scan a barcode" aria-label="Scan a barcode">
-                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-                  <rect x="3" y="5" width="18" height="14" rx="1"/>
-                  <line x1="7" y1="9" x2="7" y2="15"/>
-                  <line x1="10" y1="9" x2="10" y2="15"/>
-                  <line x1="13" y1="9" x2="13" y2="15"/>
-                  <line x1="17" y1="9" x2="17" y2="15"/>
-                </svg>
-              </button>
-              <button class="upc-add-btn" data-add-upc-submit="${preset.id}" title="Link this barcode" aria-label="Add barcode">+</button>
-            </div>
-          </div>
-        ` : ''}
-      </div>
     `;
     list.appendChild(row);
   });
@@ -706,65 +660,18 @@ function renderPresetList() {
     btn.addEventListener('click', e => { vibe(12); setBenchmark(e.currentTarget.dataset.star); renderPresetList(); render(); });
   });
   $$('[data-del-preset]', list).forEach(btn => {
-    btn.addEventListener('click', e => {
+    btn.addEventListener('click', async e => {
       const id = e.currentTarget.dataset.delPreset;
-      const linked = getUpcsForPreset(id);
-      if (linked.length > 0 && !confirm(
-        `Remove "${state.presets.find(p => p.id === id)?.name}" and ${linked.length} linked barcode${linked.length === 1 ? '' : 's'}?`
-      )) return;
-      const ok = removePreset(id);
+      const ok = await removePreset(id);
       if (!ok) alert('Keep at least one drink type.');
       else {
-        // Hard-detach the UPCs we just orphaned so they don't dangle in the cache.
-        linked.forEach(u => forgetUpc(u));
-        if (barcodeEditorPresetId === id) barcodeEditorPresetId = null;
         renderPresetList();
         render();
       }
     });
   });
-  // Detach a single barcode from its preset.
-  $$('[data-forget-upc]', list).forEach(btn => {
-    btn.addEventListener('click', e => {
-      const upc = e.currentTarget.dataset.forgetUpc;
-      if (forgetUpc(upc)) renderPresetList();
-    });
-  });
-  $$('[data-toggle-upcs]', list).forEach(btn => {
-    btn.addEventListener('click', e => {
-      const id = e.currentTarget.dataset.toggleUpcs;
-      barcodeEditorPresetId = barcodeEditorPresetId === id ? null : id;
-      renderPresetList();
-      if (barcodeEditorPresetId) {
-        const input = list.querySelector(`[data-add-upc-for="${barcodeEditorPresetId}"]`);
-        input?.focus();
-      }
-    });
-  });
-  // Attach a new barcode to an existing preset.
-  $$('[data-add-upc-submit]', list).forEach(btn => {
-    btn.addEventListener('click', e => {
-      const presetId = e.currentTarget.dataset.addUpcSubmit;
-      const input = list.querySelector(`[data-add-upc-for="${presetId}"]`);
-      if (!input) return;
-      const upc = input.value.trim();
-      if (!upc) return;
-      if (rememberUpc(upc, presetId)) {
-        const preset = state.presets.find(p => p.id === presetId);
-        if (preset) submitProduct({ upc, name: preset.name, abv: preset.abv, volumeMl: preset.volumeMl, people: state.people.map(p => p.name) });
-        input.value = ''; barcodeEditorPresetId = presetId; renderPresetList();
-      }
-    });
-  });
-  // Allow hitting Enter inside the inline UPC input as a shortcut for the +.
-  $$('[data-add-upc-for]', list).forEach(input => {
-    input.addEventListener('keydown', e => {
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      const btn = list.querySelector(`[data-add-upc-submit="${input.dataset.addUpcFor}"]`);
-      btn?.click();
-    });
-  });
+  // Per-preset UPC management was removed in Phase 2 — UPCs go to the
+  // shared catalogue via /submit, not a per-device cache.
 }
 
 export function submitNewPreset() {
@@ -792,48 +699,44 @@ export function openSessionsModal() {
 function renderSessionList() {
   const list = $('#sessionList');
   list.innerHTML = '';
-  const sorted = [...state.sessions].reverse();
-  sorted.forEach(sess => {
-    const isActive = sess.id === state.activeSessionId;
-    const drinks = sess.people.reduce((n, p) => n + p.drinks.length, 0);
-    const date = new Date(sess.ts).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
-    const peopleNames = sess.people.map(p => p.name).filter(Boolean);
-    const peopleStr = peopleNames.length
-      ? peopleNames.join(' · ')
-      : '(no one yet)';
+  const recents = getRecentSessions();
+  recents.forEach(rec => {
+    const isActive = rec.sid === state.sid;
+    const drinks = rec.drinkCount || 0;
+    const date = new Date(rec.lastSeen || Date.now()).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+    const peopleNames = (rec.peopleNames || []).filter(Boolean);
+    const peopleStr = peopleNames.length ? peopleNames.join(' · ') : '(no one yet)';
     const item = document.createElement('div');
     item.className = 'session-item' + (isActive ? ' active' : '');
     item.innerHTML = `
       <div class="session-item-info">
-        <input class="session-item-name session-name-input" data-rename-session="${escapeHtml(sess.id)}"
-               value="${escapeHtml(sess.name)}" maxlength="40" spellcheck="false"
+        <input class="session-item-name session-name-input" data-rename-session="${escapeHtml(rec.sid)}"
+               value="${escapeHtml(rec.name)}" maxlength="40" spellcheck="false"
                aria-label="Rename session" />
         <div class="session-item-people" title="${escapeHtml(peopleStr)}">${escapeHtml(peopleStr)}</div>
         <div class="session-item-meta">${escapeHtml(date)} · ${drinks} drink${drinks === 1 ? '' : 's'}</div>
       </div>
-      <button class="btn btn-ghost session-switch-btn" data-switch-session="${escapeHtml(sess.id)}"${isActive ? ' disabled' : ''}>
+      <button class="btn btn-ghost session-switch-btn" data-switch-session="${escapeHtml(rec.sid)}"${isActive ? ' disabled' : ''}>
         ${isActive ? 'current' : 'open'}
       </button>
-      <button class="x-btn" data-del-session="${escapeHtml(sess.id)}" aria-label="Delete session"${state.sessions.length <= 1 ? ' disabled' : ''}>×</button>
+      <button class="x-btn" data-forget-session="${escapeHtml(rec.sid)}" aria-label="Forget session"${isActive ? ' disabled' : ''}>×</button>
     `;
     list.appendChild(item);
   });
 
-  // Inline rename: commit on blur or Enter; Escape reverts.
+  // Inline rename — for the active session this hits the server; for others
+  // it just updates the local label so the picker shows what the user
+  // expects on the next visit.
   list.querySelectorAll('[data-rename-session]').forEach(input => {
     const original = input.value;
     const commit = () => {
-      const id = input.dataset.renameSession;
+      const sid = input.dataset.renameSession;
       if (input.value === input.dataset.lastValue) return;
       input.dataset.lastValue = input.value;
-      renameSession(id, input.value);
-      // Reflect any clamping/fallback the state did.
-      const sess = state.sessions.find(s => s.id === id);
-      if (sess) input.value = sess.name;
-      // Update the tally tag if we just renamed the active session.
-      if (id === state.activeSessionId) {
+      renameSession(sid, input.value);
+      if (sid === state.sid) {
         const tag = $('#btnCurrentSession');
-        if (tag) tag.textContent = sess.name;
+        if (tag) tag.textContent = state.name;
       }
     };
     input.dataset.lastValue = original;
@@ -842,31 +745,24 @@ function renderSessionList() {
       if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
       if (e.key === 'Escape') { input.value = original; input.blur(); }
     });
-    // Don't let a click on the name input bubble up to anything.
     input.addEventListener('click', e => e.stopPropagation());
   });
 
   list.querySelectorAll('[data-switch-session]').forEach(el => {
     el.addEventListener('click', e => {
       e.stopPropagation();
-      switchSession(el.dataset.switchSession);
-      closeModal();
-      render();
+      switchSession(el.dataset.switchSession);   // navigates; full reload
     });
   });
 
-  list.querySelectorAll('[data-del-session]').forEach(btn => {
+  // "Forget" only removes the entry from the local recents list. The session
+  // itself stays on the server (other contributors may still be in it). Use
+  // the admin overview to actually delete a session.
+  list.querySelectorAll('[data-forget-session]').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation();
-      const id = btn.dataset.delSession;
-      const sess = state.sessions.find(s => s.id === id);
-      const drinks = sess ? sess.people.reduce((n, p) => n + p.drinks.length, 0) : 0;
-      const msg = drinks > 0
-        ? `Delete "${sess.name}" and its ${drinks} logged drink${drinks === 1 ? '' : 's'}?`
-        : `Delete "${sess.name}"?`;
-      if (!confirm(msg)) return;
-      deleteSession(id);
-      render();
+      const sid = btn.dataset.forgetSession;
+      forgetSessionLocal(sid);
       renderSessionList();
     });
   });

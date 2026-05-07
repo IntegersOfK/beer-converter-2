@@ -79,7 +79,7 @@ function corsHeadersFor(reqOrigin) {
     (reqOrigin && ALLOW_ORIGINS.includes(reqOrigin)) ? reqOrigin :
     null;
   const headers = {
-    'Access-Control-Allow-Methods': 'GET, POST, DELETE, OPTIONS',
+    'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Max-Age':       '86400',
     'Vary':                         'Origin',
