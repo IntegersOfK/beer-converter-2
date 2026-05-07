@@ -62,6 +62,55 @@ db.exec(`
     reason      TEXT,
     rejected_at TEXT NOT NULL
   );
+
+  -- Shared sessions. Anyone with the session id can read or write.
+  -- updated_at is bumped on any mutation so polling clients can detect change.
+  CREATE TABLE IF NOT EXISTS sessions (
+    id                    TEXT PRIMARY KEY,
+    name                  TEXT NOT NULL,
+    created_at            TEXT NOT NULL,
+    updated_at            TEXT NOT NULL,
+    benchmark_preset_key  TEXT
+  );
+
+  CREATE TABLE IF NOT EXISTS session_people (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    name        TEXT NOT NULL,
+    position    INTEGER NOT NULL,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS session_people_session ON session_people(session_id, position);
+
+  -- preset_key is the client-supplied stable id (e.g. 'pstd', 'p2', 'u1730…').
+  -- Drinks reference the preset by (session_id, preset_key) so a 'Tall Can'
+  -- in session A is independent of a 'Tall Can' in session B.
+  CREATE TABLE IF NOT EXISTS session_presets (
+    id              INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id      TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    preset_key      TEXT NOT NULL,
+    name            TEXT NOT NULL,
+    volume_ml       REAL NOT NULL,
+    abv             REAL NOT NULL,
+    kcal_per_100ml  REAL,
+    last_used_at    INTEGER,
+    UNIQUE(session_id, preset_key)
+  );
+
+  CREATE TABLE IF NOT EXISTS session_drinks (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    person_id   INTEGER NOT NULL REFERENCES session_people(id) ON DELETE CASCADE,
+    preset_key  TEXT,
+    name        TEXT NOT NULL,
+    flavour     TEXT,
+    volume_ml   REAL NOT NULL,
+    abv         REAL NOT NULL,
+    t           INTEGER NOT NULL,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS session_drinks_session ON session_drinks(session_id, t);
+  CREATE INDEX IF NOT EXISTS session_drinks_person  ON session_drinks(person_id);
 `);
 
 // ---- prepared statements -------------------------------------------------
@@ -170,6 +219,157 @@ const stmts = {
   `),
   countRejected: db.prepare(`SELECT COUNT(*) AS n FROM rejected_upcs`),
   isRejected: db.prepare(`SELECT 1 FROM rejected_upcs WHERE upc = ?`),
+
+  // ---- sessions ---------------------------------------------------------
+  insertSession: db.prepare(`
+    INSERT INTO sessions (id, name, created_at, updated_at, benchmark_preset_key)
+    VALUES (@id, @name, @createdAt, @updatedAt, @benchmarkPresetKey)
+  `),
+  getSession: db.prepare(`
+    SELECT id, name,
+           created_at AS createdAt,
+           updated_at AS updatedAt,
+           benchmark_preset_key AS benchmarkPresetKey
+      FROM sessions WHERE id = ?
+  `),
+  updateSessionName: db.prepare(`
+    UPDATE sessions SET name = ?, updated_at = ? WHERE id = ?
+  `),
+  updateSessionBenchmark: db.prepare(`
+    UPDATE sessions SET benchmark_preset_key = ?, updated_at = ? WHERE id = ?
+  `),
+  touchSession: db.prepare(`
+    UPDATE sessions SET updated_at = ? WHERE id = ?
+  `),
+  deleteSessionStmt: db.prepare(`DELETE FROM sessions WHERE id = ?`),
+
+  // admin overview: sessions + counts (one query thanks to LEFT JOIN + COUNT).
+  listSessionsAdmin: db.prepare(`
+    SELECT s.id,
+           s.name,
+           s.created_at AS createdAt,
+           s.updated_at AS updatedAt,
+           s.benchmark_preset_key AS benchmarkPresetKey,
+           (SELECT COUNT(*) FROM session_people  WHERE session_id = s.id) AS peopleCount,
+           (SELECT COUNT(*) FROM session_drinks  WHERE session_id = s.id) AS drinkCount,
+           (SELECT MAX(t)    FROM session_drinks WHERE session_id = s.id) AS lastDrinkAt
+      FROM sessions s
+     ORDER BY s.updated_at DESC
+  `),
+
+  // ---- session_people ---------------------------------------------------
+  insertPerson: db.prepare(`
+    INSERT INTO session_people (session_id, name, position, created_at)
+    VALUES (@sessionId, @name, @position, @createdAt)
+  `),
+  listPeople: db.prepare(`
+    SELECT id, name, position, created_at AS createdAt
+      FROM session_people
+     WHERE session_id = ?
+     ORDER BY position ASC, id ASC
+  `),
+  getPerson: db.prepare(`
+    SELECT id, session_id AS sessionId, name, position, created_at AS createdAt
+      FROM session_people
+     WHERE id = ?
+  `),
+  updatePersonName: db.prepare(`
+    UPDATE session_people SET name = ? WHERE id = ?
+  `),
+  deletePersonStmt: db.prepare(`DELETE FROM session_people WHERE id = ?`),
+  countPeople: db.prepare(`
+    SELECT COUNT(*) AS n FROM session_people WHERE session_id = ?
+  `),
+  maxPersonPosition: db.prepare(`
+    SELECT COALESCE(MAX(position), -1) AS p FROM session_people WHERE session_id = ?
+  `),
+
+  // ---- session_presets --------------------------------------------------
+  insertPreset: db.prepare(`
+    INSERT INTO session_presets
+      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at)
+    VALUES
+      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt)
+  `),
+  upsertPreset: db.prepare(`
+    INSERT INTO session_presets
+      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at)
+    VALUES
+      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt)
+    ON CONFLICT(session_id, preset_key) DO UPDATE SET
+      name           = excluded.name,
+      volume_ml      = excluded.volume_ml,
+      abv            = excluded.abv,
+      kcal_per_100ml = excluded.kcal_per_100ml,
+      last_used_at   = COALESCE(excluded.last_used_at, session_presets.last_used_at)
+  `),
+  listPresets: db.prepare(`
+    SELECT preset_key AS presetKey, name,
+           volume_ml AS volumeMl, abv,
+           kcal_per_100ml AS kcalPer100ml,
+           last_used_at AS lastUsedAt
+      FROM session_presets
+     WHERE session_id = ?
+  `),
+  getPreset: db.prepare(`
+    SELECT preset_key AS presetKey, name,
+           volume_ml AS volumeMl, abv,
+           kcal_per_100ml AS kcalPer100ml,
+           last_used_at AS lastUsedAt
+      FROM session_presets
+     WHERE session_id = ? AND preset_key = ?
+  `),
+  updatePresetCore: db.prepare(`
+    UPDATE session_presets
+       SET name = @name, volume_ml = @volumeMl, abv = @abv
+     WHERE session_id = @sessionId AND preset_key = @presetKey
+  `),
+  touchPresetStmt: db.prepare(`
+    UPDATE session_presets SET last_used_at = ? WHERE session_id = ? AND preset_key = ?
+  `),
+  deletePresetStmt: db.prepare(`
+    DELETE FROM session_presets WHERE session_id = ? AND preset_key = ?
+  `),
+
+  // ---- session_drinks ---------------------------------------------------
+  insertDrink: db.prepare(`
+    INSERT INTO session_drinks
+      (session_id, person_id, preset_key, name, flavour, volume_ml, abv, t, created_at)
+    VALUES
+      (@sessionId, @personId, @presetKey, @name, @flavour, @volumeMl, @abv, @t, @createdAt)
+  `),
+  listDrinks: db.prepare(`
+    SELECT id, person_id AS personId,
+           preset_key AS presetKey,
+           name, flavour,
+           volume_ml AS volumeMl,
+           abv, t,
+           created_at AS createdAt
+      FROM session_drinks
+     WHERE session_id = ?
+     ORDER BY t ASC, id ASC
+  `),
+  getDrink: db.prepare(`
+    SELECT id, session_id AS sessionId, person_id AS personId,
+           preset_key AS presetKey, name, flavour,
+           volume_ml AS volumeMl, abv, t,
+           created_at AS createdAt
+      FROM session_drinks
+     WHERE id = ?
+  `),
+  updateDrinkStmt: db.prepare(`
+    UPDATE session_drinks
+       SET name = @name, flavour = @flavour,
+           volume_ml = @volumeMl, abv = @abv,
+           preset_key = @presetKey
+     WHERE id = @id
+  `),
+  updateDrinksByPresetStmt: db.prepare(`
+    UPDATE session_drinks
+       SET name = @name, volume_ml = @volumeMl, abv = @abv
+     WHERE session_id = @sessionId AND preset_key = @presetKey
+  `),
+  deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
 };
 
 // JSON column helpers — submissions.people is stored as a JSON string
@@ -276,6 +476,257 @@ function appendRejected(upc, reason) {
 function listRejected() { return stmts.listRejected.all(); }
 function countRejected() { return stmts.countRejected.get().n; }
 function isRejected(upc) { return !!stmts.isRejected.get(upc); }
+
+// ---- session DAO -------------------------------------------------------
+
+const crypto = require('node:crypto');
+
+// 16 random bytes → 22-char base64url (~128 bits of entropy). Ample for
+// pure-obfuscation auth — collision probability is astronomically low.
+function genSessionId() {
+  return crypto.randomBytes(16).toString('base64url');
+}
+
+// Default name when the client doesn't supply one. UTC date keeps the
+// server reproducible regardless of TZ; the client typically sends its own.
+function defaultSessionName(now) {
+  const d = new Date(now);
+  return d.toLocaleDateString('en-CA', { month: 'long', day: 'numeric', year: 'numeric' });
+}
+
+function nowIso() { return new Date().toISOString(); }
+
+const createSessionTx = db.transaction((payload) => {
+  const id = payload.id || genSessionId();
+  const now = nowIso();
+  const name = (payload.name || '').toString().trim().slice(0, 60) || defaultSessionName(now);
+  stmts.insertSession.run({
+    id, name,
+    createdAt: now,
+    updatedAt: now,
+    benchmarkPresetKey: payload.benchmarkPresetKey || null,
+  });
+
+  // Seed people in order. Position auto-assigned if not provided.
+  if (Array.isArray(payload.people)) {
+    payload.people.forEach((p, idx) => {
+      const pname = (p && p.name || '').toString().trim().slice(0, 40);
+      if (!pname) return;
+      stmts.insertPerson.run({
+        sessionId: id,
+        name: pname,
+        position: typeof p.position === 'number' ? p.position : idx,
+        createdAt: now,
+      });
+    });
+  }
+
+  // Seed presets. Skip duplicates within the seed list (last-wins via upsert).
+  if (Array.isArray(payload.presets)) {
+    for (const p of payload.presets) {
+      if (!p || !p.presetKey || !p.name) continue;
+      const vol = Number(p.volumeMl);
+      const abv = Number(p.abv);
+      if (!Number.isFinite(vol) || vol <= 0) continue;
+      if (!Number.isFinite(abv) || abv < 0 || abv > 100) continue;
+      stmts.upsertPreset.run({
+        sessionId:    id,
+        presetKey:    String(p.presetKey).slice(0, 60),
+        name:         String(p.name).slice(0, 40),
+        volumeMl:     +vol.toFixed(2),
+        abv:          +abv.toFixed(2),
+        kcalPer100ml: p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
+        lastUsedAt:   p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+      });
+    }
+  }
+
+  return id;
+});
+
+function createSession(payload) {
+  const id = createSessionTx(payload || {});
+  return getSessionFull(id);
+}
+
+function getSessionFull(id) {
+  const s = stmts.getSession.get(id);
+  if (!s) return null;
+  s.people  = stmts.listPeople.all(id);
+  s.presets = stmts.listPresets.all(id);
+  s.drinks  = stmts.listDrinks.all(id);
+  return s;
+}
+
+function getSessionMeta(id) { return stmts.getSession.get(id) || null; }
+
+function listSessions() {
+  return stmts.listSessionsAdmin.all();
+}
+
+function deleteSession(id) {
+  return stmts.deleteSessionStmt.run(id).changes > 0;
+}
+
+// All mutations bump updated_at so polling clients can short-circuit.
+function touchSession(sessionId) {
+  stmts.touchSession.run(nowIso(), sessionId);
+}
+
+function renameSession(sessionId, name) {
+  const trimmed = (name || '').toString().trim().slice(0, 60);
+  if (!trimmed) return false;
+  const info = stmts.updateSessionName.run(trimmed, nowIso(), sessionId);
+  return info.changes > 0;
+}
+
+function setBenchmark(sessionId, presetKey) {
+  const key = presetKey == null ? null : String(presetKey).slice(0, 60);
+  stmts.updateSessionBenchmark.run(key, nowIso(), sessionId);
+}
+
+const addPersonTx = db.transaction((sessionId, name) => {
+  const pos = stmts.maxPersonPosition.get(sessionId).p + 1;
+  const info = stmts.insertPerson.run({
+    sessionId,
+    name: (name || '').toString().trim().slice(0, 40) || `Friend ${pos}`,
+    position: pos,
+    createdAt: nowIso(),
+  });
+  stmts.touchSession.run(nowIso(), sessionId);
+  return info.lastInsertRowid;
+});
+function addPerson(sessionId, name) {
+  const id = addPersonTx(sessionId, name);
+  return stmts.getPerson.get(id);
+}
+
+function renamePerson(sessionId, personId, name) {
+  const p = stmts.getPerson.get(personId);
+  if (!p || p.sessionId !== sessionId) return false;
+  const trimmed = (name || '').toString().trim().slice(0, 40);
+  if (!trimmed) return false;
+  stmts.updatePersonName.run(trimmed, personId);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
+
+function removePerson(sessionId, personId) {
+  const p = stmts.getPerson.get(personId);
+  if (!p || p.sessionId !== sessionId) return false;
+  // Refuse if this would empty the session.
+  if (stmts.countPeople.get(sessionId).n <= 1) return false;
+  stmts.deletePersonStmt.run(personId);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
+
+const upsertPresetTx = db.transaction((sessionId, p) => {
+  stmts.upsertPreset.run({
+    sessionId,
+    presetKey:    String(p.presetKey).slice(0, 60),
+    name:         String(p.name).slice(0, 40),
+    volumeMl:     +Number(p.volumeMl).toFixed(2),
+    abv:          +Number(p.abv).toFixed(2),
+    kcalPer100ml: p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
+    lastUsedAt:   p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+  });
+  stmts.touchSession.run(nowIso(), sessionId);
+});
+function upsertPreset(sessionId, p) {
+  upsertPresetTx(sessionId, p);
+  return stmts.getPreset.get(sessionId, p.presetKey);
+}
+
+// "Edit all of this type": mutates the preset row AND every drink linked to it.
+const updatePresetCascadeTx = db.transaction((sessionId, presetKey, fields) => {
+  const cur = stmts.getPreset.get(sessionId, presetKey);
+  if (!cur) return null;
+  const next = {
+    sessionId,
+    presetKey,
+    name:     fields.name     != null ? String(fields.name).slice(0, 40) : cur.name,
+    volumeMl: fields.volumeMl != null ? +Number(fields.volumeMl).toFixed(2) : cur.volumeMl,
+    abv:      fields.abv      != null ? +Number(fields.abv).toFixed(2) : cur.abv,
+  };
+  stmts.updatePresetCore.run(next);
+  stmts.updateDrinksByPresetStmt.run(next);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return stmts.getPreset.get(sessionId, presetKey);
+});
+function updatePresetCascade(sessionId, presetKey, fields) {
+  return updatePresetCascadeTx(sessionId, presetKey, fields || {});
+}
+
+function touchPreset(sessionId, presetKey) {
+  stmts.touchPresetStmt.run(Date.now(), sessionId, presetKey);
+  stmts.touchSession.run(nowIso(), sessionId);
+}
+
+function removePreset(sessionId, presetKey) {
+  const info = stmts.deletePresetStmt.run(sessionId, presetKey);
+  if (info.changes === 0) return false;
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
+
+const addDrinkTx = db.transaction((sessionId, drink) => {
+  // Verify person belongs to this session.
+  const person = stmts.getPerson.get(drink.personId);
+  if (!person || person.sessionId !== sessionId) {
+    throw Object.assign(new Error('person not in session'), { status: 400 });
+  }
+  const now = nowIso();
+  const info = stmts.insertDrink.run({
+    sessionId,
+    personId:  drink.personId,
+    presetKey: drink.presetKey || null,
+    name:      String(drink.name || '').slice(0, 60) || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
+    flavour:   drink.flavour ? String(drink.flavour).slice(0, 60) : null,
+    volumeMl:  +Number(drink.volumeMl).toFixed(2),
+    abv:       +Number(drink.abv).toFixed(2),
+    t:         drink.t == null ? Date.now() : Number(drink.t),
+    createdAt: now,
+  });
+  // If linked to a preset, bump its lastUsedAt so the recency sort picks it up.
+  if (drink.presetKey) {
+    stmts.touchPresetStmt.run(Date.now(), sessionId, drink.presetKey);
+  }
+  stmts.touchSession.run(now, sessionId);
+  return info.lastInsertRowid;
+});
+function addDrink(sessionId, drink) {
+  const id = addDrinkTx(sessionId, drink);
+  return stmts.getDrink.get(id);
+}
+
+function updateDrink(sessionId, drinkId, fields) {
+  const cur = stmts.getDrink.get(drinkId);
+  if (!cur || cur.sessionId !== sessionId) return null;
+  const next = {
+    id: drinkId,
+    name:      fields.name     != null ? String(fields.name).slice(0, 60) : cur.name,
+    flavour:   fields.flavour !== undefined
+                  ? (fields.flavour ? String(fields.flavour).slice(0, 60) : null)
+                  : (cur.flavour || null),
+    volumeMl:  fields.volumeMl != null ? +Number(fields.volumeMl).toFixed(2) : cur.volumeMl,
+    abv:       fields.abv      != null ? +Number(fields.abv).toFixed(2) : cur.abv,
+    // Editing a single drink unlinks it from its preset (matches frontend
+    // semantics: "all of this type" goes through updatePresetCascade).
+    presetKey: fields.unlinkPreset === true ? null : (cur.presetKey || null),
+  };
+  stmts.updateDrinkStmt.run(next);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return stmts.getDrink.get(drinkId);
+}
+
+function removeDrink(sessionId, drinkId) {
+  const cur = stmts.getDrink.get(drinkId);
+  if (!cur || cur.sessionId !== sessionId) return false;
+  stmts.deleteDrinkStmt.run(drinkId);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
 
 // ---- one-shot migration from JSON/JSONL ---------------------------------
 //
@@ -401,6 +852,14 @@ module.exports = {
 
   // rejected
   appendRejected, listRejected, countRejected, isRejected,
+
+  // sessions
+  genSessionId,
+  createSession, getSessionFull, getSessionMeta, listSessions, deleteSession,
+  renameSession, setBenchmark, touchSession,
+  addPerson, renamePerson, removePerson,
+  upsertPreset, updatePresetCascade, touchPreset, removePreset,
+  addDrink, updateDrink, removeDrink,
 
   // bootstrap
   migrateFromJsonIfNeeded,

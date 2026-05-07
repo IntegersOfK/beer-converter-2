@@ -24,6 +24,15 @@ so anyone with the session URL can contribute to the same tally.
   Drop the base64 blob and the "Import to app" button.
 - [ ] **Phase 4** — Share UX. "Copy session link" button.
 
+## Admin: session management
+
+- Sessions overview in the admin GUI: list of all sessions with name,
+  created date, last activity, contributor count, drink count.
+- Click-through that takes the curator into a specific session as a
+  contributor (just opens `/?s=<sid>` in a new tab — no special auth path
+  needed since admin already knows the obfuscated id).
+- Optional: rename / delete a session from the admin overview.
+
 ## Default presets vs user-added presets visual inconsistency
 
 User feedback: defaults (Schooner, Shot, etc.) feel different from

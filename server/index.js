@@ -9,9 +9,26 @@
 //        GET  /catalog.json     — JOINed product + upc dataset, fetched at
 //                                 app load time
 //
-//   3. Curation admin (unique path; user runs it behind their own protection)
+//   3. Public shared sessions (auth = obfuscation; the link IS the credential)
+//        POST   /api/sessions
+//        GET    /api/sessions/:sid
+//        PATCH  /api/sessions/:sid                 — name, benchmarkPresetKey
+//        DELETE /api/sessions/:sid
+//        POST   /api/sessions/:sid/people
+//        PATCH  /api/sessions/:sid/people/:pid
+//        DELETE /api/sessions/:sid/people/:pid
+//        POST   /api/sessions/:sid/presets         — upsert by presetKey
+//        PATCH  /api/sessions/:sid/presets/:key    — cascade to all linked drinks
+//        POST   /api/sessions/:sid/presets/:key/touch
+//        DELETE /api/sessions/:sid/presets/:key
+//        POST   /api/sessions/:sid/drinks
+//        PATCH  /api/sessions/:sid/drinks/:did
+//        DELETE /api/sessions/:sid/drinks/:did
+//
+//   4. Curation admin (unique path; user runs it behind their own protection)
 //        GET  ${ADMIN_PATH}/                  — single-page admin GUI
 //        GET  ${ADMIN_PATH}/api/queue         — pending submissions + suggestions
+//        GET  ${ADMIN_PATH}/api/sessions      — list of shared sessions (overview)
 //        GET  ${ADMIN_PATH}/api/products      — list products + their upcs
 //        POST ${ADMIN_PATH}/api/product       — upsert one product
 //        DEL  ${ADMIN_PATH}/api/product/:id   — delete product + cascade upcs
@@ -345,6 +362,179 @@ function serveAdminFile(req, res, relPath) {
   });
 }
 
+// --- sessions handler ------------------------------------------------------
+
+const SID_RE = /^[A-Za-z0-9_-]{8,64}$/;
+
+async function handleSessionRoute(req, res, url, origin) {
+  // Strip query string; route on bare path.
+  const [pathOnly] = url.split('?', 1);
+  const parts = pathOnly.split('/').filter(Boolean);   // ['api','sessions',...]
+  // parts[0] = 'api', parts[1] = 'sessions'
+  const sid       = parts[2];
+  const subType   = parts[3];   // 'people' | 'presets' | 'drinks' | undefined
+  const subId     = parts[4];   // person id, preset key, or drink id
+
+  // POST /api/sessions  — create
+  if (req.method === 'POST' && parts.length === 2) {
+    const body = await safeJsonBody(req, res, origin); if (body == null) return;
+    let session;
+    try { session = db.createSession(body || {}); }
+    catch (e) { console.error('createSession failed', e); send(res, 500, { error: 'create failed' }, origin); return; }
+    send(res, 201, session, origin);
+    return;
+  }
+
+  // Past this point we always need a sid.
+  if (!sid || !SID_RE.test(sid)) { send(res, 404, { error: 'session not found' }, origin); return; }
+
+  // GET /api/sessions/:sid  — full session
+  if (req.method === 'GET' && parts.length === 3) {
+    const session = db.getSessionFull(sid);
+    if (!session) { send(res, 404, { error: 'session not found' }, origin); return; }
+    send(res, 200, session, origin);
+    return;
+  }
+
+  // PATCH /api/sessions/:sid  — rename / set benchmark
+  if (req.method === 'PATCH' && parts.length === 3) {
+    if (!db.getSessionMeta(sid)) { send(res, 404, { error: 'session not found' }, origin); return; }
+    const body = await safeJsonBody(req, res, origin); if (body == null) return;
+    if (typeof body.name === 'string') db.renameSession(sid, body.name);
+    if ('benchmarkPresetKey' in body) db.setBenchmark(sid, body.benchmarkPresetKey);
+    send(res, 200, db.getSessionFull(sid), origin);
+    return;
+  }
+
+  // DELETE /api/sessions/:sid
+  if (req.method === 'DELETE' && parts.length === 3) {
+    const ok = db.deleteSession(sid);
+    if (!ok) { send(res, 404, { error: 'session not found' }, origin); return; }
+    send(res, 200, { ok: true }, origin);
+    return;
+  }
+
+  if (!db.getSessionMeta(sid)) { send(res, 404, { error: 'session not found' }, origin); return; }
+
+  // ---- /people ----
+  if (subType === 'people') {
+    if (req.method === 'POST' && parts.length === 4) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      const person = db.addPerson(sid, body.name);
+      send(res, 201, person, origin);
+      return;
+    }
+    const personId = Number(subId);
+    if (!Number.isInteger(personId) || personId <= 0) {
+      send(res, 400, { error: 'invalid person id' }, origin); return;
+    }
+    if (req.method === 'PATCH' && parts.length === 5) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      const ok = db.renamePerson(sid, personId, body.name);
+      if (!ok) { send(res, 400, { error: 'rename failed' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+    if (req.method === 'DELETE' && parts.length === 5) {
+      const ok = db.removePerson(sid, personId);
+      if (!ok) { send(res, 400, { error: 'remove failed (last person?)' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+  }
+
+  // ---- /presets ----
+  if (subType === 'presets') {
+    if (req.method === 'POST' && parts.length === 4) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !body.presetKey || !body.name || body.volumeMl == null || body.abv == null) {
+        send(res, 400, { error: 'missing fields' }, origin); return;
+      }
+      const preset = db.upsertPreset(sid, body);
+      send(res, 200, preset, origin);
+      return;
+    }
+    const key = subId;
+    if (!key) { send(res, 400, { error: 'invalid preset key' }, origin); return; }
+    if (req.method === 'PATCH' && parts.length === 5) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      // Cascade-update: bumps both the preset row and every drink linked to it.
+      const next = db.updatePresetCascade(sid, key, body);
+      if (!next) { send(res, 404, { error: 'preset not found' }, origin); return; }
+      send(res, 200, next, origin);
+      return;
+    }
+    if (req.method === 'POST' && parts.length === 6 && parts[5] === 'touch') {
+      db.touchPreset(sid, key);
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+    if (req.method === 'DELETE' && parts.length === 5) {
+      const ok = db.removePreset(sid, key);
+      if (!ok) { send(res, 404, { error: 'preset not found' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+  }
+
+  // ---- /drinks ----
+  if (subType === 'drinks') {
+    if (req.method === 'POST' && parts.length === 4) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !Number.isInteger(Number(body.personId))
+          || body.volumeMl == null || body.abv == null) {
+        send(res, 400, { error: 'missing fields' }, origin); return;
+      }
+      try {
+        const drink = db.addDrink(sid, {
+          personId: Number(body.personId),
+          presetKey: body.presetKey || null,
+          name: body.name,
+          flavour: body.flavour,
+          volumeMl: Number(body.volumeMl),
+          abv: Number(body.abv),
+          t: body.t,
+        });
+        send(res, 201, drink, origin);
+      } catch (e) {
+        const status = e.status || 500;
+        send(res, status, { error: e.message || 'add drink failed' }, origin);
+      }
+      return;
+    }
+    const drinkId = Number(subId);
+    if (!Number.isInteger(drinkId) || drinkId <= 0) {
+      send(res, 400, { error: 'invalid drink id' }, origin); return;
+    }
+    if (req.method === 'PATCH' && parts.length === 5) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      const next = db.updateDrink(sid, drinkId, body);
+      if (!next) { send(res, 404, { error: 'drink not found' }, origin); return; }
+      send(res, 200, next, origin);
+      return;
+    }
+    if (req.method === 'DELETE' && parts.length === 5) {
+      const ok = db.removeDrink(sid, drinkId);
+      if (!ok) { send(res, 404, { error: 'drink not found' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+  }
+
+  send(res, 404, { error: 'session route not found' }, origin);
+}
+
+// readBody + JSON.parse with consistent error responses. Returns null after
+// emitting the error response, so callers can early-return.
+async function safeJsonBody(req, res, origin) {
+  let body;
+  try { body = await readBody(req); }
+  catch (e) { send(res, e.status || 400, { error: e.message || 'bad request' }, origin); return null; }
+  if (!body) return {};
+  try { return JSON.parse(body); }
+  catch { send(res, 400, { error: 'invalid JSON' }, origin); return null; }
+}
+
 // --- request router --------------------------------------------------------
 
 const server = http.createServer(async (req, res) => {
@@ -374,6 +564,14 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  // ---- Public sessions API -----------------------------------------------
+  // No auth: knowing the session id IS the credential. Anyone with the link
+  // can read or write. The admin overview (GET /api/sessions) lives under
+  // the admin path and is NOT exposed publicly.
+  if (url === '/api/sessions' || url.startsWith('/api/sessions/')) {
+    return handleSessionRoute(req, res, url, origin);
+  }
+
   if (req.method === 'POST' && url === '/submit') {
     let body;
     try { body = await readBody(req); }
@@ -399,6 +597,16 @@ const server = http.createServer(async (req, res) => {
     const rawApiPath = url.slice((ADMIN_PATH + '/api/').length);
     const [apiPath, queryStr] = rawApiPath.split('?', 2);
     const qParams = new URLSearchParams(queryStr || '');
+
+    // Admin overview of all sessions. Same data shape as the SQL view —
+    // session id, name, counts, last activity. The admin GUI uses this to
+    // pick a session to "log into" (just opens /?s=<sid> in a new tab).
+    if (req.method === 'GET' && apiPath === 'sessions') {
+      const sessions = db.listSessions();
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ sessions }));
+      return;
+    }
 
     if (req.method === 'GET' && apiPath === 'log') {
       const limit = Math.min(Math.max(1, Number(qParams.get('limit') || 200)), 1000);
