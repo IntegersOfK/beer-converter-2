@@ -496,6 +496,7 @@ function render(data) {
 
     <div class="actions">
       <button class="btn primary" id="btnCopy">Copy report link</button>
+      <button class="btn" id="btnImport">Import to app</button>
       <a href="/" class="btn ghost">← New session</a>
     </div>
 
@@ -514,6 +515,49 @@ function render(data) {
       setTimeout(() => { btn.textContent = 'Copy report link'; }, 2200);
     }).catch(() => { prompt('Copy this link:', location.href); });
   });
+  document.getElementById('btnImport').addEventListener('click', importToApp);
+}
+
+function importToApp() {
+  let hasExisting = false;
+  try {
+    const raw = localStorage.getItem('beerConverter.v1');
+    if (raw) {
+      const s = JSON.parse(raw);
+      hasExisting = s && Array.isArray(s.people) && s.people.some(p => Array.isArray(p.drinks) && p.drinks.length > 0);
+    }
+  } catch {}
+
+  if (hasExisting && !confirm('This will replace your current session. Any drinks already logged will be lost. Continue?')) return;
+
+  let presets = [];
+  let benchmarkPresetId = 'pstd';
+  try {
+    const raw = localStorage.getItem('beerConverter.v1');
+    if (raw) {
+      const s = JSON.parse(raw);
+      if (Array.isArray(s.presets) && s.presets.length > 0) presets = s.presets;
+      if (s.benchmarkPresetId) benchmarkPresetId = s.benchmarkPresetId;
+    }
+  } catch {}
+
+  if (data.bm && presets.length > 0) {
+    const match = presets.find(p => Math.abs(p.volumeMl - data.bm.v) < 1 && Math.abs(p.abv - data.bm.a) < 0.05);
+    if (match) benchmarkPresetId = match.id;
+  }
+
+  const people = data.p.map(p => ({
+    name: p.n,
+    drinks: p.d.map(d => ({ name: d.n, volumeMl: d.v, abv: d.a, presetId: null, t: data.ts || Date.now() })),
+  }));
+
+  try {
+    localStorage.setItem('beerConverter.v1', JSON.stringify({ people, presets, benchmarkPresetId }));
+  } catch {
+    alert('Could not save — storage may be full or blocked.');
+    return;
+  }
+  location.href = '/';
 }
 
 const data = decode();
