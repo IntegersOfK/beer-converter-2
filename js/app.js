@@ -5,20 +5,20 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=16';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=16';
+import { $, $$, vibe } from './util.js?v=17';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=17';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-} from './ui.js?v=16';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=16';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=16';
+} from './ui.js?v=17';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=17';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=17';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v16 (all drinks submit with person names)');
+console.log('Beer Converter build v17 (final report button)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -44,7 +44,13 @@ $('#btnReport').addEventListener('click', () => {
     bm: bench ? { n: bench.name, v: bench.volumeMl, a: bench.abv } : null,
   };
   const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
-  window.open('report.html?d=' + encoded, '_blank');
+  const a = Object.assign(document.createElement('a'), {
+    href: 'report.html?d=' + encoded,
+    target: '_blank', rel: 'noopener noreferrer',
+  });
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
 });
 
 // Toggle the "compare everyone" detail panel under the tally strip.
