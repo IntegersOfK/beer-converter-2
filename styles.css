@@ -1,4 +1,5 @@
-:root {
+:root,
+[data-theme="bar"] {
   --bg: #17110a;
   --bg-elev: #1f1710;
   --bg-card: #2a1f15;
@@ -14,6 +15,32 @@
   --line-soft: #241a11;
   --danger: #d4523a;
   --shadow: 0 1px 0 rgba(255,255,255,0.03), 0 10px 28px rgba(0,0,0,0.35);
+  --noise-opacity: 0.04;
+  --bg-overlay-top:    rgba(224, 163, 74, 0.09);
+  --bg-overlay-bottom: rgba(197, 100, 52, 0.06);
+}
+
+/* Beach mode — sand-on-skin palette for reading in the sun. Same amber accent
+   pulled deeper so it still pops against cream surfaces. */
+[data-theme="beach"] {
+  --bg: #f3e6c7;
+  --bg-elev: #fbf3da;
+  --bg-card: #ede0bb;
+  --bg-input: #ffffff;
+  --ink: #1a140a;
+  --ink-dim: #5a4630;
+  --ink-soft: #9a7f4d;
+  --amber: #b8741a;
+  --amber-bright: #d18a30;
+  --amber-deep: #8b520c;
+  --rust: #a8431d;
+  --line: #c8b683;
+  --line-soft: #dfd0a2;
+  --danger: #b84226;
+  --shadow: 0 1px 0 rgba(255,255,255,0.6), 0 6px 16px rgba(120, 90, 40, 0.18);
+  --noise-opacity: 0.025;
+  --bg-overlay-top:    rgba(184, 116, 26, 0.10);
+  --bg-overlay-bottom: rgba(168, 67, 29, 0.07);
 }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
@@ -37,8 +64,8 @@ html, body {
 
 body {
   background-image:
-    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(224, 163, 74, 0.09), transparent 70%),
-    radial-gradient(ellipse 60% 40% at 50% 110%, rgba(197, 100, 52, 0.06), transparent 70%);
+    radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg-overlay-top), transparent 70%),
+    radial-gradient(ellipse 60% 40% at 50% 110%, var(--bg-overlay-bottom), transparent 70%);
   background-attachment: fixed;
 }
 
@@ -47,7 +74,7 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.04;
+  opacity: var(--noise-opacity);
   z-index: 1000;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='240' height='240'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1 0 0 0 0 0.9 0 0 0 0 0.7 0 0 0 0.55 0'/></filter><rect width='100%' height='100%' filter='url(%23n)'/></svg>");
   mix-blend-mode: overlay;
@@ -124,6 +151,13 @@ header.app::after {
 .icon-btn svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
 .icon-btn:hover { border-color: var(--amber-deep); color: var(--amber); }
 .icon-btn:active { transform: scale(0.95); }
+
+/* Theme toggle: show the icon for the theme you'd switch TO. Default (no
+   data-theme attribute set yet, or "bar") shows the sun. */
+#btnTheme .icon-sun  { display: block; }
+#btnTheme .icon-moon { display: none; }
+[data-theme="beach"] #btnTheme .icon-sun  { display: none; }
+[data-theme="beach"] #btnTheme .icon-moon { display: block; }
 
 /* ===== Comparison strip ===== */
 .compare-strip {

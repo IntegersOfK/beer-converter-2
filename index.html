@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=17">
+<link rel="stylesheet" href="styles.css?v=18">
 </head>
 <body>
 
@@ -24,6 +24,24 @@
     <span class="tag">Pint-for-Pint · Standard Drink Ledger</span>
   </div>
   <div class="header-actions">
+    <button class="icon-btn" id="btnTheme" title="Switch theme" aria-label="Switch theme">
+      <!-- Sun shown while in bar mode (click → beach). -->
+      <svg class="icon-sun" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="4"/>
+        <line x1="12" y1="2" x2="12" y2="5"/>
+        <line x1="12" y1="19" x2="12" y2="22"/>
+        <line x1="2" y1="12" x2="5" y2="12"/>
+        <line x1="19" y1="12" x2="22" y2="12"/>
+        <line x1="4.93" y1="4.93" x2="6.96" y2="6.96"/>
+        <line x1="17.04" y1="17.04" x2="19.07" y2="19.07"/>
+        <line x1="4.93" y1="19.07" x2="6.96" y2="17.04"/>
+        <line x1="17.04" y1="6.96" x2="19.07" y2="4.93"/>
+      </svg>
+      <!-- Moon shown while in beach mode (click → bar). -->
+      <svg class="icon-moon" viewBox="0 0 24 24">
+        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+      </svg>
+    </button>
     <button class="icon-btn" id="btnPresets" title="Drink types" aria-label="Manage drink types">
       <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </button>
@@ -211,6 +229,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=17"></script>
+<script type="module" src="js/app.js?v=18"></script>
 </body>
 </html>

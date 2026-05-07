@@ -1,15 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=17';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=17';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=18';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=18';
 import {
   state, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=17';
-import { submitProduct } from './submit.js?v=17';
+} from './state.js?v=18';
+import { submitProduct } from './submit.js?v=18';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {

@@ -5,25 +5,49 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=17';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=17';
+import { $, $$, vibe } from './util.js?v=18';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=18';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-} from './ui.js?v=17';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=17';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=17';
+} from './ui.js?v=18';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=18';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=18';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v17 (final report button)');
+console.log('Beer Converter build v18 (bar/beach themes)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
 // user can still add the product manually.
 loadProducts().catch(() => { /* already logged inside loadProducts */ });
+
+// --- Theme toggle ---------------------------------------------------------
+// Two themes: "bar" (default, dark) and "beach" (light, for sunny patios).
+// Saved per-device in localStorage so it persists across sessions.
+const THEME_KEY = 'beerConverter.theme';
+const THEME_COLOURS = { bar: '#17110a', beach: '#f3e6c7' };
+
+function applyTheme(theme) {
+  const t = theme === 'beach' ? 'beach' : 'bar';
+  document.documentElement.setAttribute('data-theme', t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLOURS[t]);
+  const btn = $('#btnTheme');
+  if (btn) btn.title = t === 'beach' ? 'Switch to bar mode' : 'Switch to beach mode';
+}
+
+applyTheme(localStorage.getItem(THEME_KEY) || 'bar');
+
+$('#btnTheme').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'beach' ? 'bar' : 'beach';
+  applyTheme(next);
+  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  vibe(8);
+});
 
 // --- Header actions -------------------------------------------------------
 $('#btnPresets').addEventListener('click', openPresetsModal);
