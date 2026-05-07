@@ -559,9 +559,6 @@ header.app::after {
   letter-spacing: 0.2em;
   text-transform: uppercase;
   color: var(--ink-soft);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
 }
 
 .stat-value {

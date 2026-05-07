@@ -1,15 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=20';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=20';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=21';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=21';
 import {
   state, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=20';
-import { submitProduct } from './submit.js?v=20';
+} from './state.js?v=21';
+import { submitProduct } from './submit.js?v=21';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -59,7 +59,7 @@ function renderPeople() {
     card.innerHTML = `
       <div class="person-head">
         <input class="name-input" data-person-name="${idx}" value="${escapeHtml(person.name)}" maxlength="16" spellcheck="false" />
-        <span class="person-badge">${personBadge(idx)}</span>
+        <span class="person-badge" title="Person ${personBadge(idx)}">${personBadge(idx)}</span>
         ${canRemove ? `<button class="x-btn person-remove" data-remove-person="${idx}" title="Remove ${escapeHtml(person.name)}" aria-label="Remove person">×</button>` : ''}
       </div>
       <div class="stats" data-stats="${idx}">
@@ -87,7 +87,7 @@ function renderPeople() {
                 <div class="drink-name">${escapeHtml(d.name)}</div>
                 <div class="drink-meta" title="Volume · alcohol by volume">${fmt(d.volumeMl,0)} ml · ${fmt(d.abv,1)}%</div>
               </button>
-              <div class="drink-ethanol" title="Pure ethanol in this drink">+${fmt(ethanolOf(d),1)} ml</div>
+              <div class="drink-ethanol" title="Pure ethanol · ${fmt(ethanolOf(d)/STD_DRINK_ML,2)} standard drinks">+${fmt(ethanolOf(d),1)} ml ethanol</div>
               <button class="x-btn" data-remove="${idx}:${di}" title="Remove" aria-label="Remove drink">×</button>
             </div>
           `).join('')}
@@ -182,6 +182,7 @@ function renderCompare() {
   const detail = $('#compareDetail');
 
   bLabel.textContent = bench ? `Benchmark · ${bench.name} @ ${fmt(bench.abv,1)}%` : '';
+  bLabel.title = bench ? `${bench.name} is the reference drink — equivalence counts show how many of these each person has had` : '';
 
   if (totalCount === 0) {
     main.innerHTML = `
@@ -258,6 +259,7 @@ function renderCompare() {
   if (expandBtn && detail) {
     if (state.people.length >= 3) {
       expandBtn.style.display = '';
+      expandBtn.title = 'Show per-person breakdown and pairwise ratio matrix';
       expandBtn.setAttribute('aria-expanded', compareDetailOpen ? 'true' : 'false');
       expandBtn.querySelector('.compare-expand-label').textContent =
         compareDetailOpen ? 'Hide detail' : 'Compare everyone';
@@ -596,7 +598,7 @@ function renderPresetList() {
     list.appendChild(row);
   });
   $$('[data-star]', list).forEach(btn => {
-    btn.addEventListener('click', e => { setBenchmark(e.currentTarget.dataset.star); renderPresetList(); render(); });
+    btn.addEventListener('click', e => { vibe(12); setBenchmark(e.currentTarget.dataset.star); renderPresetList(); render(); });
   });
   $$('[data-del-preset]', list).forEach(btn => {
     btn.addEventListener('click', e => {
