@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=33';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=33';
+import { $, $$, vibe } from './util.js?v=35';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=35';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=33';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=33';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=33';
-import { ML_PER_OZ } from './calc.js?v=33';
+} from './ui.js?v=35';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=35';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=35';
+import { ML_PER_OZ } from './calc.js?v=35';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v33 (changelog popup)');
+console.log('Beer Converter build v35 (imperial fl oz, hide spinners, Measurement Canada link)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -178,6 +178,9 @@ $('#newPresetUnit').addEventListener('change', e => { setUnitPref(e.target.value
 
 // --- Scanner flow ---------------------------------------------------------
 let activeScanner = null;
+// What to do when a UPC is found. Defaults to the add-drink flow; the
+// preset-modal scan button swaps in its own handler that just fills an input.
+let scannerOnFound = handleUpcFound;
 
 function stopActiveScanner() {
   if (activeScanner) { activeScanner.stop(); activeScanner = null; }
@@ -185,6 +188,9 @@ function stopActiveScanner() {
 
 function closeScannerOnly() {
   $('#scannerModal').classList.remove('open');
+  // Reset to the default flow so a stale preset-input handler doesn't
+  // intercept the next scan.
+  scannerOnFound = handleUpcFound;
 }
 
 function setScannerStatus(text, variant = '') {
@@ -193,9 +199,8 @@ function setScannerStatus(text, variant = '') {
   el.className = 'scanner-status ' + variant;
 }
 
-$('#btnOpenScanner').addEventListener('click', async () => {
-  // Open the scanner modal on top of the add-drink modal. If the browser
-  // can't scan, fall back to a manual UPC text input.
+async function openScanner(onFound, statusMsg) {
+  scannerOnFound = onFound || handleUpcFound;
   $('#scannerModal').classList.add('open');
   $('#manualUpcField').style.display = 'none';
   $('#btnManualLookup').style.display = 'none';
@@ -210,11 +215,9 @@ $('#btnOpenScanner').addEventListener('click', async () => {
 
   setScannerStatus('Requesting camera…');
 
-  // startScanner's onError is called synchronously before the promise settles
-  // when permission/availability fails, so this flag is reliable.
   let errored = false;
   activeScanner = await startScanner($('#scannerVideo'), {
-    onFound: handleUpcFound,
+    onFound: (upc) => scannerOnFound(upc),
     onError: (err) => {
       errored = true;
       console.warn('Scanner error', err);
@@ -225,14 +228,36 @@ $('#btnOpenScanner').addEventListener('click', async () => {
   });
 
   if (!errored) {
-    setScannerStatus('Point the camera at a UPC/EAN barcode…');
+    setScannerStatus(statusMsg || 'Point the camera at a UPC/EAN barcode…');
   }
-});
+}
+
+$('#btnOpenScanner').addEventListener('click', () => openScanner(handleUpcFound));
 
 $('#btnManualLookup').addEventListener('click', () => {
   const upc = $('#manualUpc').value.trim();
   if (!upc) return;
-  handleUpcFound(upc);
+  scannerOnFound(upc);
+});
+
+// Camera button inside the preset-modal "Add barcode" popover. Scans into
+// the matching popover input and submits without going through the
+// drink-add flow.
+document.addEventListener('click', e => {
+  const btn = e.target.closest('[data-scan-upc-for]');
+  if (!btn) return;
+  e.preventDefault();
+  const presetId = btn.dataset.scanUpcFor;
+  const input = document.querySelector(`[data-add-upc-for="${presetId}"]`);
+  if (!input) return;
+  const preset = state.presets.find(p => p.id === presetId);
+  openScanner((upc) => {
+    vibe(25);
+    stopActiveScanner();
+    closeScannerOnly();
+    input.value = upc;
+    document.querySelector(`[data-add-upc-submit="${presetId}"]`)?.click();
+  }, preset ? `Scan to add a barcode to "${preset.name}"…` : 'Scan a barcode…');
 });
 
 async function handleUpcFound(upc) {

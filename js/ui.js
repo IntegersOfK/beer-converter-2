@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=33';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=33';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=35';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=35';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -10,9 +10,9 @@ import {
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
   setDrinkFlavour,
-} from './state.js?v=33';
-import { submitProduct } from './submit.js?v=33';
-import { getFlavoursForName } from './products.js?v=33';
+} from './state.js?v=35';
+import { submitProduct } from './submit.js?v=35';
+import { getFlavoursForName } from './products.js?v=35';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -685,6 +685,15 @@ function renderPresetList() {
             <div class="upc-popover-row">
               <input class="mono upc-add-input" id="upc-${preset.id}" type="text" inputmode="numeric"
                      placeholder="0 12345 67890 5" data-add-upc-for="${preset.id}" autocomplete="off" />
+              <button class="upc-scan-btn" data-scan-upc-for="${preset.id}" title="Scan a barcode" aria-label="Scan a barcode">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="3" y="5" width="18" height="14" rx="1"/>
+                  <line x1="7" y1="9" x2="7" y2="15"/>
+                  <line x1="10" y1="9" x2="10" y2="15"/>
+                  <line x1="13" y1="9" x2="13" y2="15"/>
+                  <line x1="17" y1="9" x2="17" y2="15"/>
+                </svg>
+              </button>
               <button class="upc-add-btn" data-add-upc-submit="${preset.id}" title="Link this barcode" aria-label="Add barcode">+</button>
             </div>
           </div>
@@ -959,9 +968,11 @@ function updateEditModeVisibility() {
   const curAbv = parseFloat($('#editAbv').value);
   const curFlav = ($('#editFlavour')?.value || '').trim();
 
+  // 0.5 ml tolerance swallows the ~0.1 ml float drift from ml→oz→ml round-trip
+  // (toFixed(2) on the oz display) while still catching a 1-ml typed change.
   const nvaChanged =
     curName !== editOriginal.name ||
-    (Number.isFinite(curVol) && Math.abs(curVol - editOriginal.volumeMl) > 0.01) ||
+    (Number.isFinite(curVol) && Math.abs(curVol - editOriginal.volumeMl) > 0.5) ||
     (Number.isFinite(curAbv) && Math.abs(curAbv - editOriginal.abv) > 0.001);
   const flavourChanged = curFlav !== editOriginal.flavour;
 

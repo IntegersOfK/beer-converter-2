@@ -69,6 +69,27 @@ body {
   background-position: center, center, bottom center;
 }
 
+/* ===== Scrollbars =====
+   Re-skin the OS chrome so it picks up bar/beach palettes instead of
+   default greys. Firefox uses the two-value `scrollbar-color` shorthand;
+   Chromium/Safari go through the ::-webkit-scrollbar pseudos. */
+html {
+  scrollbar-color: var(--amber-deep) var(--bg-elev);
+  scrollbar-width: thin;
+}
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track {
+  background: var(--bg-elev);
+  border-left: 1px solid var(--line-soft);
+}
+::-webkit-scrollbar-thumb {
+  background: var(--amber-deep);
+  border-radius: 6px;
+  border: 2px solid var(--bg-elev);
+}
+::-webkit-scrollbar-thumb:hover { background: var(--amber); }
+::-webkit-scrollbar-corner { background: var(--bg-elev); }
+
 :root body, [data-theme="bar"] body {
   background-image:
     radial-gradient(ellipse 80% 50% at 50% -10%, var(--bg-overlay-top), transparent 70%),
@@ -1004,6 +1025,16 @@ header.app::after {
 
 .input:focus { border-color: var(--amber); }
 
+/* Default browser spinners on number inputs don't pick up the theme.
+   Hide them — inputmode="decimal" gives mobile users a numeric pad,
+   and desktop users can still type or paste. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
+
 .field-row {
   display: grid;
   grid-template-columns: 1.2fr 1fr;
@@ -1233,7 +1264,7 @@ header.app::after {
 
 .upc-popover-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 28px;
+  grid-template-columns: minmax(0, 1fr) 28px 28px;
   gap: 6px;
 }
 
@@ -1266,6 +1297,21 @@ header.app::after {
 }
 
 .upc-add-btn:hover { color: var(--amber); border-color: var(--amber-deep); }
+
+.upc-scan-btn {
+  background: var(--bg-input);
+  border: 1px solid var(--line);
+  color: var(--ink-dim);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.upc-scan-btn:hover { color: var(--amber); border-color: var(--amber-deep); }
 
 .preset-list-item .star-btn {
   background: transparent;
