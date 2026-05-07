@@ -125,6 +125,66 @@
   .footnote { font-size: 11px; color: var(--ink-soft); line-height: 1.6; }
   .footnote a { text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; }
 
+  /* Donut chart */
+  .donut-wrap {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    padding: 16px; margin-bottom: 16px;
+  }
+  .donut-title { font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 14px; }
+  .donut-body  { display: flex; align-items: center; gap: 20px; flex-wrap: wrap; }
+  .donut-svg   { width: 120px; height: 120px; flex-shrink: 0; }
+  .donut-legend { flex: 1; min-width: 100px; display: flex; flex-direction: column; gap: 9px; }
+  .legend-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-dim); }
+  .legend-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+  .legend-name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-val  { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); white-space: nowrap; }
+
+  /* Comparison */
+  .cmp-section {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 16px; overflow: hidden;
+  }
+  summary.cmp-summary {
+    padding: 13px 16px; cursor: pointer; user-select: none;
+    font-size: 13px; font-weight: 600; color: var(--ink-dim);
+    display: flex; justify-content: space-between; align-items: center;
+    list-style: none;
+  }
+  summary.cmp-summary::-webkit-details-marker { display: none; }
+  summary.cmp-summary::after { content: '▾'; font-weight: 400; color: var(--ink-soft); }
+  details[open] summary.cmp-summary::after { content: '▴'; }
+  .cmp-body { padding: 0 16px 14px; border-top: 1px solid var(--line-soft); }
+  .cmp-row {
+    display: grid; grid-template-columns: 1fr auto auto;
+    gap: 8px 12px; align-items: baseline;
+    padding: 8px 0; font-size: 13px;
+  }
+  .cmp-row + .cmp-row { border-top: 1px solid var(--line-soft); }
+  .cmp-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .cmp-std  { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
+  .cmp-tag  { font-size: 11px; white-space: nowrap; text-align: right; }
+  .cmp-tag.lead   { color: var(--amber-bright); }
+  .cmp-tag.behind { color: var(--ink-soft); }
+  .cmp-tag.dry    { color: var(--ink-soft); font-style: italic; }
+  .matrix-wrap { margin-top: 16px; overflow-x: auto; }
+  .matrix-label { font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 8px; }
+  .matrix-table { border-collapse: collapse; width: 100%; }
+  .matrix-table th {
+    padding: 5px 8px; font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600;
+    color: var(--ink-soft); text-align: center; white-space: nowrap;
+  }
+  .matrix-table th:first-child { text-align: right; padding-right: 12px; }
+  .matrix-table td {
+    padding: 5px 8px; text-align: center;
+    font-family: 'IBM Plex Mono', monospace; font-size: 11px;
+    border-top: 1px solid var(--line-soft); color: var(--ink-dim);
+  }
+  .matrix-table tr td:first-child { text-align: right; font-weight: 600; color: var(--ink-soft); padding-right: 12px; }
+  .matrix-table td.self   { color: var(--line); }
+  .matrix-table td.hi     { color: var(--amber); }
+  .matrix-table td.lo     { color: var(--ink-soft); }
+  .matrix-table td.nil    { color: var(--line); }
+
   /* Error / empty */
   .error { text-align: center; padding: 80px 20px; }
   .error h2 { font-family: 'Fraunces', serif; font-size: 32px; margin-bottom: 10px; }
@@ -141,6 +201,8 @@
 </div>
 <script>
 const STD_DRINK_ML = 17.05;
+const COLORS = ['#f5be5e','#c56434','#6db672','#6aa8c8','#a87bc8','#c87ba0'];
+
 function ethanolOf(d) { return d.v * d.a / 100; }
 function stdOf(e)      { return e / STD_DRINK_ML; }
 function fmt(n, dp)    { return isFinite(n) ? n.toFixed(dp) : '—'; }
@@ -159,55 +221,142 @@ function decode() {
 }
 
 function personalQuip(std) {
-  if (std === 0)    return 'Perfectly sober. Suspicious, frankly.';
-  if (std < 0.5)   return 'More symbolic than substantive.';
-  if (std < 1)     return 'Respectably restrained.';
-  if (std < 2)     return 'A light hand — keeping it civilized.';
-  if (std < 3)     return 'A proper social evening.';
-  if (std < 4)     return 'Committed to the bit.';
-  if (std < 5)     return 'Full send, no apologies.';
-  if (std < 7)     return 'The morning will have thoughts.';
-  if (std < 9)     return 'Bold. Ambitious. Brave.';
-  if (std < 12)    return 'Future historians may debate this.';
+  if (std === 0)  return 'Perfectly sober. Suspicious, frankly.';
+  if (std < 0.5)  return 'More symbolic than substantive.';
+  if (std < 1)    return 'Respectably restrained.';
+  if (std < 2)    return 'A light hand — keeping it civilized.';
+  if (std < 3)    return 'A proper social evening.';
+  if (std < 4)    return 'Committed to the bit.';
+  if (std < 5)    return 'Full send, no apologies.';
+  if (std < 7)    return 'The morning will have thoughts.';
+  if (std < 9)    return 'Bold. Ambitious. Brave.';
+  if (std < 12)   return 'Future historians may debate this.';
   return 'This report cannot be used in court.';
 }
 
 function groupQuip(people) {
   const drinkers = people.filter(p => p.std > 0).sort((a, b) => b.std - a.std);
   if (!drinkers.length) return 'A completely sober evening. A legend in its own right.';
-
   const total = people.reduce((s, p) => s + p.std, 0);
   const avg   = total / people.length;
   const dry   = people.filter(p => p.std === 0);
-
   if (drinkers.length === 1) {
     return dry.length
       ? `<b>${esc(drinkers[0].n)}</b> carried the night solo while ${dry.map(p => `<b>${esc(p.n)}</b>`).join(' and ')} watched with quiet judgement.`
       : `<b>${esc(drinkers[0].n)}</b> was the only one drinking tonight.`;
   }
-
-  const leader = drinkers[0];
-  const second = drinkers[1];
+  const leader = drinkers[0], second = drinkers[1];
   const ratio  = leader.std / Math.max(second.std, 0.01);
-  const tied   = Math.abs(ratio - 1) < 0.08;
-
-  if (tied) {
-    return `<b>${esc(leader.n)}</b> and <b>${esc(second.n)}</b> finished in a dead heat — remarkably even pour distribution for a group this chaotic.`;
-  }
-  if (ratio >= 2) {
-    return `<b>${esc(leader.n)}</b> had <b>${fmt(ratio, 1)}×</b> the ethanol of <b>${esc(second.n)}</b>. The gap speaks for itself.`;
-  }
+  if (Math.abs(ratio - 1) < 0.08) return `<b>${esc(leader.n)}</b> and <b>${esc(second.n)}</b> finished in a dead heat — remarkably even pour distribution for a group this chaotic.`;
+  if (ratio >= 2) return `<b>${esc(leader.n)}</b> had <b>${fmt(ratio, 1)}×</b> the ethanol of <b>${esc(second.n)}</b>. The gap speaks for itself.`;
   if (avg < 1.5) return 'A tasteful and restrained evening all around. The liver approves.';
   if (avg < 3)   return `A solid group effort — ${fmt(total, 1)} standard drinks across ${people.length} people. Respectable.`;
   if (avg < 5)   return `${fmt(total, 1)} standard drinks for ${people.length} people. Health Canada's low-risk guidelines are aware of this report.`;
   return `${fmt(total, 1)} standard drinks across ${people.length} people. The details of this evening are between you and your liver.`;
 }
 
+// Donut chart: SVG stroke-dasharray slices, shown only when 2+ drinkers.
+function buildDonut(people) {
+  const drinkers = people.filter(p => p.ethanol > 0);
+  if (drinkers.length < 2) return '';
+  const total = drinkers.reduce((s, p) => s + p.ethanol, 0);
+  const R = 42, cx = 60, cy = 60, C = 2 * Math.PI * R;
+  let angle = -90;
+  const slices = drinkers.map((p, i) => {
+    const dash  = (p.ethanol / total * C).toFixed(2);
+    const gap   = (C + 1).toFixed(2);
+    const color = COLORS[i % COLORS.length];
+    const s = `<circle cx="${cx}" cy="${cy}" r="${R}" fill="none" stroke="${color}" stroke-width="15"
+      stroke-dasharray="${dash} ${gap}" transform="rotate(${angle.toFixed(1)} ${cx} ${cy})"/>`;
+    angle += p.ethanol / total * 360;
+    return s;
+  });
+  const legend = drinkers.map((p, i) => `
+    <div class="legend-row">
+      <span class="legend-dot" style="background:${COLORS[i % COLORS.length]}"></span>
+      <span class="legend-name">${esc(p.n)}</span>
+      <span class="legend-val">${(p.ethanol / total * 100).toFixed(0)}% · ${fmt(p.ethanol, 1)} ml</span>
+    </div>`).join('');
+  return `
+    <div class="donut-wrap">
+      <div class="donut-title">Ethanol share</div>
+      <div class="donut-body">
+        <svg viewBox="0 0 120 120" class="donut-svg">
+          ${slices.join('')}
+          <text x="${cx}" y="${cy - 4}" text-anchor="middle"
+            style="font-family:'IBM Plex Mono',monospace;font-size:13px;fill:#e0a34a;font-weight:600;"
+          >${fmt(total, 0)}</text>
+          <text x="${cx}" y="${cy + 9}" text-anchor="middle"
+            style="font-family:ui-sans-serif,sans-serif;font-size:7px;fill:#8b7b5f;letter-spacing:.06em;"
+          >ML ETHANOL</text>
+        </svg>
+        <div class="donut-legend">${legend}</div>
+      </div>
+    </div>`;
+}
+
+// Collapsible per-person breakdown + pairwise matrix (3+ people).
+function buildComparison(people, bm) {
+  if (people.length < 2) return '';
+  const sorted = [...people].sort((a, b) => b.std - a.std);
+  const leader = sorted.find(p => p.std > 0);
+  const rows = sorted.map(p => {
+    let cls, tag;
+    if (p.std === 0) {
+      cls = 'dry'; tag = 'stayed dry';
+    } else if (!leader || Math.abs(p.std / leader.std - 1) < 0.03) {
+      cls = 'lead'; tag = sorted.filter(x => x.std > 0).length === 1 ? 'only drinker' : 'leading';
+    } else {
+      cls = 'behind'; tag = `${fmt(leader.std / p.std, 2)}× behind ${esc(leader.n)}`;
+    }
+    const bmPart = bm && p.bmEquiv != null && p.std > 0
+      ? ` · ${fmt(p.bmEquiv, 1)} ${esc(bm.n.toLowerCase())}${Math.round(p.bmEquiv) === 1 ? '' : 's'}`
+      : '';
+    return `
+      <div class="cmp-row">
+        <div class="cmp-name">${esc(p.n)}</div>
+        <div class="cmp-std">${fmt(p.std, 2)} std${bmPart}</div>
+        <div class="cmp-tag ${cls}">${tag}</div>
+      </div>`;
+  }).join('');
+
+  let matrix = '';
+  if (people.length >= 3) {
+    const heads = people.map(p => `<th title="${esc(p.n)}">${esc(p.n.length > 7 ? p.n.slice(0,6)+'…' : p.n)}</th>`).join('');
+    const mrows = people.map(row => {
+      const cells = people.map(col => {
+        if (row === col) return `<td class="self">—</td>`;
+        if (row.ethanol === 0 && col.ethanol === 0) return `<td class="nil">·</td>`;
+        if (row.ethanol === 0) return `<td class="hi">∞</td>`;
+        if (col.ethanol === 0) return `<td class="nil">0×</td>`;
+        const r = col.ethanol / row.ethanol;
+        return `<td class="${Math.abs(r-1) < 0.03 ? '' : r > 1 ? 'hi' : 'lo'}">${fmt(r,2)}×</td>`;
+      }).join('');
+      const label = esc(row.n.length > 7 ? row.n.slice(0,6)+'…' : row.n);
+      return `<tr><td>${label}</td>${cells}</tr>`;
+    }).join('');
+    matrix = `
+      <div class="matrix-wrap">
+        <div class="matrix-label">Head-to-head · cell = column ÷ row</div>
+        <table class="matrix-table">
+          <thead><tr><th></th>${heads}</tr></thead>
+          <tbody>${mrows}</tbody>
+        </table>
+      </div>`;
+  }
+
+  return `
+    <details class="cmp-section">
+      <summary class="cmp-summary">Detailed comparison</summary>
+      <div class="cmp-body">${rows}${matrix}</div>
+    </details>`;
+}
+
 function render(data) {
   const ts   = new Date(data.ts || Date.now());
   const date = ts.toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
   const time = ts.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
-  const bm   = data.bm; // { n, v, a } or null
+  const bm   = data.bm;
 
   const people = data.p.map(p => {
     const ethanol = p.d.reduce((s, d) => s + ethanolOf(d), 0);
@@ -216,42 +365,30 @@ function render(data) {
     return { ...p, ethanol, std, bmEquiv };
   });
 
-  const totalStd    = people.reduce((s, p) => s + p.std,    0);
-  const totalEthanol= people.reduce((s, p) => s + p.ethanol,0);
-  const maxStd      = Math.max(...people.map(p => p.std), 0.001);
-  const sorted      = [...people].sort((a, b) => b.std - a.std);
+  const totalStd     = people.reduce((s, p) => s + p.std,     0);
+  const totalEthanol = people.reduce((s, p) => s + p.ethanol, 0);
+  const maxStd       = Math.max(...people.map(p => p.std), 0.001);
+  const sorted       = [...people].sort((a, b) => b.std - a.std);
 
-  // Rankings strip — colour-code top 3
   const barClasses = ['top', 'mid', 'rest'];
-  const rankings = sorted.map((p, i) => {
-    const pct = (p.std / maxStd * 100).toFixed(1);
-    const cls = barClasses[i] || 'rest';
-    return `
-      <div class="rank-row">
-        <div class="rank-name">${esc(p.n)}</div>
-        <div class="rank-bar-track"><div class="rank-bar ${cls}" style="width:${pct}%"></div></div>
-        <div class="rank-val">${fmt(p.std, 1)} std</div>
-      </div>`;
-  }).join('');
+  const rankings = sorted.map((p, i) => `
+    <div class="rank-row">
+      <div class="rank-name">${esc(p.n)}</div>
+      <div class="rank-bar-track"><div class="rank-bar ${barClasses[i] || 'rest'}" style="width:${(p.std/maxStd*100).toFixed(1)}%"></div></div>
+      <div class="rank-val">${fmt(p.std, 1)} std</div>
+    </div>`).join('');
 
-  // Per-person cards
   const cards = people.map(p => {
     const drinkRows = p.d.length === 0
       ? `<div class="drink-row"><div class="dn" style="font-style:italic;color:var(--ink-soft)">No drinks logged</div></div>`
-      : p.d.map(d => {
-          const s = stdOf(ethanolOf(d));
-          return `
-            <div class="drink-row">
-              <div class="dn">${esc(d.n)}</div>
-              <div class="dm">${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%</div>
-              <div class="ds">+${fmt(s, 2)}</div>
-            </div>`;
-        }).join('');
-
+      : p.d.map(d => `
+          <div class="drink-row">
+            <div class="dn">${esc(d.n)}</div>
+            <div class="dm">${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%</div>
+            <div class="ds">+${fmt(stdOf(ethanolOf(d)), 2)}</div>
+          </div>`).join('');
     const bmLine = bm && p.bmEquiv != null
-      ? ` · ≈ ${fmt(p.bmEquiv, 1)} ${esc(bm.n.toLowerCase())}${Math.round(p.bmEquiv) === 1 ? '' : 's'}`
-      : '';
-
+      ? ` · ≈ ${fmt(p.bmEquiv, 1)} ${esc(bm.n.toLowerCase())}${Math.round(p.bmEquiv) === 1 ? '' : 's'}` : '';
     return `
       <div class="person-card">
         <div class="card-head">
@@ -267,17 +404,17 @@ function render(data) {
       </div>`;
   }).join('');
 
-  const bmTile = bm ? `
-    <div class="total-tile">
-      <div class="tl">in ${esc(bm.n.toLowerCase())}s</div>
-      <div class="tv">${fmt(totalEthanol / ethanolOf(bm), 1)}</div>
-      <div class="ts">@ ${fmt(bm.a, 1)}% combined</div>
-    </div>` : `
-    <div class="total-tile">
-      <div class="tl">ethanol</div>
-      <div class="tv">${fmt(totalEthanol, 0)}</div>
-      <div class="ts">ml combined</div>
-    </div>`;
+  const bmTile = bm
+    ? `<div class="total-tile">
+        <div class="tl">in ${esc(bm.n.toLowerCase())}s</div>
+        <div class="tv">${fmt(totalEthanol / ethanolOf(bm), 1)}</div>
+        <div class="ts">@ ${fmt(bm.a, 1)}% combined</div>
+       </div>`
+    : `<div class="total-tile">
+        <div class="tl">ethanol</div>
+        <div class="tv">${fmt(totalEthanol, 0)}</div>
+        <div class="ts">ml combined</div>
+       </div>`;
 
   document.getElementById('root').innerHTML = `
     <div class="brand">
@@ -290,12 +427,13 @@ function render(data) {
     <p class="report-sub">Featuring: ${people.map(p => esc(p.n)).join(', ')}</p>
 
     <div class="rankings">${rankings}</div>
-
+    ${buildDonut(people)}
     <div class="quip-block">${groupQuip(people)}</div>
 
     <hr class="div">
 
     ${cards}
+    ${buildComparison(people, bm)}
 
     <div class="totals-grid">
       <div class="total-tile">
