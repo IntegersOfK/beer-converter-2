@@ -1,15 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=18';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=18';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=19';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=19';
 import {
   state, getBenchmark,
   addPreset, removePreset, setBenchmark,
-  addDrink, removeDrink, setPersonName,
+  addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=18';
-import { submitProduct } from './submit.js?v=18';
+} from './state.js?v=19';
+import { submitProduct } from './submit.js?v=19';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -24,6 +24,9 @@ export function toggleCompareDetail() {
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
 let barcodeEditorPresetId = null;
+// Which drink the edit modal is targeting.
+let editPersonIdx = 0;
+let editDrinkIdx = 0;
 // Whether the multi-person comparison detail panel is expanded.
 let compareDetailOpen = false;
 
@@ -80,10 +83,10 @@ function renderPeople() {
           ? `<div class="drinks-empty">No drinks logged yet</div>`
           : person.drinks.map((d, di) => `
             <div class="drink">
-              <div class="drink-info">
+              <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
                 <div class="drink-name">${escapeHtml(d.name)}</div>
                 <div class="drink-meta">${fmt(d.volumeMl,0)} ml · ${fmt(d.abv,1)}%</div>
-              </div>
+              </button>
               <div class="drink-ethanol">+${fmt(ethanolOf(d),1)} ml</div>
               <button class="x-btn" data-remove="${idx}:${di}" title="Remove" aria-label="Remove drink">×</button>
             </div>
@@ -118,6 +121,12 @@ function renderPeople() {
     input.addEventListener('change', e => {
       setPersonName(+e.target.dataset.personName, e.target.value);
       renderCompare();
+    });
+  });
+  $$('[data-edit]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const [pIdx, dIdx] = e.currentTarget.dataset.edit.split(':').map(Number);
+      openEditModal(pIdx, dIdx);
     });
   });
   $$('[data-remove]').forEach(btn => {
@@ -672,3 +681,70 @@ export function closeModal() {
 
 // Expose the preview updater for app.js input wiring.
 export { updateEthanolPreview };
+
+// --- Edit logged drink modal -----------------------------------------------
+function updateEditEthanolPreview() {
+  const raw = parseFloat($('#editVolume').value);
+  const unit = $('#editUnit').value;
+  const v = unit === 'oz' ? raw * ML_PER_OZ : raw;
+  const a = parseFloat($('#editAbv').value);
+  const el = $('#editEthanolPreviewVal');
+  if (!isFinite(v) || !isFinite(a) || v <= 0 || a < 0) {
+    el.textContent = '—';
+  } else {
+    const e = v * a / 100;
+    el.textContent = `${fmt(e,1)} ml  ·  ${fmt(e/STD_DRINK_ML, 2)} std`;
+  }
+}
+
+export function openEditModal(personIdx, drinkIdx) {
+  editPersonIdx = personIdx;
+  editDrinkIdx = drinkIdx;
+  const drink = state.people[personIdx]?.drinks[drinkIdx];
+  if (!drink) return;
+
+  $('#editName').value = drink.name || '';
+  $('#editVolume').value = Math.round(drink.volumeMl);
+  $('#editUnit').value = 'ml';
+  $('#editAbv').value = (+drink.abv).toFixed(1);
+  updateEditEthanolPreview();
+
+  const preset = drink.presetId ? state.presets.find(p => p.id === drink.presetId) : null;
+  const scopeSection = $('#editScopeSection');
+  if (preset) {
+    scopeSection.style.display = '';
+    $('#editScopeOrnament').textContent = `Linked to "${preset.name}"`;
+    $('#editScopeAllLabel').textContent = `All "${preset.name}" drinks (update the saved type)`;
+    $('#editScopeOne').checked = true;
+  } else {
+    scopeSection.style.display = 'none';
+  }
+
+  $('#editDrinkModal').classList.add('open');
+}
+
+export function submitEditDrink() {
+  const name = $('#editName').value.trim();
+  const raw = parseFloat($('#editVolume').value);
+  const unit = $('#editUnit').value;
+  const volumeMl = unit === 'oz' ? raw * ML_PER_OZ : raw;
+  const abv = parseFloat($('#editAbv').value);
+
+  if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
+    alert('Enter a valid volume and ABV (0–100%).'); return;
+  }
+
+  const drink = state.people[editPersonIdx]?.drinks[editDrinkIdx];
+  if (!drink) { closeModal(); return; }
+
+  if (drink.presetId && $('#editScopeAll').checked) {
+    updatePresetAndDrinks(drink.presetId, { name, volumeMl, abv });
+  } else {
+    updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv });
+  }
+
+  closeModal();
+  render();
+}
+
+export { updateEditEthanolPreview };

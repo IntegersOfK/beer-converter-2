@@ -5,20 +5,21 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=18';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=18';
+import { $, $$, vibe } from './util.js?v=19';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=19';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-} from './ui.js?v=18';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=18';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=18';
+  openEditModal, submitEditDrink, updateEditEthanolPreview,
+} from './ui.js?v=19';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=19';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=19';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v18 (bar/beach themes)');
+console.log('Beer Converter build v19 (edit logged drinks)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -117,6 +118,12 @@ $('#btnAddCustom').addEventListener('click', submitCustomDrink);
 $('#customName').addEventListener('input', updateSaveAsPresetCopy);
 $('#customUpc').addEventListener('input', updateSaveAsPresetCopy);
 $('#saveAsPreset').addEventListener('change', updateSaveAsPresetCopy);
+
+// --- Edit drink modal -----------------------------------------------------
+$('#editVolume').addEventListener('input', updateEditEthanolPreview);
+$('#editAbv').addEventListener('input', updateEditEthanolPreview);
+$('#editUnit').addEventListener('change', updateEditEthanolPreview);
+$('#btnSaveEditDrink').addEventListener('click', submitEditDrink);
 
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);

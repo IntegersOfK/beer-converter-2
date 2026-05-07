@@ -154,6 +154,33 @@ export function removeDrink(personIdx, drinkIdx) {
   saveState();
 }
 
+export function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv }) {
+  const d = state.people[personIdx]?.drinks[drinkIdx];
+  if (!d) return;
+  d.name = name || `${Math.round(volumeMl)} ml · ${abv}%`;
+  d.volumeMl = +volumeMl;
+  d.abv = +abv;
+  d.presetId = null;
+  saveState();
+}
+
+export function updatePresetAndDrinks(presetId, { name, volumeMl, abv }) {
+  const preset = state.presets.find(p => p.id === presetId);
+  if (!preset) return;
+  if (name) preset.name = name;
+  preset.volumeMl = +volumeMl;
+  preset.abv = +abv;
+  state.people.forEach(person => {
+    person.drinks.forEach(d => {
+      if (d.presetId !== presetId) return;
+      d.name = preset.name;
+      d.volumeMl = +volumeMl;
+      d.abv = +abv;
+    });
+  });
+  saveState();
+}
+
 export function setPersonName(personIdx, name) {
   const fallback = personIdx === 0 ? 'You' : `Friend ${personIdx}`;
   state.people[personIdx].name = name.trim() || fallback;

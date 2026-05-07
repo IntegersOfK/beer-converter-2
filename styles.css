@@ -637,6 +637,21 @@ header.app::after {
 
 .drink-info { flex: 1; min-width: 0; overflow: hidden; }
 
+.drink-edit-btn {
+  background: transparent;
+  border: none;
+  padding: 4px 6px;
+  margin: -4px -6px;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font-family: inherit;
+  border-radius: 6px;
+  transition: background 0.15s;
+}
+.drink-edit-btn:hover { background: rgba(224, 163, 74, 0.1); }
+[data-theme="beach"] .drink-edit-btn:hover { background: rgba(184, 116, 26, 0.1); }
+
 .drink-name {
   font-size: 14px;
   color: var(--ink);

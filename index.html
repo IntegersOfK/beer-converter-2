@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=18">
+<link rel="stylesheet" href="styles.css?v=19">
 </head>
 <body>
 
@@ -229,6 +229,59 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=18"></script>
+<!-- Edit logged drink modal -->
+<div class="modal-overlay" id="editDrinkModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Edit drink</h2>
+      <button class="close-btn" data-close aria-label="Close">×</button>
+    </div>
+    <div class="form-grid">
+      <div class="field">
+        <label>Name (optional)</label>
+        <input class="input" id="editName" placeholder="e.g. Tall can" maxlength="40" />
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>Volume</label>
+          <div class="input-wrap">
+            <input class="input mono" id="editVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <select class="unit-sel" id="editUnit" aria-label="Volume unit">
+              <option value="ml">ML</option>
+              <option value="oz">OZ</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>ABV</label>
+          <div class="input-wrap pct">
+            <input class="input mono" id="editAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" />
+          </div>
+        </div>
+      </div>
+      <div class="ethanol-preview">
+        <span>Pure ethanol</span>
+        <span class="val" id="editEthanolPreviewVal">—</span>
+      </div>
+    </div>
+    <div id="editScopeSection" style="display:none;">
+      <div class="ornament" id="editScopeOrnament"></div>
+      <label class="toggle-row">
+        <input type="radio" name="editScope" value="one" id="editScopeOne" />
+        <span>Just this drink</span>
+      </label>
+      <label class="toggle-row">
+        <input type="radio" name="editScope" value="all" id="editScopeAll" />
+        <span id="editScopeAllLabel">All drinks of this type</span>
+      </label>
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-close>Cancel</button>
+      <button class="btn btn-primary" id="btnSaveEditDrink">Save</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="js/app.js?v=19"></script>
 </body>
 </html>
