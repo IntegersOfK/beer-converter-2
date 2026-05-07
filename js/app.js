@@ -5,21 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=19';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=19';
+import { $, $$, vibe } from './util.js?v=20';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=20';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=19';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=19';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=19';
+} from './ui.js?v=20';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=20';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=20';
+import { ML_PER_OZ } from './calc.js?v=20';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v19 (edit logged drinks)');
+console.log('Beer Converter build v20 (unit conversion on switch)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -110,9 +111,20 @@ $$('.modal-overlay').forEach(m => {
 });
 
 // --- Add-drink modal ------------------------------------------------------
+function convertVolumeField(inputId, newUnit) {
+  const input = $(inputId);
+  const val = parseFloat(input.value);
+  if (!isFinite(val) || val <= 0) return;
+  if (newUnit === 'oz') {
+    input.value = +(val / ML_PER_OZ).toFixed(2);
+  } else {
+    input.value = Math.round(val * ML_PER_OZ);
+  }
+}
+
 $('#customVolume').addEventListener('input', updateEthanolPreview);
 $('#customAbv').addEventListener('input', updateEthanolPreview);
-$('#customUnit').addEventListener('change', updateEthanolPreview);
+$('#customUnit').addEventListener('change', e => { convertVolumeField('#customVolume', e.target.value); updateEthanolPreview(); });
 $('#btnAddCustom').addEventListener('click', submitCustomDrink);
 // Keep the "Save as type" toggle copy/hint honest as the user types.
 $('#customName').addEventListener('input', updateSaveAsPresetCopy);
@@ -122,7 +134,7 @@ $('#saveAsPreset').addEventListener('change', updateSaveAsPresetCopy);
 // --- Edit drink modal -----------------------------------------------------
 $('#editVolume').addEventListener('input', updateEditEthanolPreview);
 $('#editAbv').addEventListener('input', updateEditEthanolPreview);
-$('#editUnit').addEventListener('change', updateEditEthanolPreview);
+$('#editUnit').addEventListener('change', e => { convertVolumeField('#editVolume', e.target.value); updateEditEthanolPreview(); });
 $('#btnSaveEditDrink').addEventListener('click', submitEditDrink);
 
 // --- Presets modal --------------------------------------------------------
