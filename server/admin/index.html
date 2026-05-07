@@ -78,18 +78,34 @@
   .suggestion:hover { background: rgba(224,163,74,0.15); }
   .suggestion .score { color: var(--ink-soft); margin-left: 6px; font-family: ui-monospace, monospace; font-size: 10px; }
 
+  /* Mode toggle: pill-style buttons that switch between "new product" and
+     "add to existing" inside a pending-queue card or the manual-add form. */
+  .mode-toggle {
+    display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
+    padding: 2px; background: var(--bg-input); margin-bottom: 10px;
+  }
+  .mode-toggle button {
+    border: none; background: transparent; color: var(--ink-soft);
+    font: inherit; font-size: 11px; letter-spacing: 0.06em;
+    padding: 5px 14px; border-radius: 999px; cursor: pointer;
+  }
+  .mode-toggle button.active {
+    background: var(--amber); color: #1a140d; font-weight: 600;
+  }
+
   .form-grid {
     display: grid; gap: 8px; grid-template-columns: 2.4fr 1fr 1fr;
     margin-bottom: 10px;
   }
   @media (max-width: 720px) { .form-grid { grid-template-columns: 1fr 1fr; } }
   .form-grid label { font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.16em; color: var(--ink-soft); text-transform: uppercase; }
-  .form-grid input {
+  .form-grid input, .form-grid select {
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
     padding: 8px 10px; color: var(--ink); font: inherit; width: 100%;
   }
-  .form-grid input:focus { outline: none; border-color: var(--amber); }
+  .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--amber); }
   .form-grid .field { display: flex; flex-direction: column; gap: 4px; }
+  .form-grid .field.full { grid-column: 1 / -1; }
 
   .actions { display: flex; gap: 8px; flex-wrap: wrap; }
   .btn {
@@ -104,35 +120,68 @@
   .btn.danger:hover { border-color: var(--danger); background: rgba(212,82,58,0.1); }
   .btn.ghost { background: transparent; color: var(--ink-soft); }
 
-  .curated-list {
-    display: grid; gap: 14px;
-  }
-  .curated-group {
+  /* Products list (the new home of curated data). */
+  .products-list { display: grid; gap: 14px; }
+  .product-card {
     background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-    padding: 10px 12px;
+    padding: 12px 14px;
   }
-  .curated-group-head {
-    display: flex; gap: 10px; align-items: baseline;
-    padding: 2px 4px 8px; border-bottom: 1px dashed var(--line-soft); margin-bottom: 8px;
+  .product-head {
+    display: grid;
+    grid-template-columns: 2.4fr 80px 90px auto;
+    gap: 8px; align-items: end;
+    padding-bottom: 10px; margin-bottom: 8px;
+    border-bottom: 1px dashed var(--line-soft);
   }
-  .curated-group-head .name { font-size: 14px; color: var(--ink); font-weight: 600; flex: 1; min-width: 0;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .curated-group-head .badge { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); }
-  .curated-row {
-    display: grid; grid-template-columns: 160px 1fr 80px 90px auto;
+  @media (max-width: 720px) { .product-head { grid-template-columns: 1fr 1fr; } }
+  .product-head label {
+    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.16em;
+    color: var(--ink-soft); text-transform: uppercase; display: block; margin-bottom: 3px;
+  }
+  .product-head input {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; color: var(--ink); font: inherit; font-size: 14px; width: 100%;
+  }
+  .product-head input:focus { outline: none; border-color: var(--amber); }
+  .product-head .name input { font-weight: 600; }
+  .product-head .head-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
+  .product-meta {
+    font-family: ui-monospace, monospace; font-size: 10px;
+    color: var(--ink-soft); margin-bottom: 8px;
+  }
+
+  .upc-row {
+    display: grid; grid-template-columns: 160px 1fr auto;
     gap: 8px; align-items: center;
     padding: 6px 4px; font-size: 13px;
   }
-  .curated-row + .curated-row { border-top: 1px dashed var(--line-soft); }
-  .curated-row .upc-cell { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
-  .curated-row input {
+  .upc-row + .upc-row { border-top: 1px dashed var(--line-soft); }
+  .upc-row .upc-cell { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
+  .upc-row input {
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
     padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
   }
-  .curated-row input:focus { outline: none; border-color: var(--amber); }
+  .upc-row input:focus { outline: none; border-color: var(--amber); }
+  .upc-row .row-actions { display: flex; gap: 4px; }
+
+  .upc-add-row {
+    display: grid; grid-template-columns: 160px 1fr auto;
+    gap: 8px; align-items: center;
+    padding: 8px 4px 2px;
+    margin-top: 6px; border-top: 1px dashed var(--line-soft);
+  }
+  .upc-add-row input {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
+    padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
+  }
+  .upc-add-row .add-label {
+    font-family: ui-monospace, monospace; font-size: 10px;
+    letter-spacing: 0.12em; color: var(--ink-soft); text-transform: uppercase;
+  }
   @media (max-width: 720px) {
-    .curated-row { grid-template-columns: 1fr 1fr; }
-    .curated-row .upc-cell { grid-column: 1 / -1; }
+    .upc-row, .upc-add-row { grid-template-columns: 1fr 1fr; }
+    .upc-row .upc-cell { grid-column: 1 / -1; }
+    .upc-add-row .add-label { grid-column: 1 / -1; }
   }
 
   .deploy-out {
@@ -176,11 +225,12 @@
 <body>
 
 <h1>Curation · <span class="mono" style="color:var(--amber); font-weight:normal;">Beer Converter</span></h1>
-<div class="sub">Triage the submission queue, build the canonical catalogue served at <span class="mono">/catalog.json</span>.</div>
+<div class="sub">Triage submissions, build the canonical product catalogue served at <span class="mono">/catalog.json</span>.</div>
 
 <div class="toolbar">
   <span class="pill" id="pillPending">— pending</span>
-  <span class="pill amber" id="pillCurated">— curated</span>
+  <span class="pill amber" id="pillProducts">— products</span>
+  <span class="pill amber" id="pillUpcs">— upcs</span>
   <span class="pill danger" id="pillRejected">— rejected</span>
   <button class="btn ghost" id="btnRefresh">Refresh</button>
 </div>
@@ -188,7 +238,7 @@
 <div class="card" style="margin-bottom:20px;">
   <div class="card-head" style="margin-bottom:6px;">
     <span style="color:var(--ink); font-weight:600;">Deploy</span>
-    <span class="meta" style="color:var(--ink-soft);"><span class="mono">git pull --ff-only</span> · data files are preserved</span>
+    <span class="meta" style="color:var(--ink-soft);"><span class="mono">git pull --ff-only</span> · data files preserved</span>
   </div>
   <div class="actions">
     <button class="btn primary" id="btnDeploy">Pull latest</button>
@@ -199,29 +249,49 @@
 <h2>Pending submissions</h2>
 <div id="pendingList"><div class="empty">Loading…</div></div>
 
-<h2>Curated catalogue</h2>
+<h2>Products</h2>
+
+<!-- Manual add: two modes -->
 <div class="card" id="manualAddCard">
-  <div class="card-head" style="margin-bottom:6px;">
-    <span style="color:var(--ink); font-weight:600;">Add a drink manually</span>
-    <span class="meta" style="color:var(--ink-soft);">Direct to <span class="mono">curated.json</span> — bypasses the queue.</span>
+  <div class="card-head" style="margin-bottom:8px;">
+    <span style="color:var(--ink); font-weight:600;">Add manually</span>
+    <span class="meta" style="color:var(--ink-soft);">Bypasses the queue.</span>
   </div>
-  <div class="form-grid" id="manualAddGrid" style="grid-template-columns: 160px 2.4fr 1fr 1fr;">
-    <div class="field"><label>UPC</label><input id="manualUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+
+  <div class="mode-toggle" id="manualModeToggle">
+    <button data-mode="new"      class="active">New product</button>
+    <button data-mode="existing">Add UPC to existing</button>
+  </div>
+
+  <!-- New-product form -->
+  <div class="form-grid" id="manualNewForm" style="grid-template-columns: 2.4fr 80px 90px;">
     <div class="field"><label>Name</label><input id="manualName" type="text" placeholder="e.g. White Claw" /></div>
     <div class="field"><label>ABV %</label><input id="manualAbv" type="number" step="0.1" min="0" max="100" placeholder="5.0" /></div>
     <div class="field"><label>Vol. (ml)</label><input id="manualVol" type="number" step="1" min="0" placeholder="optional" /></div>
+    <div class="field full" style="display:grid; grid-template-columns: 200px 1fr; gap:8px;">
+      <div><label>UPC (first one)</label><input id="manualUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+      <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualFlavour" type="text" placeholder="e.g. Mango" /></div>
+    </div>
   </div>
+
+  <!-- Existing-product form -->
+  <div class="form-grid" id="manualExistingForm" style="grid-template-columns: 2.4fr 200px 1fr; display:none;">
+    <div class="field"><label>Product</label><select id="manualExistingProduct"></select></div>
+    <div class="field"><label>UPC</label><input id="manualExistingUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+    <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualExistingFlavour" type="text" placeholder="e.g. Mango" /></div>
+  </div>
+
   <div class="actions">
-    <button class="btn primary" id="btnManualAdd">Add to catalogue</button>
+    <button class="btn primary" id="btnManualAdd">Add</button>
     <button class="btn ghost" id="btnManualClear">Clear</button>
   </div>
 </div>
 
 <div class="toolbar">
-  <input type="text" id="curatedFilter" placeholder="Filter by name or UPC…" />
-  <span class="pill" id="curatedShowing">—</span>
+  <input type="text" id="productsFilter" placeholder="Filter by product name, UPC, or flavour…" />
+  <span class="pill" id="productsShowing">—</span>
 </div>
-<div class="curated-list" id="curatedList"></div>
+<div class="products-list" id="productsList"></div>
 
 <h2>Drink Log</h2>
 <div class="toolbar">
@@ -238,7 +308,10 @@
   const ADMIN_BASE = location.pathname.replace(/\/+$/, '');
   const API = ADMIN_BASE + '/api';
 
-  let currentState = { pending: [], curated: [], rejectedCount: 0 };
+  // Two state buckets: queue is the pending submissions inbox; products is
+  // the canonical catalogue. Loaded in parallel; reloaded after any mutation.
+  let queueState    = { pending: [], rejectedCount: 0 };
+  let productsState = { products: [] };
 
   function $(s, ctx = document) { return ctx.querySelector(s); }
   function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
@@ -268,9 +341,11 @@
     return ct.includes('json') ? res.json() : res.text();
   }
 
-  async function loadQueue() {
+  async function loadAll() {
     try {
-      currentState = await api('/queue');
+      const [q, p] = await Promise.all([api('/queue'), api('/products')]);
+      queueState    = q;
+      productsState = p;
       render();
     } catch (e) {
       toast('Load failed: ' + e.message, 'danger');
@@ -278,33 +353,28 @@
   }
 
   function render() {
-    const { pending, curated, rejectedCount } = currentState;
-    $('#pillPending').textContent  = `${pending.length} pending`;
-    $('#pillCurated').textContent  = `${curated.length} curated`;
-    $('#pillRejected').textContent = `${rejectedCount} rejected`;
+    const products = productsState.products || [];
+    const totalUpcs = products.reduce((n, p) => n + p.upcs.length, 0);
+    $('#pillPending').textContent  = `${queueState.pending.length} pending`;
+    $('#pillProducts').textContent = `${products.length} product${products.length === 1 ? '' : 's'}`;
+    $('#pillUpcs').textContent     = `${totalUpcs} upc${totalUpcs === 1 ? '' : 's'}`;
+    $('#pillRejected').textContent = `${queueState.rejectedCount} rejected`;
     renderPending();
-    renderCurated();
+    renderProducts();
+    refreshExistingProductDropdowns();
   }
+
+  // ===== PENDING SUBMISSIONS QUEUE ============================================
 
   function renderPending() {
     const wrap = $('#pendingList');
-    const items = currentState.pending;
+    const items = queueState.pending;
     if (!items.length) {
       wrap.innerHTML = `<div class="empty">Inbox zero. Nothing to triage.</div>`;
       return;
     }
     wrap.innerHTML = items.map(renderPendingCard).join('');
-    $$('.card.pending').forEach(card => {
-      const upc = card.dataset.upc;
-      $('button.save', card).addEventListener('click', () => savePending(card, upc));
-      $('button.reject', card).addEventListener('click', () => rejectPending(card, upc));
-      $$('button.suggestion', card).forEach(b => {
-        b.addEventListener('click', () => {
-          const data = JSON.parse(b.dataset.suggest);
-          $('input[name=name]', card).value = data.name;
-        });
-      });
-    });
+    $$('.card.pending').forEach(card => bindPendingCard(card));
   }
 
   function renderPendingCard(item) {
@@ -320,10 +390,14 @@
       ...((item.volumes || []).slice(0, 4).map(v =>
         `<span class="pill">${v.volumeMl} ml <span style="color:var(--ink-soft); margin-left:4px;">(${v.n})</span></span>`)),
     ].join(' ');
-    const suggestions = (item.suggestions || []).map(s => {
-      const payload = escape(JSON.stringify({ name: s.name }));
-      return `<button class="btn suggestion" data-suggest='${payload}'>${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span></button>`;
-    }).join('');
+    const suggestions = (item.suggestions || []).map(s =>
+      `<button class="btn suggestion" data-suggest-name="${escape(s.name)}">
+        ${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span>
+      </button>`
+    ).join('');
+
+    // Pre-fill flavour by stripping the most-common product-style prefix.
+    const inferredFlavour = guessFlavour(topName, item.suggestions || []);
 
     return `
       <div class="card pending" data-upc="${escape(item.upc)}">
@@ -336,138 +410,377 @@
           <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${samplePills}</div>
         </div>
         ${suggestions ? `<div class="suggestions">${suggestions}</div>` : ''}
-        <div class="form-grid">
-          <div class="field"><label>Name</label><input name="name" value="${escape(topName)}" placeholder="Product name" /></div>
-          <div class="field"><label>ABV %</label><input name="abv"  type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
-          <div class="field"><label>Vol. (ml)</label><input name="volumeMl" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
+
+        <div class="mode-toggle">
+          <button data-mode="new"      class="active">New product</button>
+          <button data-mode="existing">Add to existing</button>
         </div>
+
+        <!-- New-product form -->
+        <div class="form-grid mode-new">
+          <div class="field"><label>Name</label><input name="newName" value="${escape(topName)}" placeholder="Product name" /></div>
+          <div class="field"><label>ABV %</label><input name="newAbv" type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
+          <div class="field"><label>Vol. (ml)</label><input name="newVol" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
+          <div class="field full"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="newFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
+        </div>
+
+        <!-- Existing-product form -->
+        <div class="form-grid mode-existing" style="display:none;">
+          <div class="field full" style="display:grid; grid-template-columns: 2.4fr 1fr; gap:8px;">
+            <div><label>Product</label><select name="existingProduct"></select></div>
+            <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
+          </div>
+        </div>
+
         <div class="actions">
-          <button class="btn primary save">Save to catalogue</button>
+          <button class="btn primary save">Save</button>
           <button class="btn danger reject">Reject</button>
         </div>
       </div>
     `;
   }
 
+  function bindPendingCard(card) {
+    const upc = card.dataset.upc;
+    populateProductSelect(card.querySelector('select[name=existingProduct]'));
+
+    // Mode toggle.
+    const newGrid = card.querySelector('.mode-new');
+    const exGrid  = card.querySelector('.mode-existing');
+    card.querySelectorAll('.mode-toggle button').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.dataset.mode;
+        card.querySelectorAll('.mode-toggle button').forEach(b => b.classList.toggle('active', b === btn));
+        newGrid.style.display = mode === 'new' ? '' : 'none';
+        exGrid.style.display  = mode === 'existing' ? '' : 'none';
+      });
+    });
+
+    // Suggestion click → switch to "existing" mode, pick that product, infer flavour.
+    card.querySelectorAll('button.suggestion').forEach(b => {
+      b.addEventListener('click', () => {
+        const name = b.dataset.suggestName;
+        const matchBtn = card.querySelector('.mode-toggle button[data-mode="existing"]');
+        if (matchBtn) matchBtn.click();
+        const sel = card.querySelector('select[name=existingProduct]');
+        if (sel) {
+          const opt = [...sel.options].find(o => o.dataset.name === name);
+          if (opt) sel.value = opt.value;
+        }
+        // Re-infer flavour now that the product is locked in.
+        const submitted = card.querySelector('input[name=newName]')?.value || '';
+        const flav = stripProductFromName(submitted, name);
+        const flavInput = card.querySelector('input[name=existingFlavour]');
+        if (flavInput && flav) flavInput.value = flav;
+      });
+    });
+
+    card.querySelector('button.save').addEventListener('click', () => savePending(card, upc));
+    card.querySelector('button.reject').addEventListener('click', () => rejectPending(upc));
+  }
+
   async function savePending(card, upc) {
-    const get = n => $(`input[name=${n}]`, card).value.trim();
-    const payload = {
-      upc,
-      name: get('name'),
-      abv:  Number(get('abv')),
-      volumeMl: get('volumeMl') ? Number(get('volumeMl')) : undefined,
-    };
-    if (!payload.name) return toast('Name is required', 'danger');
-    if (!Number.isFinite(payload.abv)) return toast('ABV is required', 'danger');
+    const mode = card.querySelector('.mode-toggle button.active').dataset.mode;
     try {
-      await api('/curated', { method: 'POST', body: JSON.stringify(payload) });
-      toast(`Curated ${payload.name}`);
-      await loadQueue();
+      if (mode === 'new') {
+        const name     = card.querySelector('input[name=newName]').value.trim();
+        const abv      = Number(card.querySelector('input[name=newAbv]').value);
+        const volRaw   = card.querySelector('input[name=newVol]').value.trim();
+        const volumeMl = volRaw ? Number(volRaw) : undefined;
+        const flavour  = card.querySelector('input[name=newFlavour]').value.trim() || undefined;
+        if (!name) return toast('Name is required', 'danger');
+        if (!Number.isFinite(abv)) return toast('ABV is required', 'danger');
+        await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl, flavour }) });
+        toast(`Curated ${name}`);
+      } else {
+        const productId = card.querySelector('select[name=existingProduct]').value;
+        const flavour   = card.querySelector('input[name=existingFlavour]').value.trim() || undefined;
+        if (!productId) return toast('Pick a product', 'danger');
+        await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId, flavour }) });
+        const prodName = productsState.products.find(p => p.id === productId)?.name || productId;
+        toast(`Added to ${prodName}`);
+      }
+      await loadAll();
     } catch (e) {
       toast('Save failed: ' + e.message, 'danger');
     }
   }
 
-  async function rejectPending(card, upc) {
+  async function rejectPending(upc) {
     const reason = prompt(`Reject ${upc}? Optional reason:`);
     if (reason === null) return;
     try {
       await api('/reject', { method: 'POST', body: JSON.stringify({ upc, reason }) });
       toast('Rejected');
-      await loadQueue();
+      await loadAll();
     } catch (e) {
       toast('Reject failed: ' + e.message, 'danger');
     }
   }
 
-  // ---- Curated list ------------------------------------------------------
-  // Curated UPCs are bucketed by exact (case-sensitive) name. The admin
-  // collapses variants of the same product by editing them to share a name.
-  function renderCurated() {
-    const filterEl = $('#curatedFilter');
-    const filter = filterEl.value.trim().toLowerCase();
-    const all = currentState.curated.slice();
+  // ===== PRODUCTS LIST ========================================================
+
+  function renderProducts() {
+    const filter = ($('#productsFilter').value || '').trim().toLowerCase();
+    const all = productsState.products || [];
     const list = filter
-      ? all.filter(c =>
-          c.upc.includes(filter) ||
-          c.name.toLowerCase().includes(filter))
+      ? all.filter(p =>
+          p.name.toLowerCase().includes(filter) ||
+          p.upcs.some(u => u.upc.includes(filter) || (u.flavour || '').toLowerCase().includes(filter)))
       : all;
+    const totalUpcs = list.reduce((n, p) => n + p.upcs.length, 0);
+    $('#productsShowing').textContent =
+      `${list.length} / ${all.length} products · ${totalUpcs} upcs`;
 
-    // Group by exact name.
-    const byName = new Map();
-    for (const c of list) {
-      if (!byName.has(c.name)) byName.set(c.name, []);
-      byName.get(c.name).push(c);
-    }
-    const groups = [...byName.entries()].sort(([a], [b]) => a.localeCompare(b));
-    $('#curatedShowing').textContent =
-      `${list.length} / ${all.length} UPCs · ${byName.size} product${byName.size === 1 ? '' : 's'}`;
-
-    const wrap = $('#curatedList');
+    const wrap = $('#productsList');
     if (!all.length) {
-      wrap.innerHTML = `<div class="empty">No curated entries yet. Save one from the queue above.</div>`;
+      wrap.innerHTML = `<div class="empty">No products yet. Save one from the queue or add manually.</div>`;
       return;
     }
     if (!list.length) {
-      wrap.innerHTML = `<div class="empty">No curated entries match the filter.</div>`;
+      wrap.innerHTML = `<div class="empty">No products match the filter.</div>`;
       return;
     }
-    wrap.innerHTML = groups.map(([name, items]) => `
-      <div class="curated-group">
-        <div class="curated-group-head">
-          <span class="name">${escape(name)}</span>
-          <span class="badge">${items.length} UPC${items.length === 1 ? '' : 's'}</span>
+    wrap.innerHTML = list.map(renderProductCard).join('');
+
+    $$('.product-card').forEach(card => bindProductCard(card));
+  }
+
+  function renderProductCard(p) {
+    const upcRows = p.upcs.length ? p.upcs.map(u => `
+      <div class="upc-row" data-upc="${escape(u.upc)}">
+        <div class="upc-cell">${escape(u.upc)}</div>
+        <input name="flavour" value="${escape(u.flavour || '')}" placeholder="flavour (optional)" />
+        <div class="row-actions">
+          <button class="btn save-upc" title="Save flavour">Save</button>
+          <button class="btn danger del-upc" title="Detach UPC">×</button>
         </div>
-        ${items.sort((a, b) => a.upc.localeCompare(b.upc)).map(c => `
-          <div class="curated-row" data-upc="${escape(c.upc)}">
-            <div class="upc-cell">${escape(c.upc)}</div>
-            <input name="name" value="${escape(c.name)}" />
-            <input name="abv"  type="number" step="0.1" min="0" max="100" value="${escape(Number(c.abv).toFixed(1))}" />
-            <input name="volumeMl" type="number" step="1" min="0" value="${escape(c.volumeMl ?? '')}" placeholder="ml" />
-            <div class="actions">
-              <button class="btn save">Save</button>
-              <button class="btn danger del">Delete</button>
-            </div>
-          </div>
-        `).join('')}
       </div>
-    `).join('');
+    `).join('') : `<div class="empty" style="margin-bottom:6px;">No UPCs linked yet.</div>`;
 
-    $$('.curated-row').forEach(row => {
-      const upc = row.dataset.upc;
-      $('button.save', row).addEventListener('click', () => updateCurated(row, upc));
-      $('button.del',  row).addEventListener('click', () => deleteCurated(upc));
+    return `
+      <div class="product-card" data-product-id="${escape(p.id)}">
+        <div class="product-head">
+          <div class="name">
+            <label>Name</label>
+            <input name="name" value="${escape(p.name)}" />
+          </div>
+          <div>
+            <label>ABV %</label>
+            <input name="abv" type="number" step="0.1" min="0" max="100" value="${escape(Number(p.abv).toFixed(1))}" />
+          </div>
+          <div>
+            <label>Vol. (ml)</label>
+            <input name="volumeMl" type="number" step="1" min="0" value="${escape(p.volumeMl ?? '')}" placeholder="optional" />
+          </div>
+          <div class="head-actions">
+            <button class="btn primary save-product">Save</button>
+            <button class="btn danger del-product">Delete</button>
+          </div>
+        </div>
+        <div class="product-meta">${escape(p.id)} · ${p.upcs.length} UPC${p.upcs.length === 1 ? '' : 's'}</div>
+        ${upcRows}
+        <div class="upc-add-row">
+          <span class="add-label">+ Add UPC</span>
+          <div style="display:grid; grid-template-columns: 200px 1fr; gap:8px; min-width:0;">
+            <input name="newUpc" type="text" inputmode="numeric" placeholder="012345678905" />
+            <input name="newFlavour" type="text" placeholder="flavour (optional)" />
+          </div>
+          <button class="btn add-upc">Add</button>
+        </div>
+      </div>
+    `;
+  }
+
+  function bindProductCard(card) {
+    const id = card.dataset.productId;
+
+    card.querySelector('button.save-product').addEventListener('click', async () => {
+      const name     = card.querySelector('input[name=name]').value.trim();
+      const abv      = Number(card.querySelector('input[name=abv]').value);
+      const volRaw   = card.querySelector('input[name=volumeMl]').value.trim();
+      const volumeMl = volRaw ? Number(volRaw) : undefined;
+      if (!name) return toast('Name is required', 'danger');
+      if (!Number.isFinite(abv)) return toast('ABV is required', 'danger');
+      try {
+        await api('/product', { method: 'POST', body: JSON.stringify({ id, name, abv, volumeMl }) });
+        toast(`Updated ${name}`);
+        await loadAll();
+      } catch (e) {
+        toast('Save failed: ' + e.message, 'danger');
+      }
     });
-  }
 
-  async function updateCurated(row, upc) {
-    const get = n => $(`input[name=${n}]`, row).value.trim();
-    const payload = {
-      upc,
-      name: get('name'),
-      abv:  Number(get('abv')),
-      volumeMl: get('volumeMl') ? Number(get('volumeMl')) : undefined,
+    card.querySelector('button.del-product').addEventListener('click', async () => {
+      const product = productsState.products.find(p => p.id === id);
+      const upcCount = product ? product.upcs.length : 0;
+      const msg = upcCount > 0
+        ? `Delete "${product.name}" and detach its ${upcCount} UPC${upcCount === 1 ? '' : 's'}?`
+        : `Delete "${product?.name || id}"?`;
+      if (!confirm(msg)) return;
+      try {
+        await api('/product/' + encodeURIComponent(id), { method: 'DELETE' });
+        toast('Deleted');
+        await loadAll();
+      } catch (e) {
+        toast('Delete failed: ' + e.message, 'danger');
+      }
+    });
+
+    // Per-UPC save (flavour edit) and delete.
+    card.querySelectorAll('.upc-row').forEach(row => {
+      const upc = row.dataset.upc;
+      row.querySelector('button.save-upc').addEventListener('click', async () => {
+        const flavour = row.querySelector('input[name=flavour]').value.trim() || undefined;
+        try {
+          await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId: id, flavour }) });
+          toast(`Saved`);
+          await loadAll();
+        } catch (e) {
+          toast('Save failed: ' + e.message, 'danger');
+        }
+      });
+      row.querySelector('button.del-upc').addEventListener('click', async () => {
+        if (!confirm(`Detach UPC ${upc} from this product?`)) return;
+        try {
+          await api('/upc/' + encodeURIComponent(upc), { method: 'DELETE' });
+          toast('Detached');
+          await loadAll();
+        } catch (e) {
+          toast('Delete failed: ' + e.message, 'danger');
+        }
+      });
+    });
+
+    // + Add UPC inline.
+    const addBtn = card.querySelector('button.add-upc');
+    const addUpcInput = card.querySelector('input[name=newUpc]');
+    const addFlavInput = card.querySelector('input[name=newFlavour]');
+    const submitAddUpc = async () => {
+      const upc = addUpcInput.value.replace(/\s+/g, '');
+      const flavour = addFlavInput.value.trim() || undefined;
+      if (!/^\d{6,20}$/.test(upc)) return toast('UPC must be 6–20 digits', 'danger');
+      try {
+        await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId: id, flavour }) });
+        toast('Linked');
+        addUpcInput.value = ''; addFlavInput.value = '';
+        await loadAll();
+      } catch (e) {
+        toast('Add failed: ' + e.message, 'danger');
+      }
     };
-    if (!payload.name) return toast('Name is required', 'danger');
-    if (!Number.isFinite(payload.abv)) return toast('ABV is required', 'danger');
+    addBtn.addEventListener('click', submitAddUpc);
+    [addUpcInput, addFlavInput].forEach(i =>
+      i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAddUpc(); } }));
+  }
+
+  // ===== MANUAL ADD (top of products section) =================================
+
+  function setManualMode(mode) {
+    $$('#manualModeToggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
+    $('#manualNewForm').style.display      = mode === 'new'      ? '' : 'none';
+    $('#manualExistingForm').style.display = mode === 'existing' ? '' : 'none';
+  }
+
+  function refreshExistingProductDropdowns() {
+    populateProductSelect($('#manualExistingProduct'));
+    // Pending cards' selects are populated when the card is bound; here we
+    // refresh existing rendered cards so newly-created products show up.
+    $$('select[name=existingProduct]').forEach(populateProductSelect);
+  }
+
+  function populateProductSelect(sel) {
+    if (!sel) return;
+    const current = sel.value;
+    const options = (productsState.products || [])
+      .slice()
+      .sort((a, b) => a.name.localeCompare(b.name));
+    sel.innerHTML = '<option value="">— pick a product —</option>' +
+      options.map(p =>
+        `<option value="${escape(p.id)}" data-name="${escape(p.name)}">${escape(p.name)} <span>· ${Number(p.abv).toFixed(1)}%${p.volumeMl ? ` · ${p.volumeMl} ml` : ''}</span></option>`
+      ).join('');
+    if (current) sel.value = current;
+  }
+
+  function clearManualForm() {
+    ['#manualUpc', '#manualName', '#manualAbv', '#manualVol', '#manualFlavour',
+     '#manualExistingUpc', '#manualExistingFlavour'].forEach(s => { const el = $(s); if (el) el.value = ''; });
+    const sel = $('#manualExistingProduct'); if (sel) sel.value = '';
+  }
+
+  async function submitManualAdd() {
+    const mode = $('#manualModeToggle button.active').dataset.mode;
     try {
-      await api('/curated', { method: 'POST', body: JSON.stringify(payload) });
-      toast(`Updated ${payload.name}`);
-      await loadQueue();
+      if (mode === 'new') {
+        const upc      = $('#manualUpc').value.replace(/\s+/g, '');
+        const name     = $('#manualName').value.trim();
+        const abv      = Number($('#manualAbv').value);
+        const volRaw   = $('#manualVol').value.trim();
+        const volumeMl = volRaw ? Number(volRaw) : undefined;
+        const flavour  = $('#manualFlavour').value.trim() || undefined;
+        if (!/^\d{6,20}$/.test(upc)) return toast('UPC must be 6–20 digits', 'danger');
+        if (!name) return toast('Name is required', 'danger');
+        if (!Number.isFinite(abv) || abv < 0 || abv > 100) return toast('ABV must be 0–100', 'danger');
+        if (volumeMl !== undefined && (!Number.isFinite(volumeMl) || volumeMl <= 0))
+          return toast('Volume must be positive', 'danger');
+
+        // Warn if this UPC already exists somewhere.
+        const existingUpc = findUpcAcrossProducts(upc);
+        if (existingUpc) {
+          const product = productsState.products.find(p => p.id === existingUpc.productId);
+          if (!confirm(
+            `UPC ${upc} is already linked to "${product?.name || existingUpc.productId}". Re-link to "${name}"?`
+          )) return;
+        }
+        await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl, flavour }) });
+        toast(`Added ${name}`);
+      } else {
+        const productId = $('#manualExistingProduct').value;
+        const upc       = $('#manualExistingUpc').value.replace(/\s+/g, '');
+        const flavour   = $('#manualExistingFlavour').value.trim() || undefined;
+        if (!productId) return toast('Pick a product', 'danger');
+        if (!/^\d{6,20}$/.test(upc)) return toast('UPC must be 6–20 digits', 'danger');
+        await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId, flavour }) });
+        const prodName = productsState.products.find(p => p.id === productId)?.name || productId;
+        toast(`Linked ${upc} to ${prodName}`);
+      }
+      clearManualForm();
+      await loadAll();
     } catch (e) {
-      toast('Save failed: ' + e.message, 'danger');
+      toast('Add failed: ' + e.message, 'danger');
     }
   }
 
-  async function deleteCurated(upc) {
-    if (!confirm(`Delete curated entry for ${upc}? Future submissions will resurface in the queue.`)) return;
-    try {
-      await api('/curated/' + encodeURIComponent(upc), { method: 'DELETE' });
-      toast('Deleted');
-      await loadQueue();
-    } catch (e) {
-      toast('Delete failed: ' + e.message, 'danger');
+  function findUpcAcrossProducts(upc) {
+    for (const p of productsState.products) {
+      const u = p.upcs.find(x => x.upc === upc);
+      if (u) return { ...u, productId: p.id };
     }
+    return null;
+  }
+
+  // ===== HELPERS ==============================================================
+
+  // Strip a product name out of a submitted full name to get a likely flavour.
+  // "White Claw Mango"          + "White Claw" → "Mango"
+  // "White Claw - Black Cherry" + "White Claw" → "Black Cherry"
+  // "Mango White Claw"          + "White Claw" → "Mango"
+  function stripProductFromName(submitted, productName) {
+    if (!submitted || !productName) return '';
+    const s = submitted.trim();
+    const p = productName.trim();
+    if (!s.toLowerCase().includes(p.toLowerCase())) return '';
+    const re = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
+    return s.replace(re, '').replace(/^[\s\-—·,:]+|[\s\-—·,:]+$/g, '').trim();
+  }
+
+  // Use the highest-scoring suggestion that exists as a real product.
+  function guessFlavour(submitted, suggestions) {
+    for (const s of suggestions) {
+      const flav = stripProductFromName(submitted, s.name);
+      if (flav) return flav;
+    }
+    return '';
   }
 
   function formatTime(iso) {
@@ -482,8 +795,10 @@
     return d.toISOString().slice(0, 16).replace('T', ' ');
   }
 
-  $('#btnRefresh').addEventListener('click', loadQueue);
-  $('#curatedFilter').addEventListener('input', renderCurated);
+  // ===== TOP-LEVEL WIRING =====================================================
+
+  $('#btnRefresh').addEventListener('click', loadAll);
+  $('#productsFilter').addEventListener('input', renderProducts);
 
   $('#btnDeploy').addEventListener('click', async () => {
     const btn = $('#btnDeploy');
@@ -499,7 +814,7 @@
       out.className = 'deploy-out ok';
       out.style.display = 'block';
       toast('Deployed');
-      await loadQueue();
+      await loadAll();
     } catch (e) {
       out.textContent = e.message;
       out.className = 'deploy-out error';
@@ -510,49 +825,18 @@
       btn.textContent = 'Pull latest';
     }
   });
-  $('#btnManualAdd').addEventListener('click', addManualCurated);
+
+  $$('#manualModeToggle button').forEach(b =>
+    b.addEventListener('click', () => setManualMode(b.dataset.mode)));
+  $('#btnManualAdd').addEventListener('click', submitManualAdd);
   $('#btnManualClear').addEventListener('click', clearManualForm);
-  // Hitting Enter in any manual field submits the form.
-  $$('#manualAddGrid input').forEach(el => {
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addManualCurated(); } });
+  // Enter on any manual field submits.
+  $$('#manualNewForm input, #manualExistingForm input, #manualExistingForm select').forEach(el => {
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); } });
   });
 
-  function clearManualForm() {
-    ['#manualUpc', '#manualName', '#manualAbv', '#manualVol'].forEach(s => { $(s).value = ''; });
-    $('#manualUpc').focus();
-  }
+  // ===== DRINK LOG ============================================================
 
-  async function addManualCurated() {
-    const upc  = $('#manualUpc').value.replace(/\s+/g, '');
-    const name = $('#manualName').value.trim();
-    const abv  = Number($('#manualAbv').value);
-    const volRaw = $('#manualVol').value.trim();
-    const volumeMl = volRaw ? Number(volRaw) : undefined;
-
-    if (!/^\d{6,20}$/.test(upc))            return toast('UPC must be 6–20 digits', 'danger');
-    if (!name)                              return toast('Name is required', 'danger');
-    if (!Number.isFinite(abv) || abv < 0 || abv > 100) return toast('ABV must be 0–100', 'danger');
-    if (volumeMl !== undefined && (!Number.isFinite(volumeMl) || volumeMl <= 0))
-      return toast('Volume must be a positive number', 'danger');
-
-    // Warn if this UPC already has a curated record — the POST upserts, so a
-    // typo silently overwrites the wrong row otherwise.
-    const existing = currentState.curated.find(c => c.upc === upc);
-    if (existing && !confirm(
-      `UPC ${upc} is already curated as "${existing.name}" (ABV ${Number(existing.abv).toFixed(1)}%). Overwrite with "${name}"?`
-    )) return;
-
-    try {
-      await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl }) });
-      toast(`Added ${name}`);
-      clearManualForm();
-      await loadQueue();
-    } catch (e) {
-      toast('Add failed: ' + e.message, 'danger');
-    }
-  }
-
-  // ---- Drink log ---------------------------------------------------------
   let logEntries = [];
   let logTotal   = 0;
 
@@ -615,7 +899,7 @@
   $('#logFilter').addEventListener('input', renderLog);
   $('#btnLogRefresh').addEventListener('click', loadLog);
 
-  loadQueue();
+  loadAll();
   loadLog();
 </script>
 </body>
