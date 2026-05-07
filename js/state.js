@@ -168,6 +168,16 @@ export function switchSession(id) {
   saveState();
 }
 
+export function renameSession(id, name) {
+  const sess = state.sessions.find(s => s.id === id);
+  if (!sess) return false;
+  const trimmed = String(name == null ? '' : name).trim().slice(0, 40);
+  // Empty name reverts to the auto label so the user can never wipe it blank.
+  sess.name = trimmed || sessionLabel(sess.ts);
+  saveState();
+  return true;
+}
+
 export function deleteSession(id) {
   if (state.sessions.length <= 1) return false;
   const idx = state.sessions.findIndex(s => s.id === id);

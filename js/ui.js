@@ -1,16 +1,16 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=25';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=25';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=26';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=26';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-  switchSession, deleteSession,
-} from './state.js?v=25';
-import { submitProduct } from './submit.js?v=25';
+  switchSession, deleteSession, renameSession,
+} from './state.js?v=26';
+import { submitProduct } from './submit.js?v=26';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -730,21 +730,58 @@ function renderSessionList() {
     const isActive = sess.id === state.activeSessionId;
     const drinks = sess.people.reduce((n, p) => n + p.drinks.length, 0);
     const date = new Date(sess.ts).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+    const peopleNames = sess.people.map(p => p.name).filter(Boolean);
+    const peopleStr = peopleNames.length
+      ? peopleNames.join(' · ')
+      : '(no one yet)';
     const item = document.createElement('div');
     item.className = 'session-item' + (isActive ? ' active' : '');
     item.innerHTML = `
-      <div class="session-item-info" data-switch-session="${escapeHtml(sess.id)}">
-        <div class="session-item-name">${escapeHtml(sess.name)}</div>
+      <div class="session-item-info">
+        <input class="session-item-name session-name-input" data-rename-session="${escapeHtml(sess.id)}"
+               value="${escapeHtml(sess.name)}" maxlength="40" spellcheck="false"
+               aria-label="Rename session" />
+        <div class="session-item-people" title="${escapeHtml(peopleStr)}">${escapeHtml(peopleStr)}</div>
         <div class="session-item-meta">${escapeHtml(date)} · ${drinks} drink${drinks === 1 ? '' : 's'}</div>
       </div>
-      ${isActive ? '<span class="session-badge">current</span>' : ''}
+      <button class="btn btn-ghost session-switch-btn" data-switch-session="${escapeHtml(sess.id)}"${isActive ? ' disabled' : ''}>
+        ${isActive ? 'current' : 'open'}
+      </button>
       <button class="x-btn" data-del-session="${escapeHtml(sess.id)}" aria-label="Delete session"${state.sessions.length <= 1 ? ' disabled' : ''}>×</button>
     `;
     list.appendChild(item);
   });
 
+  // Inline rename: commit on blur or Enter; Escape reverts.
+  list.querySelectorAll('[data-rename-session]').forEach(input => {
+    const original = input.value;
+    const commit = () => {
+      const id = input.dataset.renameSession;
+      if (input.value === input.dataset.lastValue) return;
+      input.dataset.lastValue = input.value;
+      renameSession(id, input.value);
+      // Reflect any clamping/fallback the state did.
+      const sess = state.sessions.find(s => s.id === id);
+      if (sess) input.value = sess.name;
+      // Update the tally tag if we just renamed the active session.
+      if (id === state.activeSessionId) {
+        const tag = $('#btnCurrentSession');
+        if (tag) tag.textContent = sess.name;
+      }
+    };
+    input.dataset.lastValue = original;
+    input.addEventListener('blur', commit);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter')  { e.preventDefault(); input.blur(); }
+      if (e.key === 'Escape') { input.value = original; input.blur(); }
+    });
+    // Don't let a click on the name input bubble up to anything.
+    input.addEventListener('click', e => e.stopPropagation());
+  });
+
   list.querySelectorAll('[data-switch-session]').forEach(el => {
-    el.addEventListener('click', () => {
+    el.addEventListener('click', e => {
+      e.stopPropagation();
       switchSession(el.dataset.switchSession);
       closeModal();
       render();

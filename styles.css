@@ -1231,7 +1231,9 @@ header.app::after {
 .session-item-info {
   flex: 1;
   min-width: 0;
-  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .session-item-name {
@@ -1240,11 +1242,54 @@ header.app::after {
   color: var(--ink);
 }
 
+/* Inline-rename input styled to look like text until focused. */
+input.session-name-input {
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+  background: transparent;
+  border: none;
+  border-bottom: 1px dashed transparent;
+  padding: 1px 0;
+  outline: none;
+  width: 100%;
+  min-width: 0;
+}
+
+input.session-name-input:hover,
+input.session-name-input:focus {
+  border-bottom-color: var(--amber-deep);
+}
+
+.session-item-people {
+  font-size: 12px;
+  color: var(--ink-dim);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .session-item-meta {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 11px;
   color: var(--ink-soft);
-  margin-top: 2px;
+}
+
+.session-switch-btn {
+  flex-shrink: 0;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  padding: 6px 10px;
+}
+
+.session-switch-btn[disabled] {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+  cursor: default;
+  opacity: 1;
 }
 
 .compare-top-left {
