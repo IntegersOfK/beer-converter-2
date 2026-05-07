@@ -5,24 +5,24 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=36';
+import { $, $$, vibe } from './util.js?v=37';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   getRecentSessions, forgetSessionLocal,
-} from './state.js?v=36';
+} from './state.js?v=37';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=36';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=36';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=36';
-import { ML_PER_OZ } from './calc.js?v=36';
+} from './ui.js?v=37';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=37';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=37';
+import { ML_PER_OZ } from './calc.js?v=37';
 
-console.log('Beer Converter build v36 (server-side shared sessions)');
+console.log('Beer Converter build v37 (share-link button)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -89,6 +89,22 @@ $('#btnNewSession').addEventListener('click', async () => {
 });
 
 $('#btnPresets').addEventListener('click', openPresetsModal);
+
+// Share button: copy the current page URL (which already carries ?s=<sid>)
+// to the clipboard. Brief icon flash confirms; falls back to a prompt() on
+// browsers that block clipboard writes.
+$('#btnShareLink').addEventListener('click', async () => {
+  const btn = $('#btnShareLink');
+  const url = location.href;
+  try {
+    await navigator.clipboard.writeText(url);
+    btn.classList.add('copied');
+    setTimeout(() => btn.classList.remove('copied'), 1600);
+    vibe(8);
+  } catch {
+    prompt('Copy this link to share the session:', url);
+  }
+});
 
 $('#lnkChangelog').addEventListener('click', e => {
   e.preventDefault();

@@ -23,7 +23,10 @@ so anyone with the session URL can contribute to the same tally.
 - [x] **Phase 3** — Live report. `report.html?s=<sid>` fetches and polls.
   Drop the base64 blob and the "Import to app" button. (Legacy `?d=`
   blob still rendered for backward compatibility, just doesn't poll.)
-- [ ] **Phase 4** — Share UX. "Copy session link" button.
+- [x] **Phase 4** — Share UX. "Copy session link" button next to the
+  session name in the tally strip — link icon morphs to checkmark for
+  ~1.5 s on copy. Falls back to a `prompt()` if the clipboard API is
+  blocked.
 
 ## Session UPC cache
 

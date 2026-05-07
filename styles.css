@@ -1453,6 +1453,26 @@ input.session-name-input:focus {
   border-color: var(--amber);
 }
 
+.share-link-btn {
+  background: transparent;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 2px 5px;
+  color: var(--ink-soft);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+.share-link-btn:hover { color: var(--amber); border-color: var(--amber-deep); }
+/* Flash green-ish briefly to confirm copy. */
+.share-link-btn.copied { color: var(--amber-bright); border-color: var(--amber-bright); background: rgba(245,190,94,0.12); }
+.share-link-btn .share-icon-check { display: none; }
+.share-link-btn.copied .share-icon-link  { display: none; }
+.share-link-btn.copied .share-icon-check { display: inline-block; }
+
 .session-badge {
   font-size: 10px;
   color: var(--amber);
