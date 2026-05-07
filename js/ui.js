@@ -65,17 +65,17 @@ function renderPeople() {
       <div class="stats" data-stats="${idx}">
         <div class="stat hero" data-hero="${idx}">
           <div class="stat-label">Standard drinks</div>
-          <div class="stat-value">${fmt(stats.standardDrinks, 1)}</div>
-          <div class="stat-sub">${fmt(stats.ethanolMl, 1)} ml ethanol</div>
+          <div class="stat-value" title="1 standard drink = 17.05 ml pure ethanol">${fmt(stats.standardDrinks, 1)}</div>
+          <div class="stat-sub" title="Total pure ethanol consumed">${fmt(stats.ethanolMl, 1)} ml ethanol</div>
         </div>
-        <div class="stat">
+        <div class="stat" title="Number of drinks logged">
           <div class="stat-label">Drinks</div>
           <div class="stat-value">${stats.count}</div>
         </div>
-        <div class="stat">
+        <div class="stat" title="${bench ? `Equivalent ${escapeHtml(bench.name.toLowerCase())} count at ${fmt(bench.abv,1)}% ABV` : ''}">
           <div class="stat-label">≈ ${escapeHtml(bench ? bench.name.toLowerCase() : '—')}</div>
           <div class="stat-value">${bench ? fmt(benchEquiv, 1) : '—'}</div>
-          ${bench ? `<div class="stat-abv">@ ${fmt(bench.abv, 1)}%</div>` : ''}
+          ${bench ? `<div class="stat-abv" title="${escapeHtml(bench.name)} alcohol by volume">@ ${fmt(bench.abv, 1)}%</div>` : ''}
         </div>
       </div>
       <div class="drinks" data-drinks="${idx}">
@@ -85,9 +85,9 @@ function renderPeople() {
             <div class="drink">
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
                 <div class="drink-name">${escapeHtml(d.name)}</div>
-                <div class="drink-meta">${fmt(d.volumeMl,0)} ml · ${fmt(d.abv,1)}%</div>
+                <div class="drink-meta" title="Volume · alcohol by volume">${fmt(d.volumeMl,0)} ml · ${fmt(d.abv,1)}%</div>
               </button>
-              <div class="drink-ethanol">+${fmt(ethanolOf(d),1)} ml</div>
+              <div class="drink-ethanol" title="Pure ethanol in this drink">+${fmt(ethanolOf(d),1)} ml</div>
               <button class="x-btn" data-remove="${idx}:${di}" title="Remove" aria-label="Remove drink">×</button>
             </div>
           `).join('')}
@@ -105,6 +105,7 @@ function renderPeople() {
       const chip = document.createElement('button');
       chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
       chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmt(preset.volumeMl,0)}·${fmt(preset.abv,1)}%</span>`;
+      chip.title = `${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
       chip.addEventListener('click', () => logDrink(idx, presetToDrink(preset)));
       tray.appendChild(chip);
     });
@@ -209,7 +210,7 @@ function renderCompare() {
     const tail = dryCount === 0 ? ''
                : dryCount === 1 ? ` ${escapeHtml(peopleStats.find(p => p.s.ethanolMl === 0).name)} is still dry.`
                : ` Everyone else is still dry.`;
-    sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big">${fmt(only.s.standardDrinks,1)}</span> standard drinks.${tail}`;
+    sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big" title="${fmt(only.s.ethanolMl,1)} ml ethanol">${fmt(only.s.standardDrinks,1)}</span> standard drinks.${tail}`;
   } else {
     const leader = drinkers[0];
     const second = drinkers[1];
@@ -219,16 +220,16 @@ function renderCompare() {
     if (drinkers.length === 2) {
       // Pair sentence — preserve the original two-person phrasing.
       if (tied) {
-        sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
+        sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
       } else {
-        sentence = `<b>${escapeHtml(leader.name)}</b> has had <span class="big">${fmt(ratio, 2)}×</span> the ethanol of <b>${escapeHtml(second.name)}</b>.`;
+        sentence = `<b>${escapeHtml(leader.name)}</b> has had <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml ethanol">${fmt(ratio, 2)}×</span> the ethanol of <b>${escapeHtml(second.name)}</b>.`;
       }
     } else {
       // 3+ drinkers — leaderboard style.
       if (tied) {
-        sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+        sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
       } else {
-        sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big">${fmt(leader.s.standardDrinks,1)}</span> standard drinks — <span class="big">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
+        sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> standard drinks — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
       }
     }
   }
@@ -244,7 +245,7 @@ function renderCompare() {
       return `
         <div>
           <span class="who">${escapeHtml(p.name)}</span>
-          <span><span class="num">${fmt(eq,1)}</span> ${escapeHtml(unit)}${eq === 1 ? '' : 's'} <span class="abv-tag">${abvTag}</span></span>
+          <span><span class="num" title="${fmt(p.s.ethanolMl,1)} ml ethanol ÷ ${fmt(be,1)} ml per ${escapeHtml(unit)}">${fmt(eq,1)}</span> ${escapeHtml(unit)}${eq === 1 ? '' : 's'} <span class="abv-tag" title="${escapeHtml(bench.name)} alcohol by volume">${abvTag}</span></span>
         </div>
       `;
     }).join('');
@@ -304,12 +305,12 @@ function renderCompareDetail(peopleStats) {
               : `<span class="vs-leader">tied with ${escapeHtml(leader.name)}</span>`;
           } else {
             const behind = leader.s.ethanolMl / p.s.ethanolMl;
-            tail = `<span class="vs-behind"><span class="num">${fmt(behind, 2)}×</span> behind ${escapeHtml(leader.name)}</span>`;
+            tail = `<span class="vs-behind"><span class="num" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(p.s.ethanolMl,1)} ml ethanol">${fmt(behind, 2)}×</span> behind ${escapeHtml(leader.name)}</span>`;
           }
           return `
             <div class="compare-breakdown-row">
               <span class="who">${escapeHtml(p.name)}</span>
-              <span class="std"><span class="num">${std}</span> std</span>
+              <span class="std" title="${fmt(p.s.ethanolMl,1)} ml ethanol"><span class="num">${std}</span> std</span>
               ${tail}
             </div>
           `;
@@ -334,15 +335,15 @@ function renderCompareDetail(peopleStats) {
             <tr>
               <th title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</th>
               ${peopleStats.map((col, ci) => {
-                if (ri === ci) return `<td class="self">—</td>`;
-                if (row.s.ethanolMl === 0 && col.s.ethanolMl === 0) return `<td class="dry">·</td>`;
-                if (row.s.ethanolMl === 0) return `<td class="lead">∞</td>`;
-                if (col.s.ethanolMl === 0) return `<td class="dry">0</td>`;
+                if (ri === ci) return `<td class="self" title="Same person">—</td>`;
+                if (row.s.ethanolMl === 0 && col.s.ethanolMl === 0) return `<td class="dry" title="Both dry">·</td>`;
+                if (row.s.ethanolMl === 0) return `<td class="lead" title="${escapeHtml(col.name)} has had infinitely more">∞</td>`;
+                if (col.s.ethanolMl === 0) return `<td class="dry" title="${escapeHtml(col.name)} is dry">0</td>`;
                 const r = col.s.ethanolMl / row.s.ethanolMl;
                 const cls = Math.abs(r - 1) < 0.03 ? 'tie'
                           : r > 1 ? 'lead'
                           : 'behind';
-                return `<td class="${cls}">${fmt(r, 2)}×</td>`;
+                return `<td class="${cls}" title="${escapeHtml(col.name)}: ${fmt(col.s.ethanolMl,1)} ml · ${escapeHtml(row.name)}: ${fmt(row.s.ethanolMl,1)} ml ethanol">${fmt(r, 2)}×</td>`;
               }).join('')}
             </tr>
           `).join('')}
@@ -389,6 +390,7 @@ export function openAddModal(personIdx) {
     const chip = document.createElement('button');
     chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
     chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmt(preset.volumeMl,0)}·${fmt(preset.abv,1)}%</span>`;
+    chip.title = `${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
     chip.addEventListener('click', () => {
       logDrink(personIdx, presetToDrink(preset));
       closeModal();
@@ -554,7 +556,7 @@ function renderPresetList() {
       <div class="preset-row-main">
         <div class="info">
           <div class="name">${escapeHtml(preset.name)}</div>
-          <div class="meta">${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
+          <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
         </div>
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>

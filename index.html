@@ -107,13 +107,13 @@
     <div class="form-grid">
       <div class="field">
         <label>Name (optional)</label>
-        <input class="input" id="customName" placeholder="Red Stripe tall can" maxlength="40" />
+        <input class="input" id="customName" placeholder="Red Stripe tall can" maxlength="40" title="Optional label for this drink" />
       </div>
       <div class="field-row">
         <div class="field">
           <label>Volume</label>
           <div class="input-wrap">
-            <input class="input mono" id="customVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <input class="input mono" id="customVolume" type="number" inputmode="decimal" step="1" placeholder="473" title="Volume of the drink" />
             <select class="unit-sel" id="customUnit" aria-label="Volume unit">
               <option value="ml">ML</option>
               <option value="oz">OZ</option>
@@ -123,18 +123,18 @@
         <div class="field">
           <label>ABV</label>
           <div class="input-wrap pct">
-            <input class="input mono" id="customAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" />
+            <input class="input mono" id="customAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" title="Alcohol by volume (0–100%)" />
           </div>
         </div>
       </div>
-      <div class="ethanol-preview">
+      <div class="ethanol-preview" title="Pure ethanol = volume × (ABV ÷ 100) · 1 standard drink = 17.05 ml">
         <span>Pure ethanol</span>
         <span class="val" id="ethanolPreviewVal">—</span>
       </div>
       <div class="field" id="customUpcField">
         <label for="customUpc">Barcode <span class="label-aux">(optional)</span></label>
         <input class="input mono" id="customUpc" type="text" inputmode="numeric"
-               placeholder="leave blank if none" autocomplete="off" />
+               placeholder="leave blank if none" autocomplete="off" title="Barcode from the product — scan or type to remember it for next time" />
       </div>
       <label class="toggle-row">
         <input type="checkbox" id="saveAsPreset" />
@@ -169,13 +169,13 @@
     <div class="form-grid">
       <div class="field">
         <label>Name</label>
-        <input class="input" id="newPresetName" placeholder="e.g. Tall can" maxlength="30" />
+        <input class="input" id="newPresetName" placeholder="e.g. Tall can" maxlength="30" title="Name for this drink type" />
       </div>
       <div class="field-row">
         <div class="field">
           <label>Volume</label>
           <div class="input-wrap">
-            <input class="input mono" id="newPresetVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <input class="input mono" id="newPresetVolume" type="number" inputmode="decimal" step="1" placeholder="473" title="Volume of the drink" />
             <select class="unit-sel" id="newPresetUnit" aria-label="Volume unit">
               <option value="ml">ML</option>
               <option value="oz">OZ</option>
@@ -185,7 +185,7 @@
         <div class="field">
           <label>ABV</label>
           <div class="input-wrap pct">
-            <input class="input mono" id="newPresetAbv" type="number" inputmode="decimal" step="0.1" placeholder="5.0" />
+            <input class="input mono" id="newPresetAbv" type="number" inputmode="decimal" step="0.1" placeholder="5.0" title="Alcohol by volume (0–100%)" />
           </div>
         </div>
       </div>
@@ -237,13 +237,13 @@
     <div class="form-grid">
       <div class="field">
         <label>Name (optional)</label>
-        <input class="input" id="editName" placeholder="e.g. Tall can" maxlength="40" />
+        <input class="input" id="editName" placeholder="e.g. Tall can" maxlength="40" title="Optional label for this drink" />
       </div>
       <div class="field-row">
         <div class="field">
           <label>Volume</label>
           <div class="input-wrap">
-            <input class="input mono" id="editVolume" type="number" inputmode="decimal" step="1" placeholder="473" />
+            <input class="input mono" id="editVolume" type="number" inputmode="decimal" step="1" placeholder="473" title="Volume of the drink" />
             <select class="unit-sel" id="editUnit" aria-label="Volume unit">
               <option value="ml">ML</option>
               <option value="oz">OZ</option>
@@ -253,13 +253,13 @@
         <div class="field">
           <label>ABV</label>
           <div class="input-wrap pct">
-            <input class="input mono" id="editAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" />
+            <input class="input mono" id="editAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" title="Alcohol by volume (0–100%)" />
           </div>
         </div>
       </div>
       <div class="ethanol-preview">
         <span>Pure ethanol</span>
-        <span class="val" id="editEthanolPreviewVal">—</span>
+        <span class="val" id="editEthanolPreviewVal" title="Pure ethanol = volume × (ABV ÷ 100) · 1 standard drink = 17.05 ml">—</span>
       </div>
     </div>
     <div id="editScopeSection" style="display:none;">
