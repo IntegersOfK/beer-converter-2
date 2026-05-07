@@ -309,6 +309,9 @@ function normaliseSubmission(raw) {
     const v = Number(raw.volumeMl);
     if (Number.isFinite(v) && v > 0 && v < 100000) out.volumeMl = +v.toFixed(2);
   }
+  if (typeof raw.flavour === 'string' && raw.flavour.trim()) {
+    out.flavour = raw.flavour.trim().slice(0, 60);
+  }
   if (typeof raw.from === 'string' && raw.from.trim()) {
     out.from = raw.from.trim().slice(0, 40);
   }

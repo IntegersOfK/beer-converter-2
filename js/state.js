@@ -263,13 +263,20 @@ export function setBenchmark(id) {
 }
 
 export function addDrink(personIdx, drink) {
-  state.people[personIdx].drinks.push({
+  const entry = {
     name: drink.name || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
     volumeMl: +drink.volumeMl,
     abv: +drink.abv,
     presetId: drink.presetId || null,
     t: Date.now(),
-  });
+  };
+  // Optional flavour metadata — set when the drink came from a curated UPC
+  // scan that knew which flavour of a multi-flavour product it was. Presets
+  // do NOT carry flavour (they're product-level), so quick-add chips never
+  // populate this. Phase 3.
+  const flavour = typeof drink.flavour === 'string' ? drink.flavour.trim() : '';
+  if (flavour) entry.flavour = flavour;
+  state.people[personIdx].drinks.push(entry);
   saveState();
 }
 

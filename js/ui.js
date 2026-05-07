@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=27';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=27';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=28';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=28';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -9,8 +9,8 @@ import {
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
-} from './state.js?v=27';
-import { submitProduct } from './submit.js?v=27';
+} from './state.js?v=28';
+import { submitProduct } from './submit.js?v=28';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -91,7 +91,7 @@ function renderPeople() {
           : person.drinks.map((d, di) => `
             <div class="drink">
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
-                <div class="drink-name">${escapeHtml(d.name)}</div>
+                <div class="drink-name">${escapeHtml(d.name)}${d.flavour ? ` <span class="drink-flavour">· ${escapeHtml(d.flavour)}</span>` : ''}</div>
                 <div class="drink-meta" title="Volume · alcohol by volume">${fmtVol(d.volumeMl)} · ${fmt(d.abv,1)}%</div>
               </button>
               <div class="drink-ethanol" title="Pure ethanol · ${fmt(ethanolOf(d)/STD_DRINK_ML,2)} standard drinks">+${fmt(ethanolOf(d),1)} ml ethanol</div>
@@ -405,6 +405,7 @@ export function logDrink(personIdx, drink, { upc } = {}) {
     name: drink.name,
     abv: drink.abv,
     volumeMl: drink.volumeMl,
+    flavour: drink.flavour || undefined,
     from: state.people[personIdx]?.name,
     people: state.people.map(p => p.name),
   });
@@ -450,6 +451,11 @@ function resetCustomForm() {
   $('#customUpc').value = '';
   $('#customKcal').value = '';
   $('#saveAsPreset').checked = false;
+  // Flavour stays hidden until a curated scan prefills it.
+  const flavInput = $('#customFlavour');
+  if (flavInput) flavInput.value = '';
+  const flavField = $('#customFlavourField');
+  if (flavField) flavField.style.display = 'none';
   updateEthanolPreview();
   updateSaveAsPresetCopy();
 }
@@ -467,6 +473,7 @@ export function prefillCustomForm({
   upc = '',
   kcalPer100ml = null,
   volumePlaceholder = null,
+  flavour = '',
 } = {}) {
   const u = getUnitPref();
   $('#customName').value = name || '';
@@ -480,6 +487,13 @@ export function prefillCustomForm({
   const phMl = volumePlaceholder != null ? volumePlaceholder : 473;
   $('#customVolume').setAttribute('placeholder',
     u === 'oz' ? String(+(phMl / ML_PER_OZ).toFixed(1)) : String(Math.round(phMl)));
+  // Flavour: only show the field when it's actually prefilled (curated scan).
+  const flavInput = $('#customFlavour');
+  const flavField = $('#customFlavourField');
+  if (flavInput && flavField) {
+    flavInput.value = flavour || '';
+    flavField.style.display = flavour ? '' : 'none';
+  }
   // If we got a barcode, default the save toggle to ON — the whole point of
   // scanning a missing barcode is to teach the app what it is.
   $('#saveAsPreset').checked = !!upc;
@@ -544,6 +558,8 @@ export function submitCustomDrink() {
   const upc = $('#customUpc').value.trim() || null;
   const kcalRaw = parseFloat($('#customKcal').value);
   const kcalPer100ml = isFinite(kcalRaw) ? kcalRaw : null;
+  // Flavour is per-drink metadata only; never folded into the preset.
+  const flavour = ($('#customFlavour')?.value || '').trim() || null;
 
   if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a valid volume and ABV (0–100%).'); return false;
@@ -569,6 +585,7 @@ export function submitCustomDrink() {
     volumeMl,
     abv,
     presetId,
+    flavour,
   }, { upc });
   closeModal();
   return true;

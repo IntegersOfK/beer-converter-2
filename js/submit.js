@@ -13,7 +13,7 @@ const SUBMIT_URL = IS_LOCAL ? 'http://localhost:8787/submit' : '/submit';
 // product when the same can is rescanned or the cached path fires again.
 const submittedThisSession = new Set();
 
-export function submitProduct({ upc, name, abv, volumeMl, from, people }) {
+export function submitProduct({ upc, name, abv, volumeMl, flavour, from, people }) {
   if (!SUBMIT_URL) return;
   const cleanUpc  = String(upc  || '').replace(/\s+/g, '');
   const cleanName = String(name || '').trim();
@@ -33,6 +33,8 @@ export function submitProduct({ upc, name, abv, volumeMl, from, people }) {
   const body = { name: cleanName, abv: numAbv };
   if (cleanUpc) body.upc = cleanUpc;
   if (Number.isFinite(numVol) && numVol > 0) body.volumeMl = numVol;
+  const cleanFlavour = typeof flavour === 'string' ? flavour.trim() : '';
+  if (cleanFlavour) body.flavour = cleanFlavour.slice(0, 60);
   if (from) body.from = String(from).trim().slice(0, 40);
   if (Array.isArray(people) && people.length) {
     body.people = people.map(p => String(p).trim().slice(0, 40)).filter(Boolean);

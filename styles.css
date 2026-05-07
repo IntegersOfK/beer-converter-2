@@ -682,6 +682,12 @@ header.app::after {
   line-height: 1.2;
 }
 
+.drink-flavour {
+  color: var(--amber);
+  font-style: italic;
+  font-weight: 400;
+}
+
 .drink-meta {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;

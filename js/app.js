@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=27';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=27';
+import { $, $$, vibe } from './util.js?v=28';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=28';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=27';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=27';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=27';
-import { ML_PER_OZ } from './calc.js?v=27';
+} from './ui.js?v=28';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=28';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=28';
+import { ML_PER_OZ } from './calc.js?v=28';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v27 (Phase 1: products+upcs migration, no UI changes)');
+console.log('Beer Converter build v28 (Phase 3: flavour input on scan, never on presets)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -231,13 +231,26 @@ async function handleUpcFound(upc) {
   setScannerStatus(`Found ${upc}. Looking up…`, 'working');
 
   // 1. Local cache — we've scanned this UPC before, or saved it ourselves.
-  // Instant add.
+  // Instant add. Flavour comes from the central catalogue (when known) so a
+  // cached preset for a multi-flavour product still records WHICH flavour was
+  // scanned this time, even though the preset itself stays product-level.
   const cachedId = getPresetIdForUpc(upc);
   if (cachedId) {
     const preset = state.presets.find(p => p.id === cachedId);
     if (preset) {
       const idx = getAddModalPersonIdx();
-      logDrink(idx, { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv, presetId: preset.id }, { upc });
+      // Look up the catalogue side-channel for flavour; non-fatal if unloaded.
+      let flavour = '';
+      try {
+        if (productsLoaded()) {
+          const cat = lookupBcLiquor(upc);
+          if (cat && cat.flavour) flavour = cat.flavour;
+        }
+      } catch {}
+      logDrink(idx, {
+        name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv,
+        presetId: preset.id, flavour,
+      }, { upc });
       closeScannerOnly();
       closeModal();
       return;
@@ -271,6 +284,8 @@ async function handleUpcFound(upc) {
       abv: info.abv,
       upc,
       volumePlaceholder: containerIsDrink ? null : pourHint,
+      // Only curated entries carry flavour. BC Liquor entries don't.
+      flavour: info.flavour || '',
     });
 
     // Echo the parsed values in the status line so it's obvious on screen
@@ -278,9 +293,10 @@ async function handleUpcFound(upc) {
     // didn't pick them up).
     const abvStr = `${(+info.abv).toFixed(1)}%`;
     const volStr = containerIsDrink ? ` · ${Math.round(info.volumeMl)} ml` : '';
+    const flavStr = info.flavour ? ` · ${info.flavour}` : '';
     const tail   = containerIsDrink ? '' : ' · set pour size';
     setScannerStatus(
-      `Found: ${info.name} · ${abvStr}${volStr}${tail}`,
+      `Found: ${info.name}${flavStr} · ${abvStr}${volStr}${tail}`,
       'ok',
     );
     setTimeout(closeScannerOnly, 800);
