@@ -65,6 +65,10 @@ function mergeCurated(map, curated) {
       abv:         Number.isFinite(+c.abv) ? +c.abv : null,
       category:    null,
       subcategory: null,
+      // New (Phase 1) catalogue fields. flavour is per-UPC, productId groups
+      // multi-UPC products. UI bits will use these in Phase 3.
+      productId:   typeof c.productId === 'string' ? c.productId : null,
+      flavour:     typeof c.flavour   === 'string' && c.flavour.trim() ? c.flavour.trim() : null,
       curated:     true,
     };
     indexProductAllForms(map, product);

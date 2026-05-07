@@ -1,4 +1,7 @@
 submissions.jsonl
 curated.json
+curated.legacy.json
+products.json
+upcs.json
 rejected.jsonl
 node_modules/

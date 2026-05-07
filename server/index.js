@@ -3,27 +3,35 @@
 // Three surfaces in one zero-dependency Node process:
 //
 //   1. Public submit endpoint
-//        POST /submit           — accept { upc, name, abv } from the app
+//        POST /submit           — accept { upc, name, abv, volumeMl? }
 //
 //   2. Public catalogue
-//        GET  /catalog.json     — curated dataset, fetched at app load time
+//        GET  /catalog.json     — JOINed product + upc dataset, fetched at
+//                                 app load time
 //
 //   3. Curation admin (unique path; user runs it behind their own protection)
-//        GET  ${ADMIN_PATH}/             — single-page admin GUI
-//        GET  ${ADMIN_PATH}/api/queue    — pending submissions + suggestions
-//        POST ${ADMIN_PATH}/api/curated  — upsert one curated record
-//        DEL  ${ADMIN_PATH}/api/curated  — remove a curated record by UPC
-//        POST ${ADMIN_PATH}/api/reject   — mark a UPC as rejected (hide from queue)
-//        POST ${ADMIN_PATH}/api/deploy   — git pull latest, data files preserved
+//        GET  ${ADMIN_PATH}/                  — single-page admin GUI
+//        GET  ${ADMIN_PATH}/api/queue         — pending submissions + suggestions
+//        GET  ${ADMIN_PATH}/api/products      — list products + their upcs
+//        POST ${ADMIN_PATH}/api/product       — upsert one product
+//        DEL  ${ADMIN_PATH}/api/product/:id   — delete product + cascade upcs
+//        POST ${ADMIN_PATH}/api/upc           — upsert one upc → product link
+//        DEL  ${ADMIN_PATH}/api/upc/:upc      — detach a UPC
+//        POST ${ADMIN_PATH}/api/curated       — LEGACY adapter (writes new model)
+//        DEL  ${ADMIN_PATH}/api/curated/:upc  — LEGACY adapter
+//        POST ${ADMIN_PATH}/api/reject        — mark a UPC as rejected
+//        POST ${ADMIN_PATH}/api/deploy        — git pull, data files preserved
 //
 // Run:
 //   node server/index.js                         # listens on $PORT or 8787
 //   ADMIN_PATH=/_my_admin_xyz node server/index.js
 //
 // Files written next to this one (override DATA_DIR to relocate):
-//   submissions.jsonl  — append-only raw submissions from the app
-//   curated.json       — array of canonical { upc, name, abv, volumeMl?, group? }
-//   rejected.jsonl     — append-only log of UPCs marked junk
+//   submissions.jsonl    — append-only raw submissions from the app
+//   products.json        — [{ id, name, abv, volumeMl? }]
+//   upcs.json            — [{ upc, productId, flavour? }]
+//   rejected.jsonl       — append-only log of UPCs marked junk
+//   curated.legacy.json  — pre-migration curated.json, kept for rollback only
 
 const http       = require('node:http');
 const fs         = require('node:fs');
@@ -36,14 +44,18 @@ const REPO_ROOT         = path.join(__dirname, '..');
 const SYSTEMD_UNIT      = process.env.SYSTEMD_UNIT || 'bc-node.service';
 const RESTART_ON_DEPLOY = process.env.RESTART_ON_DEPLOY !== '0';
 
-const PORT       = Number(process.env.PORT) || 8787;
-const DATA_DIR   = process.env.DATA_DIR || __dirname;
-const SUBMIT_LOG = path.join(DATA_DIR, 'submissions.jsonl');
-const CURATED    = path.join(DATA_DIR, 'curated.json');
-const REJECTED   = path.join(DATA_DIR, 'rejected.jsonl');
+const PORT           = Number(process.env.PORT) || 8787;
+const DATA_DIR       = process.env.DATA_DIR || __dirname;
+const SUBMIT_LOG     = path.join(DATA_DIR, 'submissions.jsonl');
+const PRODUCTS       = path.join(DATA_DIR, 'products.json');
+const UPCS           = path.join(DATA_DIR, 'upcs.json');
+const REJECTED       = path.join(DATA_DIR, 'rejected.jsonl');
+// Legacy file paths — only read at boot to drive the one-shot migration.
+const CURATED_LEGACY    = path.join(DATA_DIR, 'curated.json');
+const CURATED_ARCHIVED  = path.join(DATA_DIR, 'curated.legacy.json');
 const ADMIN_DIR  = path.join(__dirname, 'admin');
 const ADMIN_PATH = (process.env.ADMIN_PATH || '/_admin_8f3k9qz4').replace(/\/+$/, '');
-const MAX_BODY   = 8 * 1024;   // 8 KB — generous for a curated record
+const MAX_BODY   = 16 * 1024;   // 16 KB — products endpoint can carry a whole row
 
 // CORS allowlist for /submit + /catalog.json (the admin path is same-origin only).
 const ALLOW_ORIGINS = (process.env.ALLOW_ORIGIN ||
@@ -145,6 +157,144 @@ function isValidUpc(s) {
   return /^\d{6,20}$/.test(s);
 }
 
+function normaliseName(s, max = 80) {
+  if (typeof s !== 'string') return '';
+  const t = s.trim();
+  return t.length === 0 || t.length > max ? '' : t;
+}
+
+function normaliseAbv(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return +n.toFixed(2);
+}
+
+function normaliseVolume(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n >= 100000) return null;
+  return +n.toFixed(2);
+}
+
+function normaliseFlavour(s) {
+  if (typeof s !== 'string') return null;
+  const t = s.trim();
+  return t.length === 0 ? null : t.slice(0, 60);
+}
+
+// --- product + upc storage -------------------------------------------------
+//
+// products.json: array of { id, name, abv, volumeMl?, createdAt, updatedAt }
+// upcs.json:     array of { upc, productId, flavour?, addedAt, updatedAt? }
+//
+// Product `id` is a slug + 4-char random hex so renames are cheap (no UPC
+// rows touched). UPCs reference products by id, never by name.
+
+function readProducts() { return readJsonSafe(PRODUCTS, []); }
+function readUpcs()     { return readJsonSafe(UPCS, []); }
+
+function makeProductId(name) {
+  const slug = String(name || '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24) || 'p';
+  // 4 random hex chars — collision-resistant enough for hand-curated data.
+  const hex = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+  return `p_${slug}_${hex}`;
+}
+
+function joinedCatalogue() {
+  const products = readProducts();
+  const upcs     = readUpcs();
+  const byId     = new Map(products.map(p => [p.id, p]));
+  const out = [];
+  for (const u of upcs) {
+    const p = byId.get(u.productId);
+    if (!p) continue;     // orphaned UPC — skip silently
+    const entry = {
+      upc:       u.upc,
+      productId: p.id,
+      name:      p.name,
+      abv:       p.abv,
+    };
+    if (p.volumeMl != null) entry.volumeMl = p.volumeMl;
+    if (u.flavour)          entry.flavour  = u.flavour;
+    out.push(entry);
+  }
+  return out;
+}
+
+// --- migration (one-shot at boot) ------------------------------------------
+//
+// If products.json exists, we're already migrated and skip. Otherwise read
+// curated.json (legacy flat shape), group by name into products, write the
+// two new files, and rename the legacy file out of the way for rollback.
+
+function migrateIfNeeded() {
+  if (fs.existsSync(PRODUCTS) || fs.existsSync(UPCS)) return;
+
+  const legacy = readJsonSafe(CURATED_LEGACY, null);
+  if (!Array.isArray(legacy)) {
+    fs.writeFileSync(PRODUCTS, '[]\n');
+    fs.writeFileSync(UPCS,     '[]\n');
+    console.log('Migration: no legacy curated.json — initialised empty products.json + upcs.json.');
+    return;
+  }
+
+  console.log(`Migration: converting ${legacy.length} legacy curated entries…`);
+  const productsByName = new Map();
+  const upcs = [];
+  let mismatchAbv = 0, mismatchVol = 0;
+
+  for (const c of legacy) {
+    if (!c || typeof c.name !== 'string' || !c.upc) continue;
+    const name = c.name.trim();
+    if (!name) continue;
+    const upc  = normaliseUpc(c.upc);
+    if (!isValidUpc(upc)) continue;
+    const abv  = normaliseAbv(c.abv);
+    if (abv == null) continue;
+    const vol  = normaliseVolume(c.volumeMl);
+
+    let prod = productsByName.get(name);
+    if (!prod) {
+      prod = {
+        id:        makeProductId(name),
+        name,
+        abv,
+        volumeMl:  vol,
+        createdAt: c.updatedAt || new Date().toISOString(),
+        updatedAt: c.updatedAt || new Date().toISOString(),
+      };
+      productsByName.set(name, prod);
+    } else {
+      // Pick first-encountered as canonical; warn on disagreement.
+      if (Math.abs(abv - prod.abv) > 0.01) mismatchAbv++;
+      if (vol != null && prod.volumeMl != null && Math.abs(vol - prod.volumeMl) > 0.01) mismatchVol++;
+      // If the canonical was missing volumeMl and this row has one, adopt it.
+      if (prod.volumeMl == null && vol != null) prod.volumeMl = vol;
+    }
+
+    upcs.push({
+      upc,
+      productId: prod.id,
+      flavour:   null,
+      addedAt:   c.updatedAt || new Date().toISOString(),
+    });
+  }
+
+  const products = [...productsByName.values()];
+  fs.writeFileSync(PRODUCTS, JSON.stringify(products, null, 2));
+  fs.writeFileSync(UPCS,     JSON.stringify(upcs,     null, 2));
+
+  // Move legacy file aside for easy rollback.
+  try { fs.renameSync(CURATED_LEGACY, CURATED_ARCHIVED); } catch {}
+
+  console.log(`Migration: ${products.length} products, ${upcs.length} upcs written.`);
+  if (mismatchAbv) console.warn(`  ${mismatchAbv} ABV mismatches — kept first-encountered value.`);
+  if (mismatchVol) console.warn(`  ${mismatchVol} volume mismatches — kept first-encountered value.`);
+}
+
 function normaliseSubmission(raw) {
   if (!raw || typeof raw !== 'object') return null;
   const name = typeof raw.name === 'string' ? raw.name.trim() : '';
@@ -172,29 +322,13 @@ function normaliseSubmission(raw) {
   return out;
 }
 
-function normaliseCurated(raw) {
-  if (!raw || typeof raw !== 'object') return null;
-  const upc = normaliseUpc(raw.upc);
-  if (!isValidUpc(upc)) return null;
-  const name = typeof raw.name === 'string' ? raw.name.trim() : '';
-  if (!name || name.length > 80) return null;
-  const abv = Number(raw.abv);
-  if (!Number.isFinite(abv) || abv < 0 || abv > 100) return null;
-  const out = { upc, name, abv: +abv.toFixed(2) };
-  if (raw.volumeMl != null) {
-    const v = Number(raw.volumeMl);
-    if (Number.isFinite(v) && v > 0 && v < 100000) out.volumeMl = +v.toFixed(2);
-  }
-  out.updatedAt = new Date().toISOString();
-  return out;
-}
-
 // --- queue construction ----------------------------------------------------
-// Pending = UPCs that have submissions but are NOT in curated and NOT rejected.
-// Aggregate per UPC so a popular product collapses into one card.
+// Pending = UPCs that have submissions but are NOT already linked to a product
+// and NOT rejected. Aggregate per UPC so a popular product collapses into one
+// card.
 function buildQueue() {
   const submissions = readJsonl(SUBMIT_LOG);
-  const curated     = readJsonSafe(CURATED, []);
+  const curated     = joinedCatalogue();   // legacy shape: flat per-UPC
   const rejected    = readJsonl(REJECTED);
 
   const curatedByUpc = new Map(curated.map(c => [c.upc, c]));
@@ -316,15 +450,15 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Public catalogue
+  // Public catalogue (JOINed product + upc rows, flat shape).
   if (req.method === 'GET' && url === '/catalog.json') {
-    const curated = readJsonSafe(CURATED, []);
+    const catalog = joinedCatalogue();
     res.writeHead(200, {
       'Content-Type':  'application/json',
       'Cache-Control': 'public, max-age=60',
       ...corsHeadersFor(origin),
     });
-    res.end(JSON.stringify(curated));
+    res.end(JSON.stringify(catalog));
     return;
   }
 
@@ -378,32 +512,203 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
+    // --- LEGACY adapter: POST /api/curated -------------------------------
+    // Existing admin GUI POSTs flat { upc, name, abv, volumeMl?, flavour? }.
+    // We translate that into the new model: upsert a product (matched by
+    // exact name) and upsert a UPC row pointing to it. Carries flavour
+    // straight through to the upc row when present.
     if (req.method === 'POST' && apiPath === 'curated') {
       let body;
       try { body = await readBody(req); }
       catch (e) { res.writeHead(e.status || 400); res.end(e.message || 'bad request'); return; }
       let parsed;
       try { parsed = JSON.parse(body); } catch { res.writeHead(400); res.end('invalid JSON'); return; }
-      const entry = normaliseCurated(parsed);
-      if (!entry) { res.writeHead(400); res.end('invalid curated record'); return; }
-      const list = readJsonSafe(CURATED, []);
-      const i = list.findIndex(c => c.upc === entry.upc);
-      if (i >= 0) list[i] = entry; else list.push(entry);
-      try { await writeJsonAtomic(CURATED, list); }
-      catch (e) { console.error('curated write failed', e); res.writeHead(500); res.end('write failed'); return; }
+
+      const upc      = normaliseUpc(parsed.upc);
+      const name     = normaliseName(parsed.name);
+      const abv      = normaliseAbv(parsed.abv);
+      const volumeMl = normaliseVolume(parsed.volumeMl);
+      const flavour  = normaliseFlavour(parsed.flavour);
+      if (!isValidUpc(upc) || !name || abv == null) {
+        res.writeHead(400); res.end('invalid curated record'); return;
+      }
+
+      const products = readProducts();
+      const upcs     = readUpcs();
+      const now      = new Date().toISOString();
+
+      let prod = products.find(p => p.name === name);
+      if (!prod) {
+        prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
+        products.push(prod);
+      } else {
+        prod.abv = abv;
+        if (volumeMl != null) prod.volumeMl = volumeMl;
+        prod.updatedAt = now;
+      }
+
+      const i = upcs.findIndex(u => u.upc === upc);
+      const row = {
+        upc,
+        productId: prod.id,
+        flavour,
+        addedAt:   i >= 0 ? upcs[i].addedAt : now,
+        updatedAt: now,
+      };
+      if (i >= 0) upcs[i] = row; else upcs.push(row);
+
+      try {
+        await writeJsonAtomic(PRODUCTS, products);
+        await writeJsonAtomic(UPCS,     upcs);
+      } catch (e) {
+        console.error('curated (legacy) write failed', e);
+        res.writeHead(500); res.end('write failed'); return;
+      }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, entry }));
+      res.end(JSON.stringify({ ok: true, productId: prod.id }));
       return;
     }
 
+    // LEGACY: DELETE /api/curated/:upc — detaches the UPC from its product.
+    // The product itself is left in place even if this was its last UPC;
+    // admin can clean up orphan products explicitly via DELETE /api/product.
     if (req.method === 'DELETE' && apiPath.startsWith('curated/')) {
       const upc = normaliseUpc(decodeURIComponent(apiPath.slice('curated/'.length)));
       if (!isValidUpc(upc)) { res.writeHead(400); res.end('invalid upc'); return; }
-      const list = readJsonSafe(CURATED, []);
-      const next = list.filter(c => c.upc !== upc);
-      if (next.length === list.length) { res.writeHead(404); res.end('not found'); return; }
-      try { await writeJsonAtomic(CURATED, next); }
-      catch (e) { console.error('curated write failed', e); res.writeHead(500); res.end('write failed'); return; }
+      const upcs = readUpcs();
+      const next = upcs.filter(u => u.upc !== upc);
+      if (next.length === upcs.length) { res.writeHead(404); res.end('not found'); return; }
+      try { await writeJsonAtomic(UPCS, next); }
+      catch (e) { console.error('upc delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true }));
+      return;
+    }
+
+    // --- New API: products list -------------------------------------------
+    if (req.method === 'GET' && apiPath === 'products') {
+      const products = readProducts();
+      const upcs     = readUpcs();
+      const upcsByProduct = new Map();
+      for (const u of upcs) {
+        if (!upcsByProduct.has(u.productId)) upcsByProduct.set(u.productId, []);
+        upcsByProduct.get(u.productId).push({
+          upc: u.upc, flavour: u.flavour || null,
+          addedAt: u.addedAt || null, updatedAt: u.updatedAt || null,
+        });
+      }
+      const out = products.map(p => ({
+        ...p,
+        upcs: (upcsByProduct.get(p.id) || []).sort((a, b) => a.upc.localeCompare(b.upc)),
+      })).sort((a, b) => a.name.localeCompare(b.name));
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ products: out }));
+      return;
+    }
+
+    // --- New API: upsert product ------------------------------------------
+    // Body: { id?, name, abv, volumeMl? }
+    if (req.method === 'POST' && apiPath === 'product') {
+      let body;
+      try { body = await readBody(req); }
+      catch (e) { res.writeHead(e.status || 400); res.end(e.message || 'bad request'); return; }
+      let parsed;
+      try { parsed = JSON.parse(body); } catch { res.writeHead(400); res.end('invalid JSON'); return; }
+
+      const name     = normaliseName(parsed.name);
+      const abv      = normaliseAbv(parsed.abv);
+      const volumeMl = normaliseVolume(parsed.volumeMl);
+      if (!name || abv == null) { res.writeHead(400); res.end('invalid product'); return; }
+
+      const products = readProducts();
+      const now = new Date().toISOString();
+      let prod;
+      if (typeof parsed.id === 'string' && parsed.id) {
+        prod = products.find(p => p.id === parsed.id);
+        if (!prod) { res.writeHead(404); res.end('product not found'); return; }
+        // Reject a rename that collides with another product's name.
+        if (products.some(p => p.id !== prod.id && p.name === name)) {
+          res.writeHead(409); res.end('another product already uses that name'); return;
+        }
+        prod.name = name;
+        prod.abv  = abv;
+        prod.volumeMl = volumeMl;
+        prod.updatedAt = now;
+      } else {
+        if (products.some(p => p.name === name)) {
+          res.writeHead(409); res.end('product with that name already exists'); return;
+        }
+        prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
+        products.push(prod);
+      }
+      try { await writeJsonAtomic(PRODUCTS, products); }
+      catch (e) { console.error('product write failed', e); res.writeHead(500); res.end('write failed'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, product: prod }));
+      return;
+    }
+
+    // --- New API: delete product (cascades to its UPCs) -------------------
+    if (req.method === 'DELETE' && apiPath.startsWith('product/')) {
+      const id = decodeURIComponent(apiPath.slice('product/'.length));
+      if (!id) { res.writeHead(400); res.end('invalid id'); return; }
+      const products = readProducts();
+      const next = products.filter(p => p.id !== id);
+      if (next.length === products.length) { res.writeHead(404); res.end('not found'); return; }
+      const upcs     = readUpcs();
+      const nextUpcs = upcs.filter(u => u.productId !== id);
+      try {
+        await writeJsonAtomic(PRODUCTS, next);
+        await writeJsonAtomic(UPCS,     nextUpcs);
+      } catch (e) { console.error('product delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, removedUpcs: upcs.length - nextUpcs.length }));
+      return;
+    }
+
+    // --- New API: upsert upc → product link -------------------------------
+    // Body: { upc, productId, flavour? }
+    if (req.method === 'POST' && apiPath === 'upc') {
+      let body;
+      try { body = await readBody(req); }
+      catch (e) { res.writeHead(e.status || 400); res.end(e.message || 'bad request'); return; }
+      let parsed;
+      try { parsed = JSON.parse(body); } catch { res.writeHead(400); res.end('invalid JSON'); return; }
+
+      const upc      = normaliseUpc(parsed.upc);
+      const productId = typeof parsed.productId === 'string' ? parsed.productId : '';
+      const flavour  = normaliseFlavour(parsed.flavour);
+      if (!isValidUpc(upc) || !productId) { res.writeHead(400); res.end('invalid upc record'); return; }
+
+      const products = readProducts();
+      if (!products.some(p => p.id === productId)) { res.writeHead(404); res.end('product not found'); return; }
+
+      const upcs = readUpcs();
+      const now = new Date().toISOString();
+      const i = upcs.findIndex(u => u.upc === upc);
+      const row = {
+        upc, productId, flavour,
+        addedAt:   i >= 0 ? upcs[i].addedAt : now,
+        updatedAt: now,
+      };
+      if (i >= 0) upcs[i] = row; else upcs.push(row);
+
+      try { await writeJsonAtomic(UPCS, upcs); }
+      catch (e) { console.error('upc write failed', e); res.writeHead(500); res.end('write failed'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ ok: true, entry: row }));
+      return;
+    }
+
+    // --- New API: detach a UPC --------------------------------------------
+    if (req.method === 'DELETE' && apiPath.startsWith('upc/')) {
+      const upc = normaliseUpc(decodeURIComponent(apiPath.slice('upc/'.length)));
+      if (!isValidUpc(upc)) { res.writeHead(400); res.end('invalid upc'); return; }
+      const upcs = readUpcs();
+      const next = upcs.filter(u => u.upc !== upc);
+      if (next.length === upcs.length) { res.writeHead(404); res.end('not found'); return; }
+      try { await writeJsonAtomic(UPCS, next); }
+      catch (e) { console.error('upc delete failed', e); res.writeHead(500); res.end('write failed'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
@@ -430,7 +735,12 @@ const server = http.createServer(async (req, res) => {
       // rejected.jsonl are tracked in git (seed data), so `git pull` would
       // overwrite them. submissions.jsonl is gitignored but we snapshot it
       // too for safety. After the pull we restore every file unconditionally.
-      const dataFiles = [SUBMIT_LOG, CURATED, REJECTED];
+      // CURATED_LEGACY (curated.json) is included so a deploy that includes
+      // the products+upcs migration commit doesn't wipe prod's pre-migration
+      // data: the pull deletes it from the working tree (the commit removes
+      // it from git), then we restore it from the snapshot so the migration
+      // run on the next boot can convert it.
+      const dataFiles = [SUBMIT_LOG, PRODUCTS, UPCS, REJECTED, CURATED_LEGACY];
       const snapshots = dataFiles.map(f => {
         try { return { f, buf: fs.existsSync(f) ? fs.readFileSync(f) : null }; }
         catch { return { f, buf: null }; }
@@ -474,10 +784,14 @@ const server = http.createServer(async (req, res) => {
   send(res, 404, { error: 'not found' }, origin);
 });
 
+try { migrateIfNeeded(); }
+catch (e) { console.error('Migration failed:', e); process.exit(1); }
+
 server.listen(PORT, () => {
   console.log(`Beer Converter API listening on :${PORT}`);
   console.log(`  submit log : ${SUBMIT_LOG}`);
-  console.log(`  curated    : ${CURATED}`);
+  console.log(`  products   : ${PRODUCTS}`);
+  console.log(`  upcs       : ${UPCS}`);
   console.log(`  rejected   : ${REJECTED}`);
   console.log(`  admin path : ${ADMIN_PATH}/`);
 });

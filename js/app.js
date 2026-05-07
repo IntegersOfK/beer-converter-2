@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=26';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=26';
+import { $, $$, vibe } from './util.js?v=27';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=27';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=26';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=26';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=26';
-import { ML_PER_OZ } from './calc.js?v=26';
+} from './ui.js?v=27';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=27';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=27';
+import { ML_PER_OZ } from './calc.js?v=27';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v26 (rename sessions, list people in sessions modal)');
+console.log('Beer Converter build v27 (Phase 1: products+upcs migration, no UI changes)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
