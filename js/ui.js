@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=24';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=24';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=25';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=25';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -9,8 +9,8 @@ import {
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession,
-} from './state.js?v=24';
-import { submitProduct } from './submit.js?v=24';
+} from './state.js?v=25';
+import { submitProduct } from './submit.js?v=25';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -190,6 +190,12 @@ function renderCompare() {
 
   bLabel.textContent = bench ? `Benchmark · ${bench.name} @ ${fmt(bench.abv,1)}%` : '';
   bLabel.title = bench ? `${bench.name} is the reference drink — equivalence counts show how many of these each person has had` : '';
+
+  const sessBtn = $('#btnCurrentSession');
+  if (sessBtn) {
+    const activeSess = state.sessions.find(s => s.id === state.activeSessionId);
+    sessBtn.textContent = activeSess ? activeSess.name : '';
+  }
 
   if (totalCount === 0) {
     main.innerHTML = `

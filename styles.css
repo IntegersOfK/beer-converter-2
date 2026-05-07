@@ -1247,6 +1247,34 @@ header.app::after {
   margin-top: 2px;
 }
 
+.compare-top-left {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-tag-btn {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--amber);
+  background: transparent;
+  border: 1px solid var(--amber-deep);
+  border-radius: 4px;
+  padding: 1px 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+  flex-shrink: 0;
+}
+
+.session-tag-btn:hover {
+  background: rgba(224, 163, 74, 0.1);
+  border-color: var(--amber);
+}
+
 .session-badge {
   font-size: 10px;
   color: var(--amber);

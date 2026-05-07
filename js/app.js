@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=24';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=24';
+import { $, $$, vibe } from './util.js?v=25';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=25';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=24';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=24';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=24';
-import { ML_PER_OZ } from './calc.js?v=24';
+} from './ui.js?v=25';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=25';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=25';
+import { ML_PER_OZ } from './calc.js?v=25';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v24 (multi-session support)');
+console.log('Beer Converter build v25 (session name indicator)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -69,6 +69,7 @@ $('#btnUnit').addEventListener('click', () => {
 
 // --- Header actions -------------------------------------------------------
 $('#btnSessions').addEventListener('click', openSessionsModal);
+$('#btnCurrentSession').addEventListener('click', openSessionsModal);
 $('#btnNewSession').addEventListener('click', () => {
   newSession();
   closeModal();

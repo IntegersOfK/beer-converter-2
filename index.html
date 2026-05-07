@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=24">
+<link rel="stylesheet" href="styles.css?v=25">
 </head>
 <body>
 
@@ -63,7 +63,10 @@
 
 <section class="compare-strip" id="compareStrip">
   <div class="compare-top">
-    <span class="compare-title" title="Running total of standard drinks and ethanol for everyone">The Tally</span>
+    <div class="compare-top-left">
+      <span class="compare-title" title="Running total of standard drinks and ethanol for everyone">The Tally</span>
+      <button class="session-tag-btn" id="btnCurrentSession" title="Switch sessions" aria-label="Switch sessions"></button>
+    </div>
     <span class="compare-title" id="benchmarkLabel"></span>
   </div>
   <div class="compare-main" id="compareMain"></div>
@@ -300,6 +303,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=24"></script>
+<script type="module" src="js/app.js?v=25"></script>
 </body>
 </html>
