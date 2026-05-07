@@ -11,6 +11,7 @@ Two processes, no build step:
 python3 -m http.server 8080        # or: npx serve, caddy file-server …
 
 # Backend (optional — only needed for submit/catalog/admin)
+npm install                        # one-time, installs better-sqlite3
 node server/index.js               # listens on :8787
 ```
 
@@ -46,20 +47,24 @@ Plain ES modules, no framework, no bundler.
 
 ### Backend (`/server/`)
 
-Zero-dependency Node HTTP server. No `package.json`, no `npm install`.
+Node HTTP server backed by SQLite via `better-sqlite3`. One npm dependency.
 
 | File | Role |
 |------|------|
 | `server/index.js` | All routes — submit, catalog, admin API, deploy |
+| `server/db.js` | SQLite schema + DAO (prepared statements, transactions, JSON-import migration) |
 | `server/admin/index.html` | Single-file admin SPA (no external deps) |
-| `server/curated.json` | Canonical product catalogue served at `/catalog.json` |
-| `server/rejected.jsonl` | Append-only log of rejected UPCs |
-| `server/submissions.jsonl` | Append-only crowdsourced submissions (gitignored) |
+| `server/data.db` | SQLite file (gitignored). WAL mode. Holds products, upcs, submissions, rejected_upcs |
+| `server/*.migrated` | Old JSON/JSONL files renamed after one-shot import on first SQLite boot |
+| `server/curated.legacy.json` | Pre-products+upcs archive, kept for rollback only |
 
-**Critical:** `curated.json` and `rejected.jsonl` are tracked in git as seed data but contain live runtime data. Never overwrite them with a plain `git pull`. The admin deploy endpoint (`POST <admin>/api/deploy`) handles this correctly by snapshotting and restoring all three data files around the pull.
+**On first boot of the SQLite version**, `server/db.js` reads any existing `products.json`, `upcs.json`, `submissions.jsonl`, `rejected.jsonl` in `DATA_DIR`, imports them in a single transaction, and renames the source files to `*.migrated` so the import is idempotent. `data.db` is not tracked in git so a `git pull` won't touch it.
 
 Admin path defaults to `/_admin_8f3k9qz4/` — override with `ADMIN_PATH` env var.
 Data directory defaults to `server/` — override with `DATA_DIR` env var.
+DB path defaults to `${DATA_DIR}/data.db` — override with `DB_PATH` env var.
+
+Run locally with `node server/index.js`. The server depends on `better-sqlite3` — run `npm install` once after pulling. The deploy endpoint runs `npm install --omit=dev` after each git pull so prod stays in sync.
 
 ### Admin endpoints
 

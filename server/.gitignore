@@ -4,4 +4,8 @@ curated.legacy.json
 products.json
 upcs.json
 rejected.jsonl
+*.migrated
+data.db
+data.db-wal
+data.db-shm
 node_modules/

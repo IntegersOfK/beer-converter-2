@@ -1,6 +1,6 @@
 // Beer Converter backend.
 //
-// Three surfaces in one zero-dependency Node process:
+// Three surfaces in one Node process backed by a single SQLite file (data.db):
 //
 //   1. Public submit endpoint
 //        POST /submit           — accept { upc, name, abv, volumeMl? }
@@ -26,17 +26,18 @@
 //   node server/index.js                         # listens on $PORT or 8787
 //   ADMIN_PATH=/_my_admin_xyz node server/index.js
 //
-// Files written next to this one (override DATA_DIR to relocate):
-//   submissions.jsonl    — append-only raw submissions from the app
-//   products.json        — [{ id, name, abv, volumeMl? }]
-//   upcs.json            — [{ upc, productId, flavour? }]
-//   rejected.jsonl       — append-only log of UPCs marked junk
-//   curated.legacy.json  — pre-migration curated.json, kept for rollback only
+// Storage:
+//   data.db                — SQLite file. See server/db.js for schema.
+//   *.json{,l}.migrated    — old JSON/JSONL files kept after one-shot
+//                            import on first boot of the SQLite version.
+//   curated.legacy.json    — pre-products+upcs archive, kept for rollback only.
 
 const http       = require('node:http');
 const fs         = require('node:fs');
 const path       = require('node:path');
 const { execFile, spawn } = require('node:child_process');
+
+const db = require('./db.js');
 
 const REPO_ROOT         = path.join(__dirname, '..');
 // systemd unit to restart after a successful deploy. Set RESTART_ON_DEPLOY=0
@@ -44,18 +45,11 @@ const REPO_ROOT         = path.join(__dirname, '..');
 const SYSTEMD_UNIT      = process.env.SYSTEMD_UNIT || 'bc-node.service';
 const RESTART_ON_DEPLOY = process.env.RESTART_ON_DEPLOY !== '0';
 
-const PORT           = Number(process.env.PORT) || 8787;
-const DATA_DIR       = process.env.DATA_DIR || __dirname;
-const SUBMIT_LOG     = path.join(DATA_DIR, 'submissions.jsonl');
-const PRODUCTS       = path.join(DATA_DIR, 'products.json');
-const UPCS           = path.join(DATA_DIR, 'upcs.json');
-const REJECTED       = path.join(DATA_DIR, 'rejected.jsonl');
-// Legacy file paths — only read at boot to drive the one-shot migration.
-const CURATED_LEGACY    = path.join(DATA_DIR, 'curated.json');
-const CURATED_ARCHIVED  = path.join(DATA_DIR, 'curated.legacy.json');
+const PORT       = Number(process.env.PORT) || 8787;
+const DATA_DIR   = process.env.DATA_DIR || __dirname;
 const ADMIN_DIR  = path.join(__dirname, 'admin');
 const ADMIN_PATH = (process.env.ADMIN_PATH || '/_admin_8f3k9qz4').replace(/\/+$/, '');
-const MAX_BODY   = 16 * 1024;   // 16 KB — products endpoint can carry a whole row
+const MAX_BODY   = 16 * 1024;
 
 // CORS allowlist for /submit + /catalog.json (the admin path is same-origin only).
 const ALLOW_ORIGINS = (process.env.ALLOW_ORIGIN ||
@@ -104,58 +98,12 @@ function readBody(req) {
   });
 }
 
-// --- file helpers ----------------------------------------------------------
-
-function readJsonSafe(file, fallback) {
-  try {
-    if (!fs.existsSync(file)) return fallback;
-    const text = fs.readFileSync(file, 'utf8');
-    if (!text.trim()) return fallback;
-    return JSON.parse(text);
-  } catch (e) {
-    console.warn(`Failed to read ${file}:`, e.message);
-    return fallback;
-  }
-}
-
-function readJsonl(file) {
-  if (!fs.existsSync(file)) return [];
-  const text = fs.readFileSync(file, 'utf8');
-  const out = [];
-  for (const line of text.split(/\r?\n/)) {
-    if (!line.trim()) continue;
-    try { out.push(JSON.parse(line)); } catch { /* skip malformed */ }
-  }
-  return out;
-}
-
-function appendJsonl(file, obj) {
-  return new Promise((resolve, reject) => {
-    fs.appendFile(file, JSON.stringify(obj) + '\n', (err) => err ? reject(err) : resolve());
-  });
-}
-
-// Atomic-ish write: temp file + rename. Avoids leaving curated.json half-written
-// if the process dies mid-save.
-function writeJsonAtomic(file, obj) {
-  return new Promise((resolve, reject) => {
-    const tmp = file + '.tmp';
-    fs.writeFile(tmp, JSON.stringify(obj, null, 2), (err) => {
-      if (err) return reject(err);
-      fs.rename(tmp, file, (err2) => err2 ? reject(err2) : resolve());
-    });
-  });
-}
-
 // --- normalisation ---------------------------------------------------------
 
 function normaliseUpc(s) {
   return typeof s === 'string' ? s.replace(/\s+/g, '') : '';
 }
-
-function isValidUpc(s) {
-  return /^\d{6,20}$/.test(s);
-}
+function isValidUpc(s) { return /^\d{6,20}$/.test(s); }
 
 function normaliseName(s, max = 80) {
   if (typeof s !== 'string') return '';
@@ -182,69 +130,50 @@ function normaliseFlavour(s) {
   return t.length === 0 ? null : t.slice(0, 60);
 }
 
-// --- product + upc storage -------------------------------------------------
-//
-// products.json: array of { id, name, abv, volumeMl?, createdAt, updatedAt }
-// upcs.json:     array of { upc, productId, flavour?, addedAt, updatedAt? }
-//
 // Product `id` is a slug + 4-char random hex so renames are cheap (no UPC
 // rows touched). UPCs reference products by id, never by name.
-
-function readProducts() { return readJsonSafe(PRODUCTS, []); }
-function readUpcs()     { return readJsonSafe(UPCS, []); }
-
 function makeProductId(name) {
   const slug = String(name || '').toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '')
     .slice(0, 24) || 'p';
-  // 4 random hex chars — collision-resistant enough for hand-curated data.
   const hex = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
   return `p_${slug}_${hex}`;
 }
 
-function joinedCatalogue() {
-  const products = readProducts();
-  const upcs     = readUpcs();
-  const byId     = new Map(products.map(p => [p.id, p]));
-  const out = [];
-  for (const u of upcs) {
-    const p = byId.get(u.productId);
-    if (!p) continue;     // orphaned UPC — skip silently
-    const entry = {
-      upc:       u.upc,
-      productId: p.id,
-      name:      p.name,
-      abv:       p.abv,
-    };
-    if (p.volumeMl != null) entry.volumeMl = p.volumeMl;
-    if (u.flavour)          entry.flavour  = u.flavour;
-    out.push(entry);
+// --- legacy curated.json → products+upcs migration -------------------------
+//
+// This pre-dates the SQLite migration. It runs first so a deploy carrying
+// only a legacy curated.json gets rewritten into products.json + upcs.json,
+// which the SQLite migration then picks up. Idempotent: skipped if either
+// new-shape file already exists.
+
+function readJsonSafe(file, fallback) {
+  try {
+    if (!fs.existsSync(file)) return fallback;
+    const text = fs.readFileSync(file, 'utf8');
+    if (!text.trim()) return fallback;
+    return JSON.parse(text);
+  } catch (e) {
+    console.warn(`Failed to read ${file}:`, e.message);
+    return fallback;
   }
-  return out;
 }
 
-// --- migration (one-shot at boot) ------------------------------------------
-//
-// If products.json exists, we're already migrated and skip. Otherwise read
-// curated.json (legacy flat shape), group by name into products, write the
-// two new files, and rename the legacy file out of the way for rollback.
+function migrateLegacyCuratedIfNeeded() {
+  const PRODUCTS_JSON = path.join(DATA_DIR, 'products.json');
+  const UPCS_JSON     = path.join(DATA_DIR, 'upcs.json');
+  const CURATED_JSON  = path.join(DATA_DIR, 'curated.json');
+  const CURATED_ARCHIVED = path.join(DATA_DIR, 'curated.legacy.json');
 
-function migrateIfNeeded() {
-  if (fs.existsSync(PRODUCTS) || fs.existsSync(UPCS)) return;
+  if (fs.existsSync(PRODUCTS_JSON) || fs.existsSync(UPCS_JSON)) return;
 
-  const legacy = readJsonSafe(CURATED_LEGACY, null);
-  if (!Array.isArray(legacy)) {
-    fs.writeFileSync(PRODUCTS, '[]\n');
-    fs.writeFileSync(UPCS,     '[]\n');
-    console.log('Migration: no legacy curated.json — initialised empty products.json + upcs.json.');
-    return;
-  }
+  const legacy = readJsonSafe(CURATED_JSON, null);
+  if (!Array.isArray(legacy)) return;
 
-  console.log(`Migration: converting ${legacy.length} legacy curated entries…`);
+  console.log(`legacy migration: converting ${legacy.length} curated entries…`);
   const productsByName = new Map();
   const upcs = [];
-  let mismatchAbv = 0, mismatchVol = 0;
 
   for (const c of legacy) {
     if (!c || typeof c.name !== 'string' || !c.upc) continue;
@@ -260,40 +189,26 @@ function migrateIfNeeded() {
     if (!prod) {
       prod = {
         id:        makeProductId(name),
-        name,
-        abv,
-        volumeMl:  vol,
+        name, abv, volumeMl: vol,
         createdAt: c.updatedAt || new Date().toISOString(),
         updatedAt: c.updatedAt || new Date().toISOString(),
       };
       productsByName.set(name, prod);
-    } else {
-      // Pick first-encountered as canonical; warn on disagreement.
-      if (Math.abs(abv - prod.abv) > 0.01) mismatchAbv++;
-      if (vol != null && prod.volumeMl != null && Math.abs(vol - prod.volumeMl) > 0.01) mismatchVol++;
-      // If the canonical was missing volumeMl and this row has one, adopt it.
-      if (prod.volumeMl == null && vol != null) prod.volumeMl = vol;
+    } else if (prod.volumeMl == null && vol != null) {
+      prod.volumeMl = vol;
     }
-
     upcs.push({
-      upc,
-      productId: prod.id,
-      flavour:   null,
-      addedAt:   c.updatedAt || new Date().toISOString(),
+      upc, productId: prod.id, flavour: null,
+      addedAt: c.updatedAt || new Date().toISOString(),
     });
   }
-
-  const products = [...productsByName.values()];
-  fs.writeFileSync(PRODUCTS, JSON.stringify(products, null, 2));
-  fs.writeFileSync(UPCS,     JSON.stringify(upcs,     null, 2));
-
-  // Move legacy file aside for easy rollback.
-  try { fs.renameSync(CURATED_LEGACY, CURATED_ARCHIVED); } catch {}
-
-  console.log(`Migration: ${products.length} products, ${upcs.length} upcs written.`);
-  if (mismatchAbv) console.warn(`  ${mismatchAbv} ABV mismatches — kept first-encountered value.`);
-  if (mismatchVol) console.warn(`  ${mismatchVol} volume mismatches — kept first-encountered value.`);
+  fs.writeFileSync(PRODUCTS_JSON, JSON.stringify([...productsByName.values()], null, 2));
+  fs.writeFileSync(UPCS_JSON,     JSON.stringify(upcs, null, 2));
+  try { fs.renameSync(CURATED_JSON, CURATED_ARCHIVED); } catch {}
+  console.log(`legacy migration: ${productsByName.size} products, ${upcs.length} upcs.`);
 }
+
+// --- submission normalisation ----------------------------------------------
 
 function normaliseSubmission(raw) {
   if (!raw || typeof raw !== 'object') return null;
@@ -302,7 +217,6 @@ function normaliseSubmission(raw) {
   const abv = Number(raw.abv);
   if (!Number.isFinite(abv) || abv < 0 || abv > 100) return null;
   const out = { name, abv: +abv.toFixed(2), receivedAt: new Date().toISOString() };
-  // upc is optional — non-UPC drink-log events are welcome for aggregate data.
   const upc = normaliseUpc(raw.upc || '');
   if (upc && isValidUpc(upc)) out.upc = upc;
   if (raw.volumeMl != null) {
@@ -330,9 +244,9 @@ function normaliseSubmission(raw) {
 // and NOT rejected. Aggregate per UPC so a popular product collapses into one
 // card.
 function buildQueue() {
-  const submissions = readJsonl(SUBMIT_LOG);
-  const curated     = joinedCatalogue();   // legacy shape: flat per-UPC
-  const rejected    = readJsonl(REJECTED);
+  const submissions = db.listSubmissions();
+  const curated     = db.joinedCatalogue();
+  const rejected    = db.listRejected();
 
   const curatedByUpc = new Map(curated.map(c => [c.upc, c]));
   const rejectedSet  = new Set(rejected.map(r => r.upc));
@@ -362,7 +276,6 @@ function buildQueue() {
     if (s.receivedAt > bucket.lastSeen)  bucket.lastSeen  = s.receivedAt;
   }
 
-  // Materialise + suggest. Sort entries by last-seen desc so newest bubbles up.
   const entries = [...byUpc.values()].map(b => {
     const names   = [...b.names.entries()].sort((a, c) => c[1] - a[1]);
     const abvs    = [...b.abvs.entries()].sort((a, c) => c[1] - a[1]);
@@ -384,9 +297,7 @@ function buildQueue() {
 }
 
 // Token-set Jaccard on lowercased word tokens. Cheap, surprisingly good for
-// "White Claw Mango" ↔ "White Claw Black Cherry" kind of matches. Suggestions
-// are deduped by curated name — clicking one renames to that exact string,
-// which is how the admin merges variants into the same display product.
+// "White Claw Mango" ↔ "White Claw Black Cherry" kind of matches.
 function suggestMatches(name, curated) {
   if (!name || !curated.length) return [];
   const a = tokenSet(name);
@@ -440,22 +351,20 @@ const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
   const url    = req.url || '/';
 
-  // Preflight for any CORS-enabled route.
+  // Preflight
   if (req.method === 'OPTIONS') {
     res.writeHead(204, corsHeadersFor(origin));
     res.end();
     return;
   }
 
-  // Public health
   if (req.method === 'GET' && (url === '/' || url === '/health')) {
     send(res, 200, { ok: true, adminPath: ADMIN_PATH }, origin);
     return;
   }
 
-  // Public catalogue (JOINed product + upc rows, flat shape).
   if (req.method === 'GET' && url === '/catalog.json') {
-    const catalog = joinedCatalogue();
+    const catalog = db.joinedCatalogue();
     res.writeHead(200, {
       'Content-Type':  'application/json',
       'Cache-Control': 'public, max-age=60',
@@ -465,7 +374,6 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  // Public submit
   if (req.method === 'POST' && url === '/submit') {
     let body;
     try { body = await readBody(req); }
@@ -475,8 +383,8 @@ const server = http.createServer(async (req, res) => {
     const entry = normaliseSubmission(parsed);
     if (!entry) { send(res, 400, { error: 'invalid submission' }, origin); return; }
     entry.ua = (req.headers['user-agent'] || '').slice(0, 200);
-    try { await appendJsonl(SUBMIT_LOG, entry); }
-    catch (e) { console.error('append failed', e); send(res, 500, { error: 'log write failed' }, origin); return; }
+    try { db.appendSubmission(entry); }
+    catch (e) { console.error('submission insert failed', e); send(res, 500, { error: 'insert failed' }, origin); return; }
     send(res, 202, { ok: true }, origin);
     return;
   }
@@ -488,17 +396,16 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.startsWith(ADMIN_PATH + '/api/')) {
-    // Strip query string so route matching is always against the bare path.
     const rawApiPath = url.slice((ADMIN_PATH + '/api/').length);
     const [apiPath, queryStr] = rawApiPath.split('?', 2);
     const qParams = new URLSearchParams(queryStr || '');
 
     if (req.method === 'GET' && apiPath === 'log') {
       const limit = Math.min(Math.max(1, Number(qParams.get('limit') || 200)), 1000);
-      const entries = readJsonl(SUBMIT_LOG);
-      entries.reverse();
+      const entries = db.listSubmissions({ limit });
+      const total   = db.countSubmissions();
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ entries: entries.slice(0, limit), total: entries.length }));
+      res.end(JSON.stringify({ entries, total }));
       return;
     }
 
@@ -516,10 +423,6 @@ const server = http.createServer(async (req, res) => {
     }
 
     // --- LEGACY adapter: POST /api/curated -------------------------------
-    // Existing admin GUI POSTs flat { upc, name, abv, volumeMl?, flavour? }.
-    // We translate that into the new model: upsert a product (matched by
-    // exact name) and upsert a UPC row pointing to it. Carries flavour
-    // straight through to the upc row when present.
     if (req.method === 'POST' && apiPath === 'curated') {
       let body;
       try { body = await readBody(req); }
@@ -535,36 +438,14 @@ const server = http.createServer(async (req, res) => {
       if (!isValidUpc(upc) || !name || abv == null) {
         res.writeHead(400); res.end('invalid curated record'); return;
       }
-
-      const products = readProducts();
-      const upcs     = readUpcs();
-      const now      = new Date().toISOString();
-
-      let prod = products.find(p => p.name === name);
-      if (!prod) {
-        prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
-        products.push(prod);
-      } else {
-        prod.abv = abv;
-        if (volumeMl != null) prod.volumeMl = volumeMl;
-        prod.updatedAt = now;
-      }
-
-      const i = upcs.findIndex(u => u.upc === upc);
-      const row = {
-        upc,
-        productId: prod.id,
-        flavour,
-        addedAt:   i >= 0 ? upcs[i].addedAt : now,
-        updatedAt: now,
-      };
-      if (i >= 0) upcs[i] = row; else upcs.push(row);
-
+      let prod;
       try {
-        await writeJsonAtomic(PRODUCTS, products);
-        await writeJsonAtomic(UPCS,     upcs);
+        prod = db.upsertCurated({
+          upc, name, abv, volumeMl, flavour,
+          makeProductId: () => makeProductId(name),
+        });
       } catch (e) {
-        console.error('curated (legacy) write failed', e);
+        console.error('curated upsert failed', e);
         res.writeHead(500); res.end('write failed'); return;
       }
       res.writeHead(200, { 'Content-Type': 'application/json' });
@@ -572,26 +453,20 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // LEGACY: DELETE /api/curated/:upc — detaches the UPC from its product.
-    // The product itself is left in place even if this was its last UPC;
-    // admin can clean up orphan products explicitly via DELETE /api/product.
     if (req.method === 'DELETE' && apiPath.startsWith('curated/')) {
       const upc = normaliseUpc(decodeURIComponent(apiPath.slice('curated/'.length)));
       if (!isValidUpc(upc)) { res.writeHead(400); res.end('invalid upc'); return; }
-      const upcs = readUpcs();
-      const next = upcs.filter(u => u.upc !== upc);
-      if (next.length === upcs.length) { res.writeHead(404); res.end('not found'); return; }
-      try { await writeJsonAtomic(UPCS, next); }
-      catch (e) { console.error('upc delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      const ok = db.deleteUpc(upc);
+      if (!ok) { res.writeHead(404); res.end('not found'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
     }
 
-    // --- New API: products list -------------------------------------------
+    // --- products list ----------------------------------------------------
     if (req.method === 'GET' && apiPath === 'products') {
-      const products = readProducts();
-      const upcs     = readUpcs();
+      const products = db.listProducts();
+      const upcs     = db.listUpcs();
       const upcsByProduct = new Map();
       for (const u of upcs) {
         if (!upcsByProduct.has(u.productId)) upcsByProduct.set(u.productId, []);
@@ -609,8 +484,7 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // --- New API: upsert product ------------------------------------------
-    // Body: { id?, name, abv, volumeMl? }
+    // --- upsert product ---------------------------------------------------
     if (req.method === 'POST' && apiPath === 'product') {
       let body;
       try { body = await readBody(req); }
@@ -623,54 +497,51 @@ const server = http.createServer(async (req, res) => {
       const volumeMl = normaliseVolume(parsed.volumeMl);
       if (!name || abv == null) { res.writeHead(400); res.end('invalid product'); return; }
 
-      const products = readProducts();
       const now = new Date().toISOString();
       let prod;
-      if (typeof parsed.id === 'string' && parsed.id) {
-        prod = products.find(p => p.id === parsed.id);
-        if (!prod) { res.writeHead(404); res.end('product not found'); return; }
-        // Reject a rename that collides with another product's name.
-        if (products.some(p => p.id !== prod.id && p.name === name)) {
-          res.writeHead(409); res.end('another product already uses that name'); return;
+      try {
+        if (typeof parsed.id === 'string' && parsed.id) {
+          prod = db.getProductById(parsed.id);
+          if (!prod) { res.writeHead(404); res.end('product not found'); return; }
+          const collision = db.getProductByName(name);
+          if (collision && collision.id !== prod.id) {
+            res.writeHead(409); res.end('another product already uses that name'); return;
+          }
+          prod.name = name;
+          prod.abv  = abv;
+          prod.volumeMl = volumeMl;
+          prod.updatedAt = now;
+          db.updateProduct(prod);
+        } else {
+          if (db.getProductByName(name)) {
+            res.writeHead(409); res.end('product with that name already exists'); return;
+          }
+          prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
+          db.insertProduct(prod);
         }
-        prod.name = name;
-        prod.abv  = abv;
-        prod.volumeMl = volumeMl;
-        prod.updatedAt = now;
-      } else {
-        if (products.some(p => p.name === name)) {
-          res.writeHead(409); res.end('product with that name already exists'); return;
-        }
-        prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
-        products.push(prod);
+      } catch (e) {
+        console.error('product upsert failed', e);
+        res.writeHead(500); res.end('write failed'); return;
       }
-      try { await writeJsonAtomic(PRODUCTS, products); }
-      catch (e) { console.error('product write failed', e); res.writeHead(500); res.end('write failed'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, product: prod }));
       return;
     }
 
-    // --- New API: delete product (cascades to its UPCs) -------------------
+    // --- delete product (cascades to its UPCs via FK) ---------------------
     if (req.method === 'DELETE' && apiPath.startsWith('product/')) {
       const id = decodeURIComponent(apiPath.slice('product/'.length));
       if (!id) { res.writeHead(400); res.end('invalid id'); return; }
-      const products = readProducts();
-      const next = products.filter(p => p.id !== id);
-      if (next.length === products.length) { res.writeHead(404); res.end('not found'); return; }
-      const upcs     = readUpcs();
-      const nextUpcs = upcs.filter(u => u.productId !== id);
-      try {
-        await writeJsonAtomic(PRODUCTS, next);
-        await writeJsonAtomic(UPCS,     nextUpcs);
-      } catch (e) { console.error('product delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      let result;
+      try { result = db.deleteProduct(id); }
+      catch (e) { console.error('product delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      if (!result.deleted) { res.writeHead(404); res.end('not found'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
-      res.end(JSON.stringify({ ok: true, removedUpcs: upcs.length - nextUpcs.length }));
+      res.end(JSON.stringify({ ok: true, removedUpcs: result.removedUpcs }));
       return;
     }
 
-    // --- New API: upsert upc → product link -------------------------------
-    // Body: { upc, productId, flavour? }
+    // --- upsert upc → product link ----------------------------------------
     if (req.method === 'POST' && apiPath === 'upc') {
       let body;
       try { body = await readBody(req); }
@@ -678,40 +549,31 @@ const server = http.createServer(async (req, res) => {
       let parsed;
       try { parsed = JSON.parse(body); } catch { res.writeHead(400); res.end('invalid JSON'); return; }
 
-      const upc      = normaliseUpc(parsed.upc);
+      const upc       = normaliseUpc(parsed.upc);
       const productId = typeof parsed.productId === 'string' ? parsed.productId : '';
-      const flavour  = normaliseFlavour(parsed.flavour);
+      const flavour   = normaliseFlavour(parsed.flavour);
       if (!isValidUpc(upc) || !productId) { res.writeHead(400); res.end('invalid upc record'); return; }
+      if (!db.getProductById(productId))  { res.writeHead(404); res.end('product not found'); return; }
 
-      const products = readProducts();
-      if (!products.some(p => p.id === productId)) { res.writeHead(404); res.end('product not found'); return; }
-
-      const upcs = readUpcs();
       const now = new Date().toISOString();
-      const i = upcs.findIndex(u => u.upc === upc);
+      const existing = db.getUpc(upc);
       const row = {
         upc, productId, flavour,
-        addedAt:   i >= 0 ? upcs[i].addedAt : now,
+        addedAt:   existing ? existing.addedAt : now,
         updatedAt: now,
       };
-      if (i >= 0) upcs[i] = row; else upcs.push(row);
-
-      try { await writeJsonAtomic(UPCS, upcs); }
-      catch (e) { console.error('upc write failed', e); res.writeHead(500); res.end('write failed'); return; }
+      try { db.upsertUpc(row); }
+      catch (e) { console.error('upc upsert failed', e); res.writeHead(500); res.end('write failed'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true, entry: row }));
       return;
     }
 
-    // --- New API: detach a UPC --------------------------------------------
     if (req.method === 'DELETE' && apiPath.startsWith('upc/')) {
       const upc = normaliseUpc(decodeURIComponent(apiPath.slice('upc/'.length)));
       if (!isValidUpc(upc)) { res.writeHead(400); res.end('invalid upc'); return; }
-      const upcs = readUpcs();
-      const next = upcs.filter(u => u.upc !== upc);
-      if (next.length === upcs.length) { res.writeHead(404); res.end('not found'); return; }
-      try { await writeJsonAtomic(UPCS, next); }
-      catch (e) { console.error('upc delete failed', e); res.writeHead(500); res.end('write failed'); return; }
+      const ok = db.deleteUpc(upc);
+      if (!ok) { res.writeHead(404); res.end('not found'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
@@ -726,35 +588,28 @@ const server = http.createServer(async (req, res) => {
       const upc = normaliseUpc(parsed.upc);
       if (!isValidUpc(upc)) { res.writeHead(400); res.end('invalid upc'); return; }
       const reason = typeof parsed.reason === 'string' ? parsed.reason.slice(0, 200) : '';
-      try { await appendJsonl(REJECTED, { upc, reason, at: new Date().toISOString() }); }
-      catch (e) { console.error('reject log failed', e); res.writeHead(500); res.end('write failed'); return; }
+      try { db.appendRejected(upc, reason); }
+      catch (e) { console.error('reject insert failed', e); res.writeHead(500); res.end('write failed'); return; }
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(JSON.stringify({ ok: true }));
       return;
     }
 
     if (req.method === 'POST' && apiPath === 'deploy') {
-      // Snapshot all three data files before pulling. curated.json and
-      // rejected.jsonl are tracked in git (seed data), so `git pull` would
-      // overwrite them. submissions.jsonl is gitignored but we snapshot it
-      // too for safety. After the pull we restore every file unconditionally.
-      // CURATED_LEGACY (curated.json) is included so a deploy that includes
-      // the products+upcs migration commit doesn't wipe prod's pre-migration
-      // data: the pull deletes it from the working tree (the commit removes
-      // it from git), then we restore it from the snapshot so the migration
-      // run on the next boot can convert it.
-      const dataFiles = [SUBMIT_LOG, PRODUCTS, UPCS, REJECTED, CURATED_LEGACY];
+      // data.db isn't tracked in git, so a normal pull won't touch it. We
+      // still snapshot it for safety in case someone accidentally commits
+      // the file. Same defensive logic for any *.migrated leftovers.
+      const dataFiles = [
+        path.join(DATA_DIR, 'data.db'),
+        path.join(DATA_DIR, 'data.db-wal'),
+        path.join(DATA_DIR, 'data.db-shm'),
+      ];
       const snapshots = dataFiles.map(f => {
         try { return { f, buf: fs.existsSync(f) ? fs.readFileSync(f) : null }; }
         catch { return { f, buf: null }; }
       });
 
-      // -c safe.directory=<path> works around git's "dubious ownership" check
-      // when the repo on disk is owned by a different user than the one running
-      // node. Avoids needing a manual `git config --global` step on the host.
       execFile('git', ['-c', `safe.directory=${REPO_ROOT}`, '-C', REPO_ROOT, 'pull', '--ff-only'], { timeout: 30000 }, (err, stdout, stderr) => {
-        // Always restore data files — even if the pull failed we don't want
-        // a partial pull to leave the repo files in place.
         for (const { f, buf } of snapshots) {
           if (buf !== null) try { fs.writeFileSync(f, buf); } catch {}
         }
@@ -763,16 +618,15 @@ const server = http.createServer(async (req, res) => {
         const body = { ok: !err, stdout: stdout || '', stderr: stderr || '', restarting };
         if (err) body.error = err.message;
 
-        // Flush the response BEFORE killing ourselves. systemd (Restart=always)
-        // brings us back instantly; the detached shell is what actually issues
-        // the restart so it survives our SIGTERM.
         res.writeHead(err ? 500 : 200, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify(body), () => {
           if (!restarting) return;
           try {
-            const child = spawn('sh', ['-c', `sleep 1 && systemctl restart ${SYSTEMD_UNIT}`], {
-              detached: true, stdio: 'ignore',
-            });
+            // Run npm install before restart so a new dep (or version bump)
+            // is available to the relaunched process. Tolerant: install
+            // failure is logged but doesn't block the restart.
+            const cmd = `(cd ${JSON.stringify(REPO_ROOT)} && npm install --omit=dev) ; sleep 1 && systemctl restart ${SYSTEMD_UNIT}`;
+            const child = spawn('sh', ['-c', cmd], { detached: true, stdio: 'ignore' });
             child.unref();
           } catch (e) { console.error('restart spawn failed', e); }
         });
@@ -787,14 +641,16 @@ const server = http.createServer(async (req, res) => {
   send(res, 404, { error: 'not found' }, origin);
 });
 
-try { migrateIfNeeded(); }
-catch (e) { console.error('Migration failed:', e); process.exit(1); }
+// Boot order: legacy curated → JSON migration runs first (a no-op once that
+// migration has happened in production), then SQLite slurps any JSON files
+// that exist into the DB.
+try { migrateLegacyCuratedIfNeeded(); }
+catch (e) { console.error('legacy curated migration failed:', e); process.exit(1); }
+try { db.migrateFromJsonIfNeeded(); }
+catch (e) { console.error('SQLite migration failed:', e); process.exit(1); }
 
 server.listen(PORT, () => {
   console.log(`Beer Converter API listening on :${PORT}`);
-  console.log(`  submit log : ${SUBMIT_LOG}`);
-  console.log(`  products   : ${PRODUCTS}`);
-  console.log(`  upcs       : ${UPCS}`);
-  console.log(`  rejected   : ${REJECTED}`);
+  console.log(`  database   : ${db.DB_PATH}`);
   console.log(`  admin path : ${ADMIN_PATH}/`);
 });
