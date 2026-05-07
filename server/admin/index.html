@@ -145,6 +145,23 @@
   .deploy-out.ok    { border-color: #3b6d3f; color: var(--good); }
   .deploy-out.error { border-color: var(--danger); color: var(--danger); }
 
+  .log-wrap {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden;
+  }
+  .log-row {
+    display: grid; grid-template-columns: 72px 1fr auto;
+    gap: 8px 12px; padding: 9px 14px; font-size: 13px;
+    border-bottom: 1px solid var(--line-soft);
+    align-items: start;
+  }
+  .log-row:last-child { border-bottom: none; }
+  .log-time { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); padding-top: 1px; }
+  .log-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+  .log-name { color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .log-sub  { font-size: 11px; color: var(--ink-soft); }
+  .log-tags { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+
   .toast {
     position: fixed; bottom: 20px; right: 20px;
     background: var(--bg-elev); border: 1px solid var(--amber-deep); color: var(--amber);
@@ -205,6 +222,14 @@
   <span class="pill" id="curatedShowing">—</span>
 </div>
 <div class="curated-list" id="curatedList"></div>
+
+<h2>Drink Log</h2>
+<div class="toolbar">
+  <input type="text" id="logFilter" placeholder="Filter by name, person, UPC…" />
+  <span class="pill" id="logShowing">—</span>
+  <button class="btn ghost" id="btnLogRefresh">Refresh</button>
+</div>
+<div id="logList"><div class="empty">Loading…</div></div>
 
 <div class="toast" id="toast"></div>
 
@@ -527,7 +552,71 @@
     }
   }
 
+  // ---- Drink log ---------------------------------------------------------
+  let logEntries = [];
+  let logTotal   = 0;
+
+  async function loadLog() {
+    try {
+      const data = await api('/log?limit=500');
+      logEntries = data.entries || [];
+      logTotal   = data.total  || 0;
+      renderLog();
+    } catch (e) {
+      toast('Log load failed: ' + e.message, 'danger');
+    }
+  }
+
+  function renderLog() {
+    const filter = ($('#logFilter').value || '').trim().toLowerCase();
+    const rows = filter
+      ? logEntries.filter(e =>
+          (e.name  || '').toLowerCase().includes(filter) ||
+          (e.upc   || '').includes(filter) ||
+          (e.from  || '').toLowerCase().includes(filter) ||
+          (e.people || []).some(p => p.toLowerCase().includes(filter)))
+      : logEntries;
+
+    $('#logShowing').textContent = filter
+      ? `${rows.length} / ${logTotal} entries`
+      : `${logTotal} total · showing ${rows.length}`;
+
+    const wrap = $('#logList');
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty">${logTotal ? 'No entries match the filter.' : 'No submissions yet.'}</div>`;
+      return;
+    }
+
+    wrap.innerHTML = `<div class="log-wrap">${rows.map(e => {
+      const pills = [
+        e.abv != null ? `<span class="pill">${Number(e.abv).toFixed(1)}%</span>` : '',
+        e.volumeMl    ? `<span class="pill">${Math.round(e.volumeMl)} ml</span>` : '',
+        e.upc         ? `<span class="pill amber">${escape(e.upc)}</span>` : '',
+      ].filter(Boolean).join('');
+
+      const ctx = [
+        e.from   ? `from <b style="color:var(--ink)">${escape(e.from)}</b>` : '',
+        e.people ? `[${e.people.map(escape).join(', ')}]` : '',
+      ].filter(Boolean).join(' · ');
+
+      return `
+        <div class="log-row">
+          <div class="log-time">${formatTime(e.receivedAt)}</div>
+          <div class="log-main">
+            <div class="log-name">${escape(e.name || '—')}</div>
+            ${ctx ? `<div class="log-sub">${ctx}</div>` : ''}
+          </div>
+          <div class="log-tags">${pills}</div>
+        </div>
+      `;
+    }).join('')}</div>`;
+  }
+
+  $('#logFilter').addEventListener('input', renderLog);
+  $('#btnLogRefresh').addEventListener('click', loadLog);
+
   loadQueue();
+  loadLog();
 </script>
 </body>
 </html>

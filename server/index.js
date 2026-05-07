@@ -351,7 +351,19 @@ const server = http.createServer(async (req, res) => {
     return;
   }
   if (url.startsWith(ADMIN_PATH + '/api/')) {
-    const apiPath = url.slice((ADMIN_PATH + '/api/').length);
+    // Strip query string so route matching is always against the bare path.
+    const rawApiPath = url.slice((ADMIN_PATH + '/api/').length);
+    const [apiPath, queryStr] = rawApiPath.split('?', 2);
+    const qParams = new URLSearchParams(queryStr || '');
+
+    if (req.method === 'GET' && apiPath === 'log') {
+      const limit = Math.min(Math.max(1, Number(qParams.get('limit') || 200)), 1000);
+      const entries = readJsonl(SUBMIT_LOG);
+      entries.reverse();
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify({ entries: entries.slice(0, limit), total: entries.length }));
+      return;
+    }
 
     if (req.method === 'GET' && apiPath === 'queue') {
       try {
