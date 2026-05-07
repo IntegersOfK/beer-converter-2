@@ -1207,6 +1207,55 @@ header.app::after {
 .actions { display: flex; gap: 8px; margin-top: 18px; }
 .actions .btn { flex: 1; }
 
+/* Session list */
+.session-list {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 4px;
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--line-soft);
+  border-radius: 6px;
+  transition: background 0.1s;
+}
+
+.session-item:last-child { border-bottom: none; }
+
+.session-item.active { background: var(--bg-card); }
+
+.session-item-info {
+  flex: 1;
+  min-width: 0;
+  cursor: pointer;
+}
+
+.session-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.session-item-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  margin-top: 2px;
+}
+
+.session-badge {
+  font-size: 10px;
+  color: var(--amber);
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  flex-shrink: 0;
+}
+
 .ornament {
   display: flex;
   align-items: center;

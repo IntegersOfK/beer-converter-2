@@ -519,40 +519,56 @@ function render(data) {
 }
 
 function importToApp() {
-  let hasExisting = false;
-  try {
-    const raw = localStorage.getItem('beerConverter.v1');
-    if (raw) {
-      const s = JSON.parse(raw);
-      hasExisting = s && Array.isArray(s.people) && s.people.some(p => Array.isArray(p.drinks) && p.drinks.length > 0);
-    }
-  } catch {}
+  const ts = data.ts || Date.now();
+  const sessionDate = new Date(ts).toLocaleDateString('en-CA', { month: 'long', day: 'numeric' });
+  const importedPeople = data.p.map(p => ({
+    name: p.n,
+    drinks: p.d.map(d => ({ name: d.n, volumeMl: d.v, abv: d.a, presetId: null, t: ts })),
+  }));
+  const newSess = {
+    id: 's' + Date.now(),
+    name: sessionDate + ' (imported)',
+    ts,
+    people: importedPeople,
+    benchmarkPresetId: 'pstd',
+  };
 
-  if (hasExisting && !confirm('This will replace your current session. Any drinks already logged will be lost. Continue?')) return;
+  let current = null;
+  try { current = JSON.parse(localStorage.getItem('beerConverter.v1')); } catch {}
 
   let presets = [];
-  let benchmarkPresetId = 'pstd';
-  try {
-    const raw = localStorage.getItem('beerConverter.v1');
-    if (raw) {
-      const s = JSON.parse(raw);
-      if (Array.isArray(s.presets) && s.presets.length > 0) presets = s.presets;
-      if (s.benchmarkPresetId) benchmarkPresetId = s.benchmarkPresetId;
+  let sessions = [];
+
+  if (current && current.schemaVersion === 2 && Array.isArray(current.sessions)) {
+    presets = current.presets || [];
+    sessions = current.sessions;
+  } else if (current && Array.isArray(current.people)) {
+    presets = current.presets || [];
+    if (current.people.some(p => p.drinks && p.drinks.length > 0)) {
+      sessions.push({
+        id: 's' + (Date.now() - 1),
+        name: new Date().toLocaleDateString('en-CA', { month: 'long', day: 'numeric' }),
+        ts: Date.now() - 1,
+        people: current.people,
+        benchmarkPresetId: current.benchmarkPresetId || 'pstd',
+      });
     }
-  } catch {}
+  }
 
   if (data.bm && presets.length > 0) {
     const match = presets.find(p => Math.abs(p.volumeMl - data.bm.v) < 1 && Math.abs(p.abv - data.bm.a) < 0.05);
-    if (match) benchmarkPresetId = match.id;
+    if (match) newSess.benchmarkPresetId = match.id;
   }
 
-  const people = data.p.map(p => ({
-    name: p.n,
-    drinks: p.d.map(d => ({ name: d.n, volumeMl: d.v, abv: d.a, presetId: null, t: data.ts || Date.now() })),
-  }));
+  sessions.push(newSess);
 
   try {
-    localStorage.setItem('beerConverter.v1', JSON.stringify({ people, presets, benchmarkPresetId }));
+    localStorage.setItem('beerConverter.v1', JSON.stringify({
+      schemaVersion: 2,
+      presets,
+      sessions,
+      activeSessionId: newSess.id,
+    }));
   } catch {
     alert('Could not save — storage may be full or blocked.');
     return;

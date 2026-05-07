@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=23">
+<link rel="stylesheet" href="styles.css?v=24">
 </head>
 <body>
 
@@ -41,6 +41,9 @@
         <circle cx="15" cy="11" r="1.5"/>
         <line x1="12" y1="13" x2="15" y2="9"/>
       </svg>
+    </button>
+    <button class="icon-btn" id="btnSessions" title="Sessions" aria-label="Switch sessions">
+      <svg viewBox="0 0 24 24"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
     </button>
     <button class="icon-btn" id="btnPresets" title="Drink types" aria-label="Manage drink types">
       <svg viewBox="0 0 24 24"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
@@ -228,6 +231,22 @@
   </div>
 </div>
 
+<!-- Sessions modal -->
+<div class="modal-overlay" id="sessionsModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>Sessions</h2>
+      <button class="close-btn" data-close aria-label="Close">×</button>
+    </div>
+    <p class="help-text">Your saved bar trips. Tap one to switch, or start a new one.</p>
+    <div class="session-list" id="sessionList"></div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-close>Done</button>
+      <button class="btn btn-primary" id="btnNewSession">New session</button>
+    </div>
+  </div>
+</div>
+
 <!-- Edit logged drink modal -->
 <div class="modal-overlay" id="editDrinkModal">
   <div class="modal">
@@ -281,6 +300,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=23"></script>
+<script type="module" src="js/app.js?v=24"></script>
 </body>
 </html>

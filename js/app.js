@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=23';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref } from './state.js?v=23';
+import { $, $$, vibe } from './util.js?v=24';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=24';
 import {
-  render, openAddModal, openPresetsModal, closeModal,
+  render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=23';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=23';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=23';
-import { ML_PER_OZ } from './calc.js?v=23';
+} from './ui.js?v=24';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=24';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=24';
+import { ML_PER_OZ } from './calc.js?v=24';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v23 (global ml/oz unit preference)');
+console.log('Beer Converter build v24 (multi-session support)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -68,6 +68,13 @@ $('#btnUnit').addEventListener('click', () => {
 });
 
 // --- Header actions -------------------------------------------------------
+$('#btnSessions').addEventListener('click', openSessionsModal);
+$('#btnNewSession').addEventListener('click', () => {
+  newSession();
+  closeModal();
+  render();
+});
+
 $('#btnPresets').addEventListener('click', openPresetsModal);
 
 $('#btnReport').addEventListener('click', () => {

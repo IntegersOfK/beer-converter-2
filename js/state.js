@@ -12,8 +12,6 @@ export function setUnitPref(u) {
 }
 
 // --- defaults ----------------------------------------------------------------
-// Note the canonical Canadian standard drink (341 ml @ 5% ≈ 17.05 ml ethanol)
-// sits at the top and is the default benchmark.
 export const defaultPresets = () => [
   { id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0,  kcalPer100ml: null },
   { id: 'p1',   name: 'Regular can',    volumeMl: 355, abv: 5.0,  kcalPer100ml: null },
@@ -25,52 +23,164 @@ export const defaultPresets = () => [
   { id: 'p7',   name: 'Schooner',       volumeMl: 946, abv: 5.0,  kcalPer100ml: null },
 ];
 
-export const defaultState = () => ({
-  people: [
-    { name: 'You',    drinks: [] },
-    { name: 'Friend', drinks: [] },
-  ],
-  presets: defaultPresets(),
-  benchmarkPresetId: 'pstd',
-});
+function sessionLabel(ts) {
+  return new Date(ts).toLocaleDateString('en-CA', { month: 'long', day: 'numeric' });
+}
 
-// --- load / migrate ---------------------------------------------------------
+function makeSession(people, benchmarkPresetId = 'pstd', ts = Date.now()) {
+  return { id: 's' + ts, name: sessionLabel(ts), ts, people, benchmarkPresetId };
+}
+
+function freshPeople() {
+  return [{ name: 'You', drinks: [] }, { name: 'Friend', drinks: [] }];
+}
+
+// --- load / migrate ----------------------------------------------------------
 export function loadState() {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return defaultState();
     const parsed = JSON.parse(raw);
-    if (!parsed || !Array.isArray(parsed.people) || parsed.people.length < 1) return defaultState();
-    if (!Array.isArray(parsed.presets) || parsed.presets.length === 0) parsed.presets = defaultPresets();
+    if (!parsed) return defaultState();
 
-    // Ensure the standard drink preset exists; promote it to benchmark if the
-    // user was on the previous default (tall can).
-    const hadStd = parsed.presets.some(p => p.id === 'pstd');
-    if (!hadStd) {
-      parsed.presets.unshift({ id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0, kcalPer100ml: null });
-      if (parsed.benchmarkPresetId === 'p2') parsed.benchmarkPresetId = 'pstd';
+    if (parsed.schemaVersion === 2 && Array.isArray(parsed.sessions) && parsed.sessions.length > 0) {
+      return loadV2(parsed);
     }
 
-    // Ensure every preset has the kcalPer100ml field (added in this version).
-    parsed.presets.forEach(p => { if (!('kcalPer100ml' in p)) p.kcalPer100ml = null; });
-
-    // Fall back benchmark if it points at something removed.
-    if (!parsed.presets.some(p => p.id === parsed.benchmarkPresetId)) {
-      parsed.benchmarkPresetId = 'pstd';
+    // Legacy v1: top-level people array
+    if (Array.isArray(parsed.people) && parsed.people.length > 0) {
+      return migrateV1(parsed);
     }
 
-    return parsed;
+    return defaultState();
   } catch {
     return defaultState();
   }
 }
 
+function ensurePresets(parsed) {
+  if (!Array.isArray(parsed.presets) || parsed.presets.length === 0) parsed.presets = defaultPresets();
+  if (!parsed.presets.some(p => p.id === 'pstd')) {
+    parsed.presets.unshift({ id: 'pstd', name: 'Standard drink', volumeMl: 341, abv: 5.0, kcalPer100ml: null });
+  }
+  parsed.presets.forEach(p => { if (!('kcalPer100ml' in p)) p.kcalPer100ml = null; });
+}
+
+function loadV2(parsed) {
+  ensurePresets(parsed);
+
+  // Ensure every session has a valid people array.
+  parsed.sessions.forEach(s => {
+    if (!Array.isArray(s.people) || s.people.length === 0) s.people = freshPeople();
+    if (!s.benchmarkPresetId) s.benchmarkPresetId = 'pstd';
+  });
+
+  let active = parsed.sessions.find(s => s.id === parsed.activeSessionId);
+  if (!active) {
+    active = parsed.sessions[parsed.sessions.length - 1];
+    parsed.activeSessionId = active.id;
+  }
+
+  if (!parsed.presets.some(p => p.id === active.benchmarkPresetId)) {
+    active.benchmarkPresetId = 'pstd';
+  }
+
+  // Runtime aliases — not serialized, always mirror active session.
+  parsed.people = active.people;
+  parsed.benchmarkPresetId = active.benchmarkPresetId;
+
+  return parsed;
+}
+
+function migrateV1(parsed) {
+  ensurePresets(parsed);
+  if (!parsed.presets.some(p => p.id === parsed.benchmarkPresetId)) {
+    parsed.benchmarkPresetId = 'pstd';
+  }
+  // Promote old tall-can benchmark to standard drink.
+  if (parsed.benchmarkPresetId === 'p2') parsed.benchmarkPresetId = 'pstd';
+
+  const ts = Date.now();
+  const session = makeSession(parsed.people, parsed.benchmarkPresetId || 'pstd', ts);
+  parsed.schemaVersion = 2;
+  parsed.sessions = [session];
+  parsed.activeSessionId = session.id;
+  parsed.people = session.people;
+  parsed.benchmarkPresetId = session.benchmarkPresetId;
+  return parsed;
+}
+
+function defaultState() {
+  const ts = Date.now();
+  const session = makeSession(freshPeople(), 'pstd', ts);
+  return {
+    schemaVersion: 2,
+    presets: defaultPresets(),
+    sessions: [session],
+    activeSessionId: session.id,
+    people: session.people,
+    benchmarkPresetId: session.benchmarkPresetId,
+  };
+}
+
 // --- state singleton -------------------------------------------------------
 export const state = loadState();
 
+function activeSession() {
+  return state.sessions.find(s => s.id === state.activeSessionId) || state.sessions[0];
+}
+
 export function saveState() {
-  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }
+  // Sync primitive fields back before serializing (people is already same reference).
+  const sess = activeSession();
+  if (sess) {
+    sess.people = state.people;
+    sess.benchmarkPresetId = state.benchmarkPresetId;
+  }
+  const toSave = {
+    schemaVersion: 2,
+    presets: state.presets,
+    sessions: state.sessions,
+    activeSessionId: state.activeSessionId,
+  };
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(toSave)); }
   catch (e) { console.warn('Save failed', e); }
+}
+
+// --- Session management ---------------------------------------------------
+export function newSession() {
+  const ts = Date.now();
+  const sess = makeSession(freshPeople(), 'pstd', ts);
+  state.sessions.push(sess);
+  state.activeSessionId = sess.id;
+  state.people = sess.people;
+  state.benchmarkPresetId = sess.benchmarkPresetId;
+  saveState();
+  return sess.id;
+}
+
+export function switchSession(id) {
+  const sess = state.sessions.find(s => s.id === id);
+  if (!sess || sess.id === state.activeSessionId) return;
+  state.activeSessionId = id;
+  state.people = sess.people;
+  state.benchmarkPresetId = sess.benchmarkPresetId || 'pstd';
+  saveState();
+}
+
+export function deleteSession(id) {
+  if (state.sessions.length <= 1) return false;
+  const idx = state.sessions.findIndex(s => s.id === id);
+  if (idx === -1) return false;
+  state.sessions.splice(idx, 1);
+  if (state.activeSessionId === id) {
+    const next = state.sessions[Math.min(idx, state.sessions.length - 1)];
+    state.activeSessionId = next.id;
+    state.people = next.people;
+    state.benchmarkPresetId = next.benchmarkPresetId || 'pstd';
+  }
+  saveState();
+  return true;
 }
 
 export function getBenchmark() {
@@ -78,9 +188,6 @@ export function getBenchmark() {
 }
 
 // --- UPC cache -------------------------------------------------------------
-// Maps a UPC string to the preset id that represents it, so rescanning the
-// same can is instantaneous even when the BC Liquor catalogue has no record
-// (e.g. an out-of-province import the user filled in by hand).
 function loadUpcCache() {
   try { return JSON.parse(localStorage.getItem(UPC_CACHE_KEY)) || {}; }
   catch { return {}; }
@@ -102,15 +209,12 @@ export function rememberUpc(upc, presetId) {
   return true;
 }
 
-// Returns every UPC currently mapped to the given preset id.
 export function getUpcsForPreset(presetId) {
   return Object.entries(upcCache)
     .filter(([, id]) => id === presetId)
     .map(([upc]) => upc);
 }
 
-// Detach a single UPC from whatever preset it points at. Returns true if it
-// was actually present.
 export function forgetUpc(upc) {
   const clean = String(upc || '').trim();
   if (!clean || !(clean in upcCache)) return false;
@@ -132,9 +236,11 @@ export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, upc = null
 export function removePreset(id) {
   if (state.presets.length <= 1) return false;
   state.presets = state.presets.filter(p => p.id !== id);
-  if (state.benchmarkPresetId === id) state.benchmarkPresetId = state.presets[0].id;
-  // UPC cache entries pointing at a removed preset will just miss next time;
-  // cheap to let them linger rather than scan every cache entry on delete.
+  if (state.benchmarkPresetId === id) {
+    state.benchmarkPresetId = state.presets[0].id;
+    const sess = activeSession();
+    if (sess) sess.benchmarkPresetId = state.benchmarkPresetId;
+  }
   saveState();
   return true;
 }

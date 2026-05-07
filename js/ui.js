@@ -1,15 +1,16 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=23';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=23';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=24';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=24';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=23';
-import { submitProduct } from './submit.js?v=23';
+  switchSession, deleteSession,
+} from './state.js?v=24';
+import { submitProduct } from './submit.js?v=24';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -707,6 +708,58 @@ export function submitNewPreset() {
   renderPresetList();
   render();
   return true;
+}
+
+// --- Sessions modal --------------------------------------------------------
+export function openSessionsModal() {
+  renderSessionList();
+  $('#sessionsModal').classList.add('open');
+}
+
+function renderSessionList() {
+  const list = $('#sessionList');
+  list.innerHTML = '';
+  const sorted = [...state.sessions].reverse();
+  sorted.forEach(sess => {
+    const isActive = sess.id === state.activeSessionId;
+    const drinks = sess.people.reduce((n, p) => n + p.drinks.length, 0);
+    const date = new Date(sess.ts).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+    const item = document.createElement('div');
+    item.className = 'session-item' + (isActive ? ' active' : '');
+    item.innerHTML = `
+      <div class="session-item-info" data-switch-session="${escapeHtml(sess.id)}">
+        <div class="session-item-name">${escapeHtml(sess.name)}</div>
+        <div class="session-item-meta">${escapeHtml(date)} · ${drinks} drink${drinks === 1 ? '' : 's'}</div>
+      </div>
+      ${isActive ? '<span class="session-badge">current</span>' : ''}
+      <button class="x-btn" data-del-session="${escapeHtml(sess.id)}" aria-label="Delete session"${state.sessions.length <= 1 ? ' disabled' : ''}>×</button>
+    `;
+    list.appendChild(item);
+  });
+
+  list.querySelectorAll('[data-switch-session]').forEach(el => {
+    el.addEventListener('click', () => {
+      switchSession(el.dataset.switchSession);
+      closeModal();
+      render();
+    });
+  });
+
+  list.querySelectorAll('[data-del-session]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const id = btn.dataset.delSession;
+      const sess = state.sessions.find(s => s.id === id);
+      const drinks = sess ? sess.people.reduce((n, p) => n + p.drinks.length, 0) : 0;
+      const msg = drinks > 0
+        ? `Delete "${sess.name}" and its ${drinks} logged drink${drinks === 1 ? '' : 's'}?`
+        : `Delete "${sess.name}"?`;
+      if (!confirm(msg)) return;
+      deleteSession(id);
+      render();
+      renderSessionList();
+    });
+  });
 }
 
 // --- Shared ---------------------------------------------------------------
