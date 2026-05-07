@@ -6,7 +6,7 @@
 // behaviour changes from a static host. Bump on any breaking change.
 
 import { $, $$, vibe } from './util.js?v=16';
-import { state, clearAllDrinks, getPresetIdForUpc } from './state.js?v=16';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=16';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -27,6 +27,25 @@ loadProducts().catch(() => { /* already logged inside loadProducts */ });
 
 // --- Header actions -------------------------------------------------------
 $('#btnPresets').addEventListener('click', openPresetsModal);
+
+$('#btnReport').addEventListener('click', () => {
+  if (!state.people.some(p => p.drinks.length > 0)) {
+    alert('Log some drinks first — nothing to report yet!');
+    return;
+  }
+  const bench = getBenchmark();
+  const payload = {
+    v: 1,
+    ts: Date.now(),
+    p: state.people.map(p => ({
+      n: p.name,
+      d: p.drinks.map(d => ({ n: d.name, v: +d.volumeMl.toFixed(1), a: +d.abv.toFixed(2) })),
+    })),
+    bm: bench ? { n: bench.name, v: bench.volumeMl, a: bench.abv } : null,
+  };
+  const encoded = btoa(unescape(encodeURIComponent(JSON.stringify(payload))));
+  window.open('report.html?d=' + encoded, '_blank');
+});
 
 // Toggle the "compare everyone" detail panel under the tally strip.
 $('#compareExpandBtn').addEventListener('click', toggleCompareDetail);

@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+<meta name="theme-color" content="#17110a">
+<title>Beer Converter · Final Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #17110a; --bg-elev: #1f1710; --bg-card: #2a1f15; --bg-input: #0f0a06;
+    --ink: #f4e9d0; --ink-dim: #c9b894; --ink-soft: #8b7b5f;
+    --amber: #e0a34a; --amber-bright: #f5be5e; --amber-deep: #b87a2e;
+    --line: #3a2d1e; --line-soft: #241a11;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { background: var(--bg); color: var(--ink); }
+  body {
+    font-family: ui-sans-serif, system-ui, sans-serif;
+    min-height: 100vh;
+    padding: 24px clamp(16px, 5vw, 36px) 72px;
+    max-width: 640px; margin: 0 auto;
+  }
+  a { color: inherit; }
+
+  .brand {
+    display: flex; align-items: baseline; gap: 8px; margin-bottom: 28px;
+  }
+  .brand-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 15px; color: var(--amber); font-weight: 400;
+  }
+  .brand-dot { color: var(--line); }
+  .brand-date { font-size: 12px; color: var(--ink-soft); margin-left: auto; }
+
+  .report-title {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: clamp(36px, 9vw, 58px);
+    font-weight: 900; line-height: 1; letter-spacing: -0.02em;
+    margin-bottom: 6px;
+  }
+  .report-title em { color: var(--amber); font-style: italic; }
+  .report-sub { font-size: 13px; color: var(--ink-soft); margin-bottom: 32px; }
+
+  /* Rankings */
+  .rankings { margin-bottom: 20px; }
+  .rank-row {
+    display: grid; grid-template-columns: 90px 1fr 64px;
+    gap: 10px; align-items: center; margin-bottom: 10px;
+  }
+  .rank-name { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .rank-bar-track { height: 7px; background: var(--line); border-radius: 99px; overflow: hidden; }
+  .rank-bar { height: 100%; border-radius: 99px; }
+  .rank-bar.top  { background: var(--amber-bright); }
+  .rank-bar.mid  { background: var(--amber); }
+  .rank-bar.rest { background: var(--amber-deep); }
+  .rank-val { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-dim); text-align: right; }
+
+  /* Group quip */
+  .quip-block {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 28px;
+    font-size: 14px; color: var(--ink-dim); line-height: 1.6;
+  }
+  .quip-block b { color: var(--ink); }
+
+  hr.div { border: none; border-top: 1px dashed var(--line); margin: 24px 0; }
+
+  /* Person cards */
+  .person-card {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    margin-bottom: 14px; overflow: hidden;
+  }
+  .card-head { padding: 14px 16px 10px; border-bottom: 1px solid var(--line-soft); }
+  .card-name {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 22px; font-weight: 700; margin-bottom: 3px;
+  }
+  .card-meta { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); margin-bottom: 4px; }
+  .card-quip { font-size: 12px; color: var(--amber); font-style: italic; }
+
+  .drink-list { padding: 4px 0; }
+  .drink-row {
+    display: flex; justify-content: space-between; align-items: baseline;
+    padding: 7px 16px; gap: 8px;
+  }
+  .drink-row + .drink-row { border-top: 1px solid var(--line-soft); }
+  .drink-row .dn { font-size: 13px; color: var(--ink-dim); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .drink-row .dm { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--ink-soft); white-space: nowrap; flex-shrink: 0; }
+  .drink-row .ds { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--amber); white-space: nowrap; flex-shrink: 0; min-width: 44px; text-align: right; }
+
+  .card-foot {
+    padding: 9px 16px; border-top: 1px dashed var(--line);
+    display: flex; justify-content: space-between;
+    font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--ink-dim);
+  }
+  .card-foot .total { color: var(--amber); font-weight: 600; }
+
+  /* Group totals */
+  .totals-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px;
+  }
+  .total-tile {
+    background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px 14px;
+  }
+  .total-tile .tl { font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.1em; margin-bottom: 4px; }
+  .total-tile .tv { font-family: 'IBM Plex Mono', monospace; font-size: 22px; color: var(--amber); font-weight: 600; }
+  .total-tile .ts { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+  /* Actions */
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 24px; }
+  .btn {
+    font-family: inherit; font-size: 14px; padding: 10px 18px; border-radius: 8px;
+    cursor: pointer; border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
+    transition: border-color 0.15s, color 0.15s; text-decoration: none; display: inline-block;
+  }
+  .btn:hover { border-color: var(--amber-deep); color: var(--amber); }
+  .btn.primary { background: var(--amber); color: #1a140d; border-color: var(--amber-bright); font-weight: 600; }
+  .btn.primary:hover { background: var(--amber-bright); }
+  .btn.ghost { background: transparent; color: var(--ink-soft); }
+
+  .footnote { font-size: 11px; color: var(--ink-soft); line-height: 1.6; }
+  .footnote a { text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; }
+
+  /* Error / empty */
+  .error { text-align: center; padding: 80px 20px; }
+  .error h2 { font-family: 'Fraunces', serif; font-size: 32px; margin-bottom: 10px; }
+  .error p  { color: var(--ink-soft); margin-bottom: 24px; }
+</style>
+</head>
+<body>
+<div id="root">
+  <div class="error">
+    <h2>No report here</h2>
+    <p>Open this from the app's Final Report button.</p>
+    <a href="/" class="btn">← Back to app</a>
+  </div>
+</div>
+<script>
+const STD_DRINK_ML = 17.05;
+function ethanolOf(d) { return d.v * d.a / 100; }
+function stdOf(e)      { return e / STD_DRINK_ML; }
+function fmt(n, dp)    { return isFinite(n) ? n.toFixed(dp) : '—'; }
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+function decode() {
+  try {
+    const d = new URLSearchParams(location.search).get('d');
+    if (!d) return null;
+    return JSON.parse(decodeURIComponent(escape(atob(d))));
+  } catch { return null; }
+}
+
+function personalQuip(std) {
+  if (std === 0)    return 'Perfectly sober. Suspicious, frankly.';
+  if (std < 0.5)   return 'More symbolic than substantive.';
+  if (std < 1)     return 'Respectably restrained.';
+  if (std < 2)     return 'A light hand — keeping it civilized.';
+  if (std < 3)     return 'A proper social evening.';
+  if (std < 4)     return 'Committed to the bit.';
+  if (std < 5)     return 'Full send, no apologies.';
+  if (std < 7)     return 'The morning will have thoughts.';
+  if (std < 9)     return 'Bold. Ambitious. Brave.';
+  if (std < 12)    return 'Future historians may debate this.';
+  return 'This report cannot be used in court.';
+}
+
+function groupQuip(people) {
+  const drinkers = people.filter(p => p.std > 0).sort((a, b) => b.std - a.std);
+  if (!drinkers.length) return 'A completely sober evening. A legend in its own right.';
+
+  const total = people.reduce((s, p) => s + p.std, 0);
+  const avg   = total / people.length;
+  const dry   = people.filter(p => p.std === 0);
+
+  if (drinkers.length === 1) {
+    return dry.length
+      ? `<b>${esc(drinkers[0].n)}</b> carried the night solo while ${dry.map(p => `<b>${esc(p.n)}</b>`).join(' and ')} watched with quiet judgement.`
+      : `<b>${esc(drinkers[0].n)}</b> was the only one drinking tonight.`;
+  }
+
+  const leader = drinkers[0];
+  const second = drinkers[1];
+  const ratio  = leader.std / Math.max(second.std, 0.01);
+  const tied   = Math.abs(ratio - 1) < 0.08;
+
+  if (tied) {
+    return `<b>${esc(leader.n)}</b> and <b>${esc(second.n)}</b> finished in a dead heat — remarkably even pour distribution for a group this chaotic.`;
+  }
+  if (ratio >= 2) {
+    return `<b>${esc(leader.n)}</b> had <b>${fmt(ratio, 1)}×</b> the ethanol of <b>${esc(second.n)}</b>. The gap speaks for itself.`;
+  }
+  if (avg < 1.5) return 'A tasteful and restrained evening all around. The liver approves.';
+  if (avg < 3)   return `A solid group effort — ${fmt(total, 1)} standard drinks across ${people.length} people. Respectable.`;
+  if (avg < 5)   return `${fmt(total, 1)} standard drinks for ${people.length} people. Health Canada's low-risk guidelines are aware of this report.`;
+  return `${fmt(total, 1)} standard drinks across ${people.length} people. The details of this evening are between you and your liver.`;
+}
+
+function render(data) {
+  const ts   = new Date(data.ts || Date.now());
+  const date = ts.toLocaleDateString('en-CA', { weekday: 'long', month: 'long', day: 'numeric' });
+  const time = ts.toLocaleTimeString('en-CA', { hour: 'numeric', minute: '2-digit' });
+  const bm   = data.bm; // { n, v, a } or null
+
+  const people = data.p.map(p => {
+    const ethanol = p.d.reduce((s, d) => s + ethanolOf(d), 0);
+    const std     = stdOf(ethanol);
+    const bmEquiv = bm ? ethanol / ethanolOf(bm) : null;
+    return { ...p, ethanol, std, bmEquiv };
+  });
+
+  const totalStd    = people.reduce((s, p) => s + p.std,    0);
+  const totalEthanol= people.reduce((s, p) => s + p.ethanol,0);
+  const maxStd      = Math.max(...people.map(p => p.std), 0.001);
+  const sorted      = [...people].sort((a, b) => b.std - a.std);
+
+  // Rankings strip — colour-code top 3
+  const barClasses = ['top', 'mid', 'rest'];
+  const rankings = sorted.map((p, i) => {
+    const pct = (p.std / maxStd * 100).toFixed(1);
+    const cls = barClasses[i] || 'rest';
+    return `
+      <div class="rank-row">
+        <div class="rank-name">${esc(p.n)}</div>
+        <div class="rank-bar-track"><div class="rank-bar ${cls}" style="width:${pct}%"></div></div>
+        <div class="rank-val">${fmt(p.std, 1)} std</div>
+      </div>`;
+  }).join('');
+
+  // Per-person cards
+  const cards = people.map(p => {
+    const drinkRows = p.d.length === 0
+      ? `<div class="drink-row"><div class="dn" style="font-style:italic;color:var(--ink-soft)">No drinks logged</div></div>`
+      : p.d.map(d => {
+          const s = stdOf(ethanolOf(d));
+          return `
+            <div class="drink-row">
+              <div class="dn">${esc(d.n)}</div>
+              <div class="dm">${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%</div>
+              <div class="ds">+${fmt(s, 2)}</div>
+            </div>`;
+        }).join('');
+
+    const bmLine = bm && p.bmEquiv != null
+      ? ` · ≈ ${fmt(p.bmEquiv, 1)} ${esc(bm.n.toLowerCase())}${Math.round(p.bmEquiv) === 1 ? '' : 's'}`
+      : '';
+
+    return `
+      <div class="person-card">
+        <div class="card-head">
+          <div class="card-name">${esc(p.n)}</div>
+          <div class="card-meta">${fmt(p.ethanol, 1)} ml ethanol${bmLine}</div>
+          <div class="card-quip">${personalQuip(p.std)}</div>
+        </div>
+        <div class="drink-list">${drinkRows}</div>
+        <div class="card-foot">
+          <span>${p.d.length} drink${p.d.length === 1 ? '' : 's'}</span>
+          <span class="total">${fmt(p.std, 2)} std drinks</span>
+        </div>
+      </div>`;
+  }).join('');
+
+  const bmTile = bm ? `
+    <div class="total-tile">
+      <div class="tl">in ${esc(bm.n.toLowerCase())}s</div>
+      <div class="tv">${fmt(totalEthanol / ethanolOf(bm), 1)}</div>
+      <div class="ts">@ ${fmt(bm.a, 1)}% combined</div>
+    </div>` : `
+    <div class="total-tile">
+      <div class="tl">ethanol</div>
+      <div class="tv">${fmt(totalEthanol, 0)}</div>
+      <div class="ts">ml combined</div>
+    </div>`;
+
+  document.getElementById('root').innerHTML = `
+    <div class="brand">
+      <span class="brand-name">Beer Converter</span>
+      <span class="brand-dot">·</span>
+      <span class="brand-date">${esc(date)} · ${esc(time)}</span>
+    </div>
+
+    <h1 class="report-title">The Night's <em>Tally</em></h1>
+    <p class="report-sub">Featuring: ${people.map(p => esc(p.n)).join(', ')}</p>
+
+    <div class="rankings">${rankings}</div>
+
+    <div class="quip-block">${groupQuip(people)}</div>
+
+    <hr class="div">
+
+    ${cards}
+
+    <div class="totals-grid">
+      <div class="total-tile">
+        <div class="tl">standard drinks</div>
+        <div class="tv">${fmt(totalStd, 1)}</div>
+        <div class="ts">combined total</div>
+      </div>
+      ${bmTile}
+    </div>
+
+    <div class="actions">
+      <button class="btn primary" id="btnCopy">Copy report link</button>
+      <a href="/" class="btn ghost">← New session</a>
+    </div>
+
+    <p class="footnote">
+      1 std drink = ${STD_DRINK_ML} ml ethanol ·
+      <a href="https://www.canada.ca/en/health-canada/services/substance-use/alcohol/low-risk-alcohol-drinking-guidelines.html"
+         target="_blank" rel="noopener noreferrer">Health Canada</a>
+      · Data was never sent to a server — it's all in the URL.
+    </p>
+  `;
+
+  document.getElementById('btnCopy').addEventListener('click', () => {
+    const btn = document.getElementById('btnCopy');
+    navigator.clipboard.writeText(location.href).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => { btn.textContent = 'Copy report link'; }, 2200);
+    }).catch(() => { prompt('Copy this link:', location.href); });
+  });
+}
+
+const data = decode();
+if (data && Array.isArray(data.p) && data.p.length > 0) render(data);
+</script>
+</body>
+</html>
