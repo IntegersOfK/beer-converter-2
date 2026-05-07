@@ -1,15 +1,15 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=21';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=21';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=22';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=22';
 import {
   state, getBenchmark,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=21';
-import { submitProduct } from './submit.js?v=21';
+} from './state.js?v=22';
+import { submitProduct } from './submit.js?v=22';
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -204,6 +204,9 @@ function renderCompare() {
     .filter(p => p.s.ethanolMl > 0)
     .sort((x, y) => y.s.ethanolMl - x.s.ethanolMl);
 
+  const be     = bench ? ethanolOf(bench) : null;
+  const bmUnit = bench ? escapeHtml(bench.name.toLowerCase()) : null;
+
   let sentence;
   if (drinkers.length === 1) {
     const only = drinkers[0];
@@ -211,7 +214,12 @@ function renderCompare() {
     const tail = dryCount === 0 ? ''
                : dryCount === 1 ? ` ${escapeHtml(peopleStats.find(p => p.s.ethanolMl === 0).name)} is still dry.`
                : ` Everyone else is still dry.`;
-    sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big" title="${fmt(only.s.ethanolMl,1)} ml ethanol">${fmt(only.s.standardDrinks,1)}</span> standard drinks.${tail}`;
+    if (bench) {
+      const equiv = only.s.ethanolMl / be;
+      sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big" title="${fmt(only.s.ethanolMl,1)} ml ethanol · ${fmt(only.s.standardDrinks,1)} standard drinks">${fmt(equiv,1)}</span> ${bmUnit}.${tail}`;
+    } else {
+      sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big" title="${fmt(only.s.ethanolMl,1)} ml ethanol">${fmt(only.s.standardDrinks,1)}</span> standard drinks.${tail}`;
+    }
   } else {
     const leader = drinkers[0];
     const second = drinkers[1];
@@ -219,18 +227,32 @@ function renderCompare() {
     const tied   = Math.abs(ratio - 1) < 0.03;
 
     if (drinkers.length === 2) {
-      // Pair sentence — preserve the original two-person phrasing.
       if (tied) {
-        sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
+        if (bench) {
+          const equiv = leader.s.ethanolMl / be;
+          sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">neck&nbsp;&&nbsp;neck</span> — <span class="big" title="${fmt(equiv,1)} ${bmUnit} each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
+        } else {
+          sentence = `<b>${escapeHtml(leader.name)}</b> and <b>${escapeHtml(second.name)}</b> are <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">neck&nbsp;&&nbsp;neck</span> on ethanol.`;
+        }
       } else {
         sentence = `<b>${escapeHtml(leader.name)}</b> has had <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml ethanol">${fmt(ratio, 2)}×</span> the ethanol of <b>${escapeHtml(second.name)}</b>.`;
       }
     } else {
       // 3+ drinkers — leaderboard style.
       if (tied) {
-        sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+        if (bench) {
+          const equiv = leader.s.ethanolMl / be;
+          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
+        } else {
+          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+        }
       } else {
-        sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> standard drinks — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
+        if (bench) {
+          const leaderEquiv = leader.s.ethanolMl / be;
+          sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leaderEquiv,1)}</span> ${bmUnit} — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
+        } else {
+          sentence = `<b>${escapeHtml(leader.name)}</b> leads with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> standard drinks — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(second.s.ethanolMl,1)} ml">${fmt(ratio, 2)}×</span> <b>${escapeHtml(second.name)}</b>.`;
+        }
       }
     }
   }

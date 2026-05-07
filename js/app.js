@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=21';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=21';
+import { $, $$, vibe } from './util.js?v=22';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark } from './state.js?v=22';
 import {
   render, openAddModal, openPresetsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=21';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=21';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=21';
-import { ML_PER_OZ } from './calc.js?v=21';
+} from './ui.js?v=22';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=22';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=22';
+import { ML_PER_OZ } from './calc.js?v=22';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v21 (stat-label wrap, badge tooltips)');
+console.log('Beer Converter build v22 (benchmark-aware compare sentence)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -96,6 +96,7 @@ $('#btnReset').addEventListener('click', () => {
 $$('[data-close]').forEach(el => el.addEventListener('click', () => {
   stopActiveScanner();
   closeModal();
+  render();
 }));
 $$('[data-close-scanner]').forEach(el => el.addEventListener('click', () => {
   stopActiveScanner();
@@ -106,7 +107,7 @@ $$('.modal-overlay').forEach(m => {
     if (e.target !== m) return;
     // Backdrop click: scanner only closes itself; other modals close fully.
     if (m.id === 'scannerModal') { stopActiveScanner(); closeScannerOnly(); }
-    else { stopActiveScanner(); closeModal(); }
+    else { stopActiveScanner(); closeModal(); render(); }
   });
 });
 
