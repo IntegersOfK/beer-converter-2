@@ -2,6 +2,14 @@
 
 const STORAGE_KEY = 'beerConverter.v1';
 const UPC_CACHE_KEY = 'beerConverter.upcCache.v1';
+const UNIT_KEY = 'beerConverter.unit';
+
+export function getUnitPref() {
+  try { return localStorage.getItem(UNIT_KEY) === 'oz' ? 'oz' : 'ml'; } catch { return 'ml'; }
+}
+export function setUnitPref(u) {
+  try { localStorage.setItem(UNIT_KEY, u === 'oz' ? 'oz' : 'ml'); } catch {}
+}
 
 // --- defaults ----------------------------------------------------------------
 // Note the canonical Canadian standard drink (341 ml @ 5% ≈ 17.05 ml ethanol)

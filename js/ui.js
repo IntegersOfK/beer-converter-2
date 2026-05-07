@@ -1,15 +1,21 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=22';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=22';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=23';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=23';
 import {
-  state, getBenchmark,
+  state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
-} from './state.js?v=22';
-import { submitProduct } from './submit.js?v=22';
+} from './state.js?v=23';
+import { submitProduct } from './submit.js?v=23';
+
+function fmtVol(ml) {
+  return getUnitPref() === 'oz'
+    ? `${fmt(ml / ML_PER_OZ, 1)} oz`
+    : `${fmt(ml, 0)} ml`;
+}
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
 function personBadge(idx) {
@@ -85,7 +91,7 @@ function renderPeople() {
             <div class="drink">
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
                 <div class="drink-name">${escapeHtml(d.name)}</div>
-                <div class="drink-meta" title="Volume · alcohol by volume">${fmt(d.volumeMl,0)} ml · ${fmt(d.abv,1)}%</div>
+                <div class="drink-meta" title="Volume · alcohol by volume">${fmtVol(d.volumeMl)} · ${fmt(d.abv,1)}%</div>
               </button>
               <div class="drink-ethanol" title="Pure ethanol · ${fmt(ethanolOf(d)/STD_DRINK_ML,2)} standard drinks">+${fmt(ethanolOf(d),1)} ml ethanol</div>
               <button class="x-btn" data-remove="${idx}:${di}" title="Remove" aria-label="Remove drink">×</button>
@@ -104,8 +110,8 @@ function renderPeople() {
     state.presets.forEach(preset => {
       const chip = document.createElement('button');
       chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
-      chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmt(preset.volumeMl,0)}·${fmt(preset.abv,1)}%</span>`;
-      chip.title = `${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
+      chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
+      chip.title = `${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
       chip.addEventListener('click', () => logDrink(idx, presetToDrink(preset)));
       tray.appendChild(chip);
     });
@@ -413,8 +419,8 @@ export function openAddModal(personIdx) {
   state.presets.forEach(preset => {
     const chip = document.createElement('button');
     chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
-    chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmt(preset.volumeMl,0)}·${fmt(preset.abv,1)}%</span>`;
-    chip.title = `${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
+    chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
+    chip.title = `${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
     chip.addEventListener('click', () => {
       logDrink(personIdx, presetToDrink(preset));
       closeModal();
@@ -427,15 +433,15 @@ export function openAddModal(personIdx) {
 
 export function getAddModalPersonIdx() { return addModalPersonIdx; }
 
-const DEFAULT_VOLUME_PLACEHOLDER = '473';
-
 function resetCustomForm() {
+  const u = getUnitPref();
   $('#customName').value = '';
+  $('#customUnit').value = u;
   $('#customVolume').value = '';
+  $('#customVolume').setAttribute('placeholder', u === 'oz' ? '16' : '473');
   $('#customAbv').value = '';
   $('#customUpc').value = '';
   $('#customKcal').value = '';
-  $('#customVolume').setAttribute('placeholder', DEFAULT_VOLUME_PLACEHOLDER);
   $('#saveAsPreset').checked = false;
   updateEthanolPreview();
   updateSaveAsPresetCopy();
@@ -455,16 +461,18 @@ export function prefillCustomForm({
   kcalPer100ml = null,
   volumePlaceholder = null,
 } = {}) {
+  const u = getUnitPref();
   $('#customName').value = name || '';
-  $('#customVolume').value = volumeMl != null && isFinite(volumeMl) ? Math.round(volumeMl) : '';
-  $('#customUnit').value = 'ml';
+  $('#customUnit').value = u;
+  $('#customVolume').value = volumeMl != null && isFinite(volumeMl)
+    ? (u === 'oz' ? +(volumeMl / ML_PER_OZ).toFixed(2) : Math.round(volumeMl))
+    : '';
   $('#customAbv').value  = abv != null && isFinite(abv) ? (+abv).toFixed(1) : '';
   $('#customUpc').value  = upc || '';
   $('#customKcal').value = kcalPer100ml != null ? kcalPer100ml : '';
-  $('#customVolume').setAttribute(
-    'placeholder',
-    volumePlaceholder != null ? String(volumePlaceholder) : DEFAULT_VOLUME_PLACEHOLDER
-  );
+  const phMl = volumePlaceholder != null ? volumePlaceholder : 473;
+  $('#customVolume').setAttribute('placeholder',
+    u === 'oz' ? String(+(phMl / ML_PER_OZ).toFixed(1)) : String(Math.round(phMl)));
   // If we got a barcode, default the save toggle to ON — the whole point of
   // scanning a missing barcode is to teach the app what it is.
   $('#saveAsPreset').checked = !!upc;
@@ -564,6 +572,7 @@ export function openPresetsModal() {
   renderPresetList();
   $('#newPresetName').value = '';
   $('#newPresetVolume').value = '';
+  $('#newPresetUnit').value = getUnitPref();
   $('#newPresetAbv').value = '';
   $('#presetsModal').classList.add('open');
 }
@@ -580,7 +589,7 @@ function renderPresetList() {
       <div class="preset-row-main">
         <div class="info">
           <div class="name">${escapeHtml(preset.name)}</div>
-          <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmt(preset.volumeMl,0)} ml · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
+          <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
         </div>
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>
@@ -729,9 +738,12 @@ export function openEditModal(personIdx, drinkIdx) {
   const drink = state.people[personIdx]?.drinks[drinkIdx];
   if (!drink) return;
 
+  const u = getUnitPref();
   $('#editName').value = drink.name || '';
-  $('#editVolume').value = Math.round(drink.volumeMl);
-  $('#editUnit').value = 'ml';
+  $('#editUnit').value = u;
+  $('#editVolume').value = u === 'oz'
+    ? +(drink.volumeMl / ML_PER_OZ).toFixed(2)
+    : Math.round(drink.volumeMl);
   $('#editAbv').value = (+drink.abv).toFixed(1);
   updateEditEthanolPreview();
 
