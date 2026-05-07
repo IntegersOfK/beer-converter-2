@@ -5,15 +5,27 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
 <meta name="theme-color" content="#17110a">
 <title>Beer Converter · Final Report</title>
+<script>
+  (function() {
+    var t = localStorage.getItem('beerConverter.theme');
+    if (t === 'beach') document.documentElement.setAttribute('data-theme', 'beach');
+  })();
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
-  :root {
+  :root, [data-theme="bar"] {
     --bg: #17110a; --bg-elev: #1f1710; --bg-card: #2a1f15; --bg-input: #0f0a06;
     --ink: #f4e9d0; --ink-dim: #c9b894; --ink-soft: #8b7b5f;
     --amber: #e0a34a; --amber-bright: #f5be5e; --amber-deep: #b87a2e;
     --line: #3a2d1e; --line-soft: #241a11;
+  }
+  [data-theme="beach"] {
+    --bg: #f3e6c7; --bg-elev: #fbf3da; --bg-card: #ede0bb; --bg-input: #ffffff;
+    --ink: #1a140a; --ink-dim: #5a4630; --ink-soft: #7a6030;
+    --amber: #b8741a; --amber-bright: #d18a30; --amber-deep: #8b520c;
+    --line: #c8b683; --line-soft: #dfd0a2;
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html { background: var(--bg); color: var(--ink); }
@@ -189,9 +201,47 @@
   .error { text-align: center; padding: 80px 20px; }
   .error h2 { font-family: 'Fraunces', serif; font-size: 32px; margin-bottom: 10px; }
   .error p  { color: var(--ink-soft); margin-bottom: 24px; }
+
+  /* Theme toggle button */
+  #btnTheme {
+    position: fixed;
+    top: max(env(safe-area-inset-top), 14px);
+    right: clamp(16px, 5vw, 36px);
+    z-index: 50;
+    background: var(--bg-elev);
+    border: 1px solid var(--line);
+    color: var(--ink-soft);
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    display: grid; place-items: center;
+    cursor: pointer;
+    transition: border-color 0.15s, color 0.15s;
+    padding: 0;
+  }
+  #btnTheme:hover { border-color: var(--amber-deep); color: var(--amber); }
+  #btnTheme svg { width: 18px; height: 18px; stroke: currentColor; stroke-width: 1.8; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  #btnTheme .icon-beach { display: block; }
+  #btnTheme .icon-bar   { display: none; }
+  [data-theme="beach"] #btnTheme .icon-beach { display: none; }
+  [data-theme="beach"] #btnTheme .icon-bar   { display: block; }
 </style>
 </head>
 <body>
+<button id="btnTheme" title="Switch theme" aria-label="Switch theme">
+  <svg class="icon-beach" viewBox="0 0 24 24">
+    <path d="M3 11 Q12 3 21 11"/>
+    <line x1="12" y1="3" x2="12" y2="11"/>
+    <line x1="12" y1="11" x2="9" y2="22"/>
+    <path d="M6 20 Q9 18 12 20"/>
+  </svg>
+  <svg class="icon-bar" viewBox="0 0 24 24">
+    <path d="M4 4h16L12 16Z"/>
+    <line x1="12" y1="16" x2="12" y2="21"/>
+    <line x1="7" y1="21" x2="17" y2="21"/>
+    <circle cx="15" cy="11" r="1.5"/>
+    <line x1="12" y1="13" x2="15" y2="9"/>
+  </svg>
+</button>
 <div id="root">
   <div class="error">
     <h2>No report here</h2>
@@ -468,6 +518,22 @@ function render(data) {
 
 const data = decode();
 if (data && Array.isArray(data.p) && data.p.length > 0) render(data);
+
+// Theme toggle — reads the same localStorage key as the main app.
+const THEME_COLOURS = { bar: '#17110a', beach: '#f3e6c7' };
+function applyTheme(t) {
+  document.documentElement.setAttribute('data-theme', t);
+  const meta = document.querySelector('meta[name="theme-color"]');
+  if (meta) meta.setAttribute('content', THEME_COLOURS[t] || THEME_COLOURS.bar);
+  const btn = document.getElementById('btnTheme');
+  if (btn) btn.title = t === 'beach' ? 'Switch to bar mode' : 'Switch to beach mode';
+}
+applyTheme(localStorage.getItem('beerConverter.theme') || 'bar');
+document.getElementById('btnTheme').addEventListener('click', () => {
+  const next = document.documentElement.getAttribute('data-theme') === 'beach' ? 'bar' : 'beach';
+  applyTheme(next);
+  try { localStorage.setItem('beerConverter.theme', next); } catch {}
+});
 </script>
 </body>
 </html>
