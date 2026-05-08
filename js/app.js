@@ -5,24 +5,24 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=38';
+import { $, $$, vibe } from './util.js?v=39';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   getRecentSessions, forgetSessionLocal,
-} from './state.js?v=38';
+} from './state.js?v=39';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=38';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=38';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=38';
-import { ML_PER_OZ } from './calc.js?v=38';
+} from './ui.js?v=39';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=39';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=39';
+import { ML_PER_OZ } from './calc.js?v=39';
 
-console.log('Beer Converter build v38 (report comments)');
+console.log('Beer Converter build v39 (api base paths)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
