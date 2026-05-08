@@ -70,7 +70,7 @@ const MAX_BODY   = 16 * 1024;
 
 // CORS allowlist for /submit + /catalog.json (the admin path is same-origin only).
 const ALLOW_ORIGINS = (process.env.ALLOW_ORIGIN ||
-  'https://bc.ajwest.ca,http://localhost:8080,http://127.0.0.1:8080'
+  'https://bc.ajwest.ca,http://localhost:8080,http://127.0.0.1:8080,http://localhost:8787,http://127.0.0.1:8787'
 ).split(',').map(s => s.trim()).filter(Boolean);
 
 function corsHeadersFor(reqOrigin) {

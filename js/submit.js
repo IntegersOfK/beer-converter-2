@@ -6,8 +6,8 @@
 // Fail-quiet: if the backend is unconfigured, unreachable, or returns an
 // error, we just console.warn — never block the user's flow.
 
-const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
-const SUBMIT_URL = IS_LOCAL ? 'http://localhost:8787/submit' : '/submit';
+import { API_BASE } from './api.js?v=37';
+const SUBMIT_URL = API_BASE + '/submit';
 
 // Dedup set for UPC-tagged submissions only — avoids re-submitting the same
 // product when the same can is rescanned or the cached path fires again.

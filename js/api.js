@@ -5,8 +5,12 @@
 // requests from going to localhost from a non-localhost page (Chrome's
 // Private Network Access would prompt the user otherwise).
 
-const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
-export const API_BASE = IS_LOCAL ? 'http://localhost:8787' : '';
+// If we're on localhost but NOT on the backend port (e.g. running a separate
+// static server on 8080), we need absolute URLs to hit the backend. Otherwise,
+// use relative paths (which works for both local :8787 and production).
+
+const IS_SEPARATE_FRONTEND = ['localhost', '127.0.0.1'].includes(location.hostname) && location.port !== '8787';
+export const API_BASE = IS_SEPARATE_FRONTEND ? 'http://localhost:8787' : '';
 
 class ApiError extends Error {
   constructor(method, path, status, body) {

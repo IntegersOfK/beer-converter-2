@@ -278,8 +278,8 @@ function esc(s) {
 //   ?s=<sid>   — fetches the live shared session from the server, polls
 //                every 5 s. This is what the current app generates.
 //   ?d=<blob>  — legacy base64 payload, kept so older share links still work.
-const IS_LOCAL = ['localhost', '127.0.0.1'].includes(location.hostname);
-const API_BASE = IS_LOCAL ? 'http://localhost:8787' : '';
+const IS_SEPARATE_FRONTEND = ['localhost', '127.0.0.1'].includes(location.hostname) && location.port !== '8787';
+const API_BASE = IS_SEPARATE_FRONTEND ? 'http://localhost:8787' : '';
 
 function decodeLegacy() {
   try {
