@@ -2,6 +2,7 @@
   "name": "beer-converter-server",
   "private": true,
   "version": "1.0.0",
+  "license": "MIT",
   "description": "Beer Converter backend — SQLite-backed catalogue + admin + shared sessions.",
   "main": "server/index.js",
   "scripts": {
