@@ -851,6 +851,24 @@ header.app::after {
 /* Add buttons */
 .add-row { display: flex; gap: 8px; }
 
+.btn-same-again {
+  flex-shrink: 0;
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px dashed var(--line);
+  font-size: 13px;
+  padding: 11px 14px;
+  white-space: nowrap;
+}
+.btn-same-again:hover {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+  background: rgba(224, 163, 74, 0.06);
+}
+[data-theme="beach"] .btn-same-again:hover {
+  background: rgba(184, 116, 26, 0.08);
+}
+
 .btn {
   border: 1px solid var(--line);
   background: var(--bg-card);
@@ -1430,6 +1448,17 @@ input.session-name-input:focus {
 
 .footnote a { color: var(--ink-dim); border-bottom-color: rgba(201,184,148,0.3); }
 .footnote a:hover { color: var(--amber); border-bottom-color: var(--amber); }
+
+/* Admin link is intentionally low-key — present for the curator to find,
+   but not styled as something a visitor should click. */
+.footnote .footnote-admin {
+  color: var(--ink-soft);
+  opacity: 0.55;
+  border-bottom: none;
+  letter-spacing: 0.16em;
+}
+.footnote .footnote-admin:hover { opacity: 1; color: var(--amber); }
+.footnote-sep { color: var(--ink-soft); opacity: 0.4; margin: 0 4px; }
 
 .help-text {
   font-size: 13px;

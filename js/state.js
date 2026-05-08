@@ -236,11 +236,24 @@ export function forgetUpc(upc) {
 
 // --- preset mutation helpers ----------------------------------------------
 export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, upc = null }) {
-  const preset = { id: 'u' + Date.now(), name, volumeMl, abv, kcalPer100ml };
+  const now = Date.now();
+  // lastUsedAt seeded at creation so a brand-new preset bubbles to the top
+  // of the chip tray right away (matches user intent: just-saved → use again).
+  const preset = { id: 'u' + now, name, volumeMl, abv, kcalPer100ml, lastUsedAt: now };
   state.presets.push(preset);
   if (upc) rememberUpc(upc, preset.id);
   saveState();
   return preset;
+}
+
+// Stamp lastUsedAt on a preset (called from addDrink when the drink links to
+// a preset). Cheap; chip-tray rendering reads this to sort by recency.
+export function touchPreset(presetId) {
+  if (!presetId) return;
+  const p = state.presets.find(x => x.id === presetId);
+  if (!p) return;
+  p.lastUsedAt = Date.now();
+  saveState();
 }
 
 export function removePreset(id) {
@@ -277,6 +290,11 @@ export function addDrink(personIdx, drink) {
   const flavour = typeof drink.flavour === 'string' ? drink.flavour.trim() : '';
   if (flavour) entry.flavour = flavour;
   state.people[personIdx].drinks.push(entry);
+  // Track recency so the chip tray surfaces the just-used preset first.
+  if (entry.presetId) {
+    const p = state.presets.find(x => x.id === entry.presetId);
+    if (p) p.lastUsedAt = Date.now();
+  }
   saveState();
 }
 

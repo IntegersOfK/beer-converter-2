@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=31';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=31';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=32';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=32';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -10,14 +10,29 @@ import {
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
   setDrinkFlavour,
-} from './state.js?v=31';
-import { submitProduct } from './submit.js?v=31';
-import { getFlavoursForName } from './products.js?v=31';
+} from './state.js?v=32';
+import { submitProduct } from './submit.js?v=32';
+import { getFlavoursForName } from './products.js?v=32';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
     ? `${fmt(ml / ML_PER_OZ, 1)} oz`
     : `${fmt(ml, 0)} ml`;
+}
+
+// Presets sorted with most-recently-used first, falling back to original
+// array order for never-used ones. Chip trays read this so the drink you
+// just logged sits at the front for one-tap re-use.
+function presetsByRecency() {
+  return state.presets
+    .map((p, i) => ({ p, i }))
+    .sort((a, b) => {
+      const lb = b.p.lastUsedAt || 0;
+      const la = a.p.lastUsedAt || 0;
+      if (lb !== la) return lb - la;
+      return a.i - b.i;   // stable for never-used presets
+    })
+    .map(x => x.p);
 }
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
@@ -105,13 +120,16 @@ function renderPeople() {
       <div class="preset-tray" data-preset-tray="${idx}"></div>
       <div class="add-row">
         <button class="btn btn-primary" data-add="${idx}">+  Add drink</button>
+        ${person.drinks.length > 0 ? `
+          <button class="btn btn-same-again" data-add-previous="${idx}" title="Re-add ${escapeHtml(person.drinks[person.drinks.length - 1].name)}">↺ Same again</button>
+        ` : ''}
       </div>
     `;
     grid.appendChild(card);
 
-    // Preset chips for this person.
+    // Preset chips for this person — most-recently-used first.
     const tray = card.querySelector(`[data-preset-tray="${idx}"]`);
-    state.presets.forEach(preset => {
+    presetsByRecency().forEach(preset => {
       const chip = document.createElement('button');
       chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
       chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
@@ -150,6 +168,23 @@ function renderPeople() {
   });
   $$('[data-add]').forEach(btn => {
     btn.addEventListener('click', e => openAddModal(+e.currentTarget.dataset.add));
+  });
+  $$('[data-add-previous]').forEach(btn => {
+    btn.addEventListener('click', e => {
+      const personIdx = +e.currentTarget.dataset.addPrevious;
+      const person = state.people[personIdx];
+      const prev = person?.drinks[person.drinks.length - 1];
+      if (!prev) return;
+      // One-tap re-add. Re-uses the original presetId if present, so chip
+      // recency tracking still treats it as the same type.
+      logDrink(personIdx, {
+        name: prev.name,
+        volumeMl: prev.volumeMl,
+        abv: prev.abv,
+        presetId: prev.presetId || null,
+        flavour: prev.flavour || '',
+      });
+    });
   });
   $$('[data-remove-person]').forEach(btn => {
     btn.addEventListener('click', e => {
@@ -427,7 +462,7 @@ export function openAddModal(personIdx) {
   $('#addModalTitle').textContent = `Add drink · ${state.people[personIdx].name}`;
   const tray = $('#addPresetTray');
   tray.innerHTML = '';
-  state.presets.forEach(preset => {
+  presetsByRecency().forEach(preset => {
     const chip = document.createElement('button');
     chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
     chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
@@ -453,7 +488,9 @@ function resetCustomForm() {
   $('#customAbv').value = '';
   $('#customUpc').value = '';
   $('#customKcal').value = '';
-  $('#saveAsPreset').checked = false;
+  // Default ON: most users want a one-tap "save as type" path; the save is
+  // a no-op silently when no name is given (existing alert handles that).
+  $('#saveAsPreset').checked = true;
   // Flavour stays hidden until a curated scan prefills it.
   const flavInput = $('#customFlavour');
   if (flavInput) flavInput.value = '';
@@ -497,9 +534,10 @@ export function prefillCustomForm({
     flavInput.value = flavour || '';
     flavField.style.display = flavour ? '' : 'none';
   }
-  // If we got a barcode, default the save toggle to ON — the whole point of
-  // scanning a missing barcode is to teach the app what it is.
-  $('#saveAsPreset').checked = !!upc;
+  // Save-as-type defaults ON whether or not there's a UPC; matches the
+  // resetCustomForm default. Scan flow especially benefits from this — the
+  // whole point of a scan is usually to remember the product for next time.
+  $('#saveAsPreset').checked = true;
   updateEthanolPreview();
   updateSaveAsPresetCopy();
 }
