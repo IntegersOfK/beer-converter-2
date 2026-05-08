@@ -1459,6 +1459,24 @@ input.session-name-input:focus {
 }
 .footnote .footnote-admin:hover { opacity: 1; color: var(--amber); }
 .footnote-sep { color: var(--ink-soft); opacity: 0.4; margin: 0 4px; }
+.footnote .footnote-changelog {
+  color: var(--ink-soft);
+  opacity: 0.7;
+  border-bottom: none;
+  letter-spacing: 0.16em;
+  cursor: pointer;
+}
+.footnote .footnote-changelog:hover { opacity: 1; color: var(--amber); }
+
+.changelog-list {
+  margin: 0 0 4px;
+  padding-left: 18px;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1.55;
+}
+.changelog-list li { margin: 4px 0; }
+.changelog-list li::marker { color: var(--amber); }
 
 .help-text {
   font-size: 13px;

@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=32">
+<link rel="stylesheet" href="styles.css?v=33">
 </head>
 <body>
 
@@ -98,7 +98,71 @@
     Health Canada
   </a>
   <span class="footnote-sep">·</span>
+  <a href="#" class="footnote-changelog" id="lnkChangelog">changelog</a>
+  <span class="footnote-sep">·</span>
   <a href="/_admin_8f3k9qz4/" class="footnote-admin" rel="noopener noreferrer">admin</a>
+</div>
+
+<!-- Changelog modal -->
+<div class="modal-overlay" id="changelogModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2>What's new</h2>
+      <button class="close-btn" data-close aria-label="Close">×</button>
+    </div>
+    <p class="help-text">A high-level tour of features that have shipped, newest first.</p>
+
+    <div class="ornament">Quick-add polish</div>
+    <ul class="changelog-list">
+      <li>"Same again" button next to every person's add control.</li>
+      <li>Most-recently-used drink types float to the front of the chip tray.</li>
+      <li>"Save this as a drink type" defaults to on.</li>
+      <li>Refreshed header icons — calendar for sessions, cocktail glass for drink types.</li>
+    </ul>
+
+    <div class="ornament">Per-drink flavours</div>
+    <ul class="changelog-list">
+      <li>Curated products can carry multiple flavours under one name (e.g. White Claw · Mango).</li>
+      <li>Edit a logged drink's flavour without touching the saved drink type.</li>
+      <li>Flavours render on drink rows and on the shareable final report.</li>
+    </ul>
+
+    <div class="ornament">Editing &amp; sessions</div>
+    <ul class="changelog-list">
+      <li>Edit any logged drink — apply the change to just that one or to every drink of the same type.</li>
+      <li>Multi-session support: switch between past bar trips, rename them, see who was there.</li>
+    </ul>
+
+    <div class="ornament">Look &amp; feel</div>
+    <ul class="changelog-list">
+      <li>Bar (dark) / Beach (light) theme toggle for sun-readable patios.</li>
+      <li>Global ml / oz unit preference.</li>
+      <li>Tooltips on every number and badge.</li>
+    </ul>
+
+    <div class="ornament">Final report</div>
+    <ul class="changelog-list">
+      <li>Shareable URL-encoded report with donut chart and per-person breakdown.</li>
+      <li>"Import to app" button so a friend can load your report onto their device.</li>
+    </ul>
+
+    <div class="ornament">Catalogue &amp; barcodes</div>
+    <ul class="changelog-list">
+      <li>Scan a UPC against the bundled BC Liquor product list.</li>
+      <li>Unknown barcodes get submitted for review and folded into the shared catalogue.</li>
+      <li>Per-device cache — once you've named a barcode it comes back next time.</li>
+    </ul>
+
+    <div class="ornament">Foundations</div>
+    <ul class="changelog-list">
+      <li>N-person tally with compare-everyone detail panel.</li>
+      <li>Standard-drink math (1 std drink = 17.05 ml ethanol) against Health Canada guidelines.</li>
+    </ul>
+
+    <div class="actions">
+      <button class="btn btn-primary" data-close>Got it</button>
+    </div>
+  </div>
 </div>
 
 <!-- Add drink modal -->
@@ -344,6 +408,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=32"></script>
+<script type="module" src="js/app.js?v=33"></script>
 </body>
 </html>
