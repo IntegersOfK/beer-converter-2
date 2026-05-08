@@ -40,9 +40,8 @@ shared with everyone in the session, since presets are shared.
 
 ## Session comments
 
-- Allow comments to be added to a session, probably by asking for the
-  commenter's name.
-- Make commenting available only from the final report.
+- [x] Allow comments to be added to a session, with support for free-text author names and emoji reactions.
+- [x] Integrate session log into the final report.
 
 ## Admin: session management
 

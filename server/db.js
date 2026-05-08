@@ -111,7 +111,36 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS session_drinks_session ON session_drinks(session_id, t);
   CREATE INDEX IF NOT EXISTS session_drinks_person  ON session_drinks(person_id);
+
+  CREATE TABLE IF NOT EXISTS session_comments (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    person_id    INTEGER REFERENCES session_people(id) ON DELETE SET NULL,
+    author_name  TEXT, -- Free-text name
+    text         TEXT NOT NULL,
+    t            INTEGER NOT NULL,
+    created_at   TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS session_comments_session ON session_comments(session_id, t);
+
+  CREATE TABLE IF NOT EXISTS session_comment_reactions (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    comment_id  INTEGER NOT NULL REFERENCES session_comments(id) ON DELETE CASCADE,
+    person_id   INTEGER REFERENCES session_people(id) ON DELETE CASCADE,
+    device_id   TEXT, -- For anonymous reactions
+    emoji       TEXT NOT NULL,
+    created_at  TEXT NOT NULL,
+    UNIQUE(comment_id, person_id, device_id, emoji)
+  );
+  CREATE INDEX IF NOT EXISTS session_comment_reactions_comment ON session_comment_reactions(comment_id);
 `);
+
+// ---- migration: add author_name to session_comments -----------------------
+const tableInfo = db.prepare("PRAGMA table_info(session_comments)").all();
+if (!tableInfo.some(c => c.name === 'author_name')) {
+  console.log('Migration: adding author_name to session_comments');
+  db.exec("ALTER TABLE session_comments ADD COLUMN author_name TEXT;");
+}
 
 // ---- prepared statements -------------------------------------------------
 
@@ -370,6 +399,46 @@ const stmts = {
      WHERE session_id = @sessionId AND preset_key = @presetKey
   `),
   deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
+
+  // ---- session_comments -------------------------------------------------
+  insertComment: db.prepare(`
+    INSERT INTO session_comments (session_id, person_id, author_name, text, t, created_at)
+    VALUES (@sessionId, @personId, @authorName, @text, @t, @createdAt)
+  `),
+  listComments: db.prepare(`
+    SELECT id, person_id AS personId, author_name AS authorName, text, t, created_at AS createdAt
+      FROM session_comments
+     WHERE session_id = ?
+     ORDER BY t ASC, id ASC
+  `),
+  getComment: db.prepare(`
+    SELECT id, session_id AS sessionId, person_id AS personId, author_name AS authorName, text, t, created_at AS createdAt
+      FROM session_comments
+     WHERE id = ?
+  `),
+  updateCommentStmt: db.prepare(`
+    UPDATE session_comments SET text = ?, t = ? WHERE id = ?
+  `),
+  deleteCommentStmt: db.prepare(`DELETE FROM session_comments WHERE id = ?`),
+
+  // ---- session_comment_reactions ----------------------------------------
+  insertReaction: db.prepare(`
+    INSERT INTO session_comment_reactions (comment_id, person_id, device_id, emoji, created_at)
+    VALUES (@commentId, @personId, @deviceId, @emoji, @createdAt)
+  `),
+  deleteReaction: db.prepare(`
+    DELETE FROM session_comment_reactions 
+     WHERE comment_id = @commentId 
+       AND emoji = @emoji 
+       AND (person_id = @personId OR (@personId IS NULL AND person_id IS NULL))
+       AND (device_id = @deviceId OR (@deviceId IS NULL AND device_id IS NULL))
+  `),
+  listReactionsForSession: db.prepare(`
+    SELECT r.comment_id AS commentId, r.emoji, r.person_id AS personId, r.device_id AS deviceId
+      FROM session_comment_reactions r
+      JOIN session_comments c ON c.id = r.comment_id
+     WHERE c.session_id = ?
+  `),
 };
 
 // JSON column helpers — submissions.people is stored as a JSON string
@@ -552,9 +621,11 @@ function createSession(payload) {
 function getSessionFull(id) {
   const s = stmts.getSession.get(id);
   if (!s) return null;
-  s.people  = stmts.listPeople.all(id);
-  s.presets = stmts.listPresets.all(id);
-  s.drinks  = stmts.listDrinks.all(id);
+  s.people    = stmts.listPeople.all(id);
+  s.presets   = stmts.listPresets.all(id);
+  s.drinks    = stmts.listDrinks.all(id);
+  s.comments  = stmts.listComments.all(id);
+  s.reactions = stmts.listReactionsForSession.all(id);
   return s;
 }
 
@@ -728,6 +799,64 @@ function removeDrink(sessionId, drinkId) {
   return true;
 }
 
+const addCommentTx = db.transaction((sessionId, comment) => {
+  if (comment.personId != null) {
+    const person = stmts.getPerson.get(comment.personId);
+    if (!person || person.sessionId !== sessionId) {
+      throw Object.assign(new Error('person not in session'), { status: 400 });
+    }
+  }
+  const now = nowIso();
+  const info = stmts.insertComment.run({
+    sessionId,
+    personId:   comment.personId || null,
+    authorName: comment.authorName || null,
+    text:       String(comment.text || '').trim().slice(0, 500),
+    t:          comment.t == null ? Date.now() : Number(comment.t),
+    createdAt:  now,
+  });
+  stmts.touchSession.run(now, sessionId);
+  return info.lastInsertRowid;
+});
+function addComment(sessionId, comment) {
+  const id = addCommentTx(sessionId, comment);
+  return stmts.getComment.get(id);
+}
+
+function updateComment(sessionId, commentId, fields) {
+  const cur = stmts.getComment.get(commentId);
+  if (!cur || cur.sessionId !== sessionId) return null;
+  const text = fields.text != null ? String(fields.text).trim().slice(0, 500) : cur.text;
+  const t = fields.t != null ? Number(fields.t) : cur.t;
+  stmts.updateCommentStmt.run(text, t, commentId);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return stmts.getComment.get(commentId);
+}
+
+function removeComment(sessionId, commentId) {
+  const cur = stmts.getComment.get(commentId);
+  if (!cur || cur.sessionId !== sessionId) return false;
+  stmts.deleteCommentStmt.run(commentId);
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
+
+function toggleReaction(sessionId, commentId, { personId, deviceId, emoji }) {
+  const comment = stmts.getComment.get(commentId);
+  if (!comment || comment.sessionId !== sessionId) return false;
+
+  const params = { commentId, personId: personId || null, deviceId: deviceId || null, emoji };
+  
+  // Try to delete first. If 0 changes, then insert.
+  const delInfo = stmts.deleteReaction.run(params);
+  if (delInfo.changes === 0) {
+    stmts.insertReaction.run({ ...params, createdAt: nowIso() });
+  }
+
+  stmts.touchSession.run(nowIso(), sessionId);
+  return true;
+}
+
 // ---- one-shot migration from JSON/JSONL ---------------------------------
 //
 // If products is empty and the legacy JSON files are present, slurp them
@@ -860,6 +989,7 @@ module.exports = {
   addPerson, renamePerson, removePerson,
   upsertPreset, updatePresetCascade, touchPreset, removePreset,
   addDrink, updateDrink, removeDrink,
+  addComment, updateComment, removeComment, toggleReaction,
 
   // bootstrap
   migrateFromJsonIfNeeded,

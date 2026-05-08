@@ -17,6 +17,7 @@ import {
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
+  handlePostComment,
 } from './ui.js?v=37';
 import { startScanner, barcodeScannerAvailable } from './scanner.js?v=37';
 import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=37';
@@ -190,6 +191,29 @@ $('#btnSaveEditFlavour').addEventListener('click', saveEditFlavourOnly);
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);
 $('#newPresetUnit').addEventListener('change', e => { setUnitPref(e.target.value); applyUnit(e.target.value); convertVolumeField('#newPresetVolume', e.target.value); });
+
+// --- Comments -------------------------------------------------------------
+const commentText = $('#commentText');
+const btnPostComment = $('#btnPostComment');
+
+if (commentText && btnPostComment) {
+  commentText.addEventListener('input', () => {
+    // Auto-expand textarea
+    commentText.style.height = 'auto';
+    commentText.style.height = commentText.scrollHeight + 'px';
+
+    btnPostComment.disabled = !commentText.value.trim();
+  });
+
+  commentText.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && !e.shiftKey && !btnPostComment.disabled) {
+      e.preventDefault();
+      handlePostComment();
+    }
+  });
+
+  btnPostComment.addEventListener('click', handlePostComment);
+}
 
 // --- Scanner flow ---------------------------------------------------------
 let activeScanner = null;
