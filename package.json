@@ -6,12 +6,17 @@
   "description": "Beer Converter backend — SQLite-backed catalogue + admin + shared sessions.",
   "main": "server/index.js",
   "scripts": {
-    "start": "node server/index.js"
+    "start": "node server/index.js",
+    "test": "node --test tests/*.test.js",
+    "prepare": "husky"
   },
   "engines": {
     "node": ">=20"
   },
   "dependencies": {
     "better-sqlite3": "^12.4.1"
+  },
+  "devDependencies": {
+    "husky": "^9.1.7"
   }
 }
