@@ -9,9 +9,11 @@ Primary data (people, drinks, presets) lives in **server-side shared sessions** 
 Single process for both API and static files:
 
 ```bash
-npm install                        # one-time, installs better-sqlite3
+npm install                        # installs dependencies and activates Husky pre-commit hooks
 node server/index.js               # listens on :8787
 ```
+
+*Note: This project uses Husky to run `npm test` automatically on every commit.*
 
 Open `http://localhost:8787` to access the app. The server serves the frontend files from the repository root.
 
