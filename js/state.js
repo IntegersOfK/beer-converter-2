@@ -14,6 +14,20 @@ import { api, ApiError } from './api.js?v=37';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
+const DEVICE_KEY = 'beerConverter.deviceId';
+
+// ---- device id (for anonymous reactions) -------------------------------
+
+export function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch { return 'anonymous'; }
+}
 
 // ---- unit preference ----------------------------------------------------
 
@@ -92,6 +106,8 @@ export const state = {
   benchmarkPresetId: null,
   presets: [],
   people: [],
+  comments: [],
+  reactions: [],
 };
 
 let inFlight = 0;
@@ -133,6 +149,19 @@ function hydrate(serverPayload) {
     id:     p.id,
     name:   p.name,
     drinks: drinksByPerson.get(p.id) || [],
+  }));
+  state.comments = (s.comments || []).map(c => ({
+    id:         c.id,
+    personId:   c.personId || null,
+    authorName: c.authorName || null,
+    text:       c.text,
+    t:          c.t,
+  }));
+  state.reactions = (s.reactions || []).map(r => ({
+    commentId: r.commentId,
+    emoji:     r.emoji,
+    personId:  r.personId || null,
+    deviceId:  r.deviceId || null,
   }));
   // Snapshot people + drink count into the recents list so the session
   // switcher can show context without re-fetching every session.
@@ -510,6 +539,103 @@ export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, fl
   } catch (e) {
     console.error('updateDrink failed', e); alert('Save failed');
     Object.assign(d, prev);
+  } finally { inFlight--; }
+}
+
+// ---- comments -----------------------------------------------------------
+
+export async function addComment(text, { personId = null, authorName = null } = {}) {
+  if (!state.sid) return;
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return;
+  const optimistic = {
+    id:         -Date.now(),
+    personId:   personId,
+    authorName: authorName,
+    text:       trimmed,
+    t:          Date.now(),
+  };
+  state.comments.push(optimistic);
+  inFlight++;
+  try {
+    const saved = await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/comments`, {
+      personId,
+      authorName,
+      text: trimmed,
+      t:    optimistic.t,
+    });
+    if (saved) {
+      optimistic.id = saved.id;
+    }
+  } catch (e) {
+    console.error('addComment failed', e); alert('Add comment failed');
+    state.comments = state.comments.filter(c => c !== optimistic);
+  } finally { inFlight--; }
+}
+
+export async function removeComment(commentId) {
+  if (!state.sid) return;
+  const idx = state.comments.findIndex(c => c.id === commentId);
+  if (idx < 0) return;
+  const removed = state.comments.splice(idx, 1)[0];
+  inFlight++;
+  try {
+    await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/comments/${commentId}`);
+  } catch (e) {
+    console.error('removeComment failed', e); alert('Remove comment failed');
+    state.comments.splice(idx, 0, removed);
+  } finally { inFlight--; }
+}
+
+export async function updateComment(commentId, text) {
+  if (!state.sid) return;
+  const c = state.comments.find(x => x.id === commentId);
+  if (!c) return;
+  const prev = c.text;
+  const trimmed = String(text || '').trim();
+  if (!trimmed) return;
+  c.text = trimmed;
+  inFlight++;
+  try {
+    await api.patch(
+      `/api/sessions/${encodeURIComponent(state.sid)}/comments/${commentId}`,
+      { text: trimmed }
+    );
+  } catch (e) {
+    console.error('updateComment failed', e); alert('Save comment failed');
+    c.text = prev;
+  } finally { inFlight--; }
+}
+
+export async function toggleCommentReaction(commentId, emoji, personId = null) {
+  if (!state.sid) return;
+  const deviceId = getDeviceId();
+  
+  // Optimistic update
+  const existingIdx = state.reactions.findIndex(r => 
+    r.commentId === commentId && 
+    r.emoji === emoji && 
+    r.personId === personId && 
+    (personId ? true : r.deviceId === deviceId)
+  );
+  
+  const prevReactions = [...state.reactions];
+  if (existingIdx >= 0) {
+    state.reactions.splice(existingIdx, 1);
+  } else {
+    state.reactions.push({ commentId, emoji, personId, deviceId });
+  }
+
+  inFlight++;
+  try {
+    await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/comments/${commentId}/react`, {
+      emoji,
+      personId,
+      deviceId,
+    });
+  } catch (e) {
+    console.error('toggleReaction failed', e);
+    state.reactions = prevReactions;
   } finally { inFlight--; }
 }
 

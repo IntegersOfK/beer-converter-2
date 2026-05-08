@@ -521,6 +521,61 @@ async function handleSessionRoute(req, res, url, origin) {
     }
   }
 
+  // ---- /comments ----
+  if (subType === 'comments') {
+    if (req.method === 'POST' && parts.length === 4) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !body.text) {
+        send(res, 400, { error: 'missing text' }, origin); return;
+      }
+      try {
+        const comment = db.addComment(sid, {
+          personId:   body.personId != null ? Number(body.personId) : null,
+          authorName: body.authorName || null,
+          text:       body.text,
+          t:          body.t,
+        });
+        send(res, 201, comment, origin);
+      } catch (e) {
+        const status = e.status || 500;
+        send(res, status, { error: e.message || 'add comment failed' }, origin);
+      }
+      return;
+    }
+    const commentId = Number(subId);
+    if (!Number.isInteger(commentId) || commentId <= 0) {
+      send(res, 400, { error: 'invalid comment id' }, origin); return;
+    }
+    if (req.method === 'PATCH' && parts.length === 5) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      const next = db.updateComment(sid, commentId, body);
+      if (!next) { send(res, 404, { error: 'comment not found' }, origin); return; }
+      send(res, 200, next, origin);
+      return;
+    }
+    if (req.method === 'DELETE' && parts.length === 5) {
+      const ok = db.removeComment(sid, commentId);
+      if (!ok) { send(res, 404, { error: 'comment not found' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+    // POST /api/sessions/:sid/comments/:cid/react
+    if (req.method === 'POST' && parts.length === 6 && parts[5] === 'react') {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !body.emoji) {
+        send(res, 400, { error: 'missing emoji' }, origin); return;
+      }
+      const ok = db.toggleReaction(sid, commentId, {
+        personId: body.personId != null ? Number(body.personId) : null,
+        deviceId: body.deviceId ? String(body.deviceId).slice(0, 64) : null,
+        emoji: String(body.emoji).slice(0, 10),
+      });
+      if (!ok) { send(res, 404, { error: 'comment not found' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+  }
+
   send(res, 404, { error: 'session route not found' }, origin);
 }
 
@@ -535,11 +590,41 @@ async function safeJsonBody(req, res, origin) {
   catch { send(res, 400, { error: 'invalid JSON' }, origin); return null; }
 }
 
+function serveStatic(req, res, relPath, origin) {
+  const safe = relPath.replace(/\\/g, '/').replace(/\.\.+/g, '').replace(/^\/+/, '');
+  const file = safe ? path.join(REPO_ROOT, safe) : path.join(REPO_ROOT, 'index.html');
+  fs.readFile(file, (err, buf) => {
+    if (err) {
+      if (err.code === 'ENOENT' && !safe.includes('.')) {
+        return serveStatic(req, res, '', origin);
+      }
+      send(res, 404, 'Asset not found', origin);
+      return;
+    }
+    const ext = path.extname(file).toLowerCase();
+    const ct = ext === '.html' ? 'text/html; charset=utf-8'
+             : ext === '.css'  ? 'text/css; charset=utf-8'
+             : ext === '.js'   ? 'application/javascript; charset=utf-8'
+             : ext === '.png'  ? 'image/png'
+             : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+             : ext === '.svg'  ? 'image/svg+xml'
+             : 'application/octet-stream';
+    res.writeHead(200, {
+      'Content-Type': ct,
+      'Cache-Control': 'no-cache',
+      ...corsHeadersFor(origin),
+    });
+    res.end(buf);
+  });
+}
+
 // --- request router --------------------------------------------------------
 
 const server = http.createServer(async (req, res) => {
   const origin = req.headers.origin;
   const url    = req.url || '/';
+  const [pathPart] = url.split('?', 1);
+  const pathOnly = pathPart || '/';
 
   // Preflight
   if (req.method === 'OPTIONS') {
@@ -548,12 +633,12 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && (url === '/' || url === '/health')) {
+  if (req.method === 'GET' && pathOnly === '/health') {
     send(res, 200, { ok: true, adminPath: ADMIN_PATH }, origin);
     return;
   }
 
-  if (req.method === 'GET' && url === '/catalog.json') {
+  if (req.method === 'GET' && pathOnly === '/catalog.json') {
     const catalog = db.joinedCatalogue();
     res.writeHead(200, {
       'Content-Type':  'application/json',
@@ -568,11 +653,11 @@ const server = http.createServer(async (req, res) => {
   // No auth: knowing the session id IS the credential. Anyone with the link
   // can read or write. The admin overview (GET /api/sessions) lives under
   // the admin path and is NOT exposed publicly.
-  if (url === '/api/sessions' || url.startsWith('/api/sessions/')) {
+  if (pathOnly === '/api/sessions' || pathOnly.startsWith('/api/sessions/')) {
     return handleSessionRoute(req, res, url, origin);
   }
 
-  if (req.method === 'POST' && url === '/submit') {
+  if (req.method === 'POST' && pathOnly === '/submit') {
     let body;
     try { body = await readBody(req); }
     catch (e) { send(res, e.status || 400, { error: e.message || 'bad request' }, origin); return; }
@@ -588,15 +673,16 @@ const server = http.createServer(async (req, res) => {
   }
 
   // Admin GUI + API. Same-origin: do not echo the CORS allow-origin header here.
-  if (url === ADMIN_PATH || url === ADMIN_PATH + '/') {
+  if (pathOnly === ADMIN_PATH || pathOnly === ADMIN_PATH + '/') {
     if (req.method !== 'GET') { send(res, 405, 'method not allowed'); return; }
     serveAdminFile(req, res, 'index.html');
     return;
   }
-  if (url.startsWith(ADMIN_PATH + '/api/')) {
-    const rawApiPath = url.slice((ADMIN_PATH + '/api/').length);
-    const [apiPath, queryStr] = rawApiPath.split('?', 2);
-    const qParams = new URLSearchParams(queryStr || '');
+  if (pathOnly.startsWith(ADMIN_PATH + '/api/')) {
+    const rawApiPath = pathOnly.slice((ADMIN_PATH + '/api/').length);
+    const [apiPath] = rawApiPath.split('?', 1);
+    const queryStr = url.split('?', 2)[1] || '';
+    const qParams = new URLSearchParams(queryStr);
 
     // Admin overview of all sessions. Same data shape as the SQL view —
     // session id, name, counts, last activity. The admin GUI uses this to
@@ -844,6 +930,12 @@ const server = http.createServer(async (req, res) => {
 
     res.writeHead(404); res.end('admin route not found');
     return;
+  }
+
+  // Fallback to serving static files for any other GET request.
+  if (req.method === 'GET') {
+    const relPath = pathOnly === '/' ? 'index.html' : pathOnly;
+    return serveStatic(req, res, relPath, origin);
   }
 
   send(res, 404, { error: 'not found' }, origin);

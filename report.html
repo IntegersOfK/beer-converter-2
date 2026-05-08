@@ -197,6 +197,18 @@
   .matrix-table td.lo     { color: var(--ink-soft); }
   .matrix-table td.nil    { color: var(--line); }
 
+  /* Comments */
+  .comments-log { margin-bottom: 28px; }
+  .log-title { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); text-transform: uppercase; letter-spacing: 0.12em; margin-bottom: 12px; }
+  .log-item {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px;
+    padding: 10px 12px; margin-bottom: 8px;
+  }
+  .log-meta { display: flex; justify-content: space-between; margin-bottom: 3px; }
+  .log-author { font-size: 12px; font-weight: 700; color: var(--amber); }
+  .log-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); }
+  .log-text { font-size: 13px; color: var(--ink-dim); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+
   /* Error / empty */
   .error { text-align: center; padding: 80px 20px; }
   .error h2 { font-family: 'Fraunces', serif; font-size: 32px; margin-bottom: 10px; }
@@ -287,6 +299,10 @@ function fromServer(s) {
     if (m) bm = { n: m.name, v: m.volumeMl, a: m.abv };
   }
   const drinksByPerson = new Map();
+  const personMap = new Map();
+  for (const p of (s.people || [])) {
+    personMap.set(p.id, p.name);
+  }
   for (const d of (s.drinks || [])) {
     if (!drinksByPerson.has(d.personId)) drinksByPerson.set(d.personId, []);
     drinksByPerson.get(d.personId).push({
@@ -303,6 +319,12 @@ function fromServer(s) {
     bm,
     _sid: s.id,
     _updatedAt: s.updatedAt,
+    c: (s.comments || []).map(c => ({
+      i: c.id,
+      author: personMap.get(c.personId) || 'Anonymous',
+      t: c.text,
+      ts: c.t,
+    })),
   };
 }
 
@@ -536,6 +558,21 @@ function render(data) {
 
     ${cards}
     ${buildComparison(people, bm)}
+
+    ${data.c && data.c.length > 0 ? `
+      <div class="comments-log">
+        <div class="log-title">Session Log</div>
+        ${data.c.map(c => `
+          <div class="log-item">
+            <div class="log-meta">
+              <span class="log-author">${esc(c.author)}</span>
+              <span class="log-time">${new Date(c.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+            </div>
+            <div class="log-text">${esc(c.t)}</div>
+          </div>
+        `).join('')}
+      </div>
+    ` : ''}
 
     <div class="totals-grid">
       <div class="total-tile">

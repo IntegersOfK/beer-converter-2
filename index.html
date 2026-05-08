@@ -102,6 +102,21 @@
 
 <main class="people" id="peopleGrid"></main>
 
+<section class="comments-section" id="commentsSection">
+  <div class="ornament">Session Log</div>
+  <div class="comment-list" id="commentList"></div>
+
+  <div class="comment-form">
+    <div class="comment-input-row">
+      <div class="comment-input-wrap">
+        <input type="text" class="comment-author-input" id="commentAuthorName" placeholder="Your name (optional)" maxlength="20" aria-label="Your name" />
+        <textarea class="comment-input" id="commentText" placeholder="Add a comment..." rows="1" maxlength="500"></textarea>
+      </div>
+      <button class="btn btn-primary" id="btnPostComment" disabled>Post</button>
+    </div>
+  </div>
+</section>
+
 <div class="footnote">
   1 std drink = 17.05 ml ethanol ·
   <a href="https://www.canada.ca/en/health-canada/services/substance-use/alcohol/low-risk-alcohol-drinking-guidelines.html" target="_blank" rel="noopener noreferrer">
