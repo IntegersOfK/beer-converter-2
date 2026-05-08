@@ -285,6 +285,18 @@ export function removeDrink(personIdx, drinkIdx) {
   saveState();
 }
 
+// Set just the flavour on a logged drink. Unlike updateDrink, this does NOT
+// null the presetId — flavour is per-drink metadata that lives orthogonally
+// to whether the drink is still linked to its saved type.
+export function setDrinkFlavour(personIdx, drinkIdx, flavour) {
+  const d = state.people[personIdx]?.drinks[drinkIdx];
+  if (!d) return;
+  const trimmed = typeof flavour === 'string' ? flavour.trim() : '';
+  if (trimmed) d.flavour = trimmed;
+  else delete d.flavour;
+  saveState();
+}
+
 export function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour }) {
   const d = state.people[personIdx]?.drinks[drinkIdx];
   if (!d) return;

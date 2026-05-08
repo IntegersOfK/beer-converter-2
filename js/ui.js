@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=30';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=30';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=31';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=31';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -9,9 +9,10 @@ import {
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
-} from './state.js?v=30';
-import { submitProduct } from './submit.js?v=30';
-import { getFlavoursForName } from './products.js?v=30';
+  setDrinkFlavour,
+} from './state.js?v=31';
+import { submitProduct } from './submit.js?v=31';
+import { getFlavoursForName } from './products.js?v=31';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -847,6 +848,9 @@ function updateEditEthanolPreview() {
   }
 }
 
+// Captured at modal-open so we can detect what changed and toggle controls.
+let editOriginal = null;
+
 export function openEditModal(personIdx, drinkIdx) {
   editPersonIdx = personIdx;
   editDrinkIdx = drinkIdx;
@@ -860,7 +864,6 @@ export function openEditModal(personIdx, drinkIdx) {
     ? +(drink.volumeMl / ML_PER_OZ).toFixed(2)
     : Math.round(drink.volumeMl);
   $('#editAbv').value = (+drink.abv).toFixed(1);
-  // Populate flavour input + datalist of known flavours for this product.
   const flavInput = $('#editFlavour');
   if (flavInput) flavInput.value = drink.flavour || '';
   const flavList = $('#editFlavourList');
@@ -870,18 +873,76 @@ export function openEditModal(personIdx, drinkIdx) {
   }
   updateEditEthanolPreview();
 
+  // Linked-to label is always visible when the drink is linked. The scope
+  // toggle inside (one vs all) only appears once n/v/a actually changes —
+  // gated by updateEditModeVisibility.
   const preset = drink.presetId ? state.presets.find(p => p.id === drink.presetId) : null;
-  const scopeSection = $('#editScopeSection');
+  const linkedSection = $('#editLinkedSection');
   if (preset) {
-    scopeSection.style.display = '';
-    $('#editScopeOrnament').textContent = `Linked to "${preset.name}"`;
+    linkedSection.style.display = '';
+    $('#editLinkedOrnament').textContent = `Linked to saved drink type "${preset.name}"`;
     $('#editScopeAllLabel').textContent = `All "${preset.name}" drinks (update the saved type)`;
     $('#editScopeOne').checked = true;
   } else {
-    scopeSection.style.display = 'none';
+    linkedSection.style.display = 'none';
   }
 
+  // Capture originals + apply initial visibility.
+  editOriginal = {
+    name: drink.name || '',
+    volumeMl: +drink.volumeMl,
+    abv: +drink.abv,
+    flavour: drink.flavour || '',
+  };
+  // Bind change listeners (idempotent — listener objects are recreated each
+  // open but point to the same DOM nodes, so the prior listeners are still
+  // attached. The visibility check is cheap, so duplicate firings are fine.)
+  ['#editName', '#editVolume', '#editAbv', '#editUnit', '#editFlavour'].forEach(sel => {
+    const el = $(sel);
+    if (!el) return;
+    el.addEventListener('input', updateEditModeVisibility);
+    el.addEventListener('change', updateEditModeVisibility);
+  });
+  updateEditModeVisibility();
+
   $('#editDrinkModal').classList.add('open');
+}
+
+// Compare current form values to the captured originals. Bottom Save button
+// + scope toggle gate on n/v/a changes; flavour gets its own inline button.
+function updateEditModeVisibility() {
+  if (!editOriginal) return;
+  const drink = state.people[editPersonIdx]?.drinks[editDrinkIdx];
+  if (!drink) return;
+
+  const curName = $('#editName').value.trim();
+  const curVolRaw = parseFloat($('#editVolume').value);
+  const curVol = $('#editUnit').value === 'oz' ? curVolRaw * ML_PER_OZ : curVolRaw;
+  const curAbv = parseFloat($('#editAbv').value);
+  const curFlav = ($('#editFlavour')?.value || '').trim();
+
+  const nvaChanged =
+    curName !== editOriginal.name ||
+    (Number.isFinite(curVol) && Math.abs(curVol - editOriginal.volumeMl) > 0.01) ||
+    (Number.isFinite(curAbv) && Math.abs(curAbv - editOriginal.abv) > 0.001);
+  const flavourChanged = curFlav !== editOriginal.flavour;
+
+  $('#btnSaveEditDrink').style.display = nvaChanged ? '' : 'none';
+  // Scope toggle inside the linked section: only shown when there's an n/v/a
+  // change to scope. The "Linked to..." label itself stays visible regardless.
+  const scopeToggle = $('#editScopeToggle');
+  if (scopeToggle) scopeToggle.style.display = (drink.presetId && nvaChanged) ? '' : 'none';
+  // Inline flavour save: only shown when flavour is the *only* change so the
+  // user can commit the flavour without going through the n/v/a save flow.
+  $('#btnSaveEditFlavour').style.display = (flavourChanged && !nvaChanged) ? '' : 'none';
+}
+
+export function saveEditFlavourOnly() {
+  if (!editOriginal) return;
+  const flavour = ($('#editFlavour')?.value || '').trim();
+  setDrinkFlavour(editPersonIdx, editDrinkIdx, flavour);
+  closeModal();
+  render();
 }
 
 export function submitEditDrink() {
@@ -890,7 +951,6 @@ export function submitEditDrink() {
   const unit = $('#editUnit').value;
   const volumeMl = unit === 'oz' ? raw * ML_PER_OZ : raw;
   const abv = parseFloat($('#editAbv').value);
-  // Empty string = clear the flavour. updateDrink handles either case.
   const flavour = ($('#editFlavour')?.value || '').trim();
 
   if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
@@ -901,10 +961,12 @@ export function submitEditDrink() {
   if (!drink) { closeModal(); return; }
 
   if (drink.presetId && $('#editScopeAll').checked) {
-    // "All drinks of this type" path — flavour stays per-drink even on bulk
-    // updates, since presets don't carry flavour.
+    // "All drinks of this type" path — bulk-update the preset and every linked
+    // drink, then set this drink's flavour separately. Using setDrinkFlavour
+    // avoids breaking the preset link (updateDrink would null presetId, but
+    // n/v/a still match the freshly-updated preset, so we want to keep it).
     updatePresetAndDrinks(drink.presetId, { name, volumeMl, abv });
-    updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv, flavour });
+    setDrinkFlavour(editPersonIdx, editDrinkIdx, flavour);
   } else {
     updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv, flavour });
   }

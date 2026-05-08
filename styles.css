@@ -702,6 +702,53 @@ header.app::after {
   text-overflow: ellipsis;
 }
 
+/* Edit-drink modal: flavour panel. Visually distinct (dashed amber border +
+   tinted background) so it's obvious flavour is per-drink only and never
+   propagates to the saved type even when "All drinks of this type" is
+   selected for the n/v/a fields below. */
+.flavour-panel {
+  border: 1px dashed var(--amber-deep);
+  background: rgba(224, 163, 74, 0.06);
+  border-radius: 10px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+[data-theme="beach"] .flavour-panel {
+  background: rgba(184, 116, 26, 0.08);
+}
+.flavour-panel .flavour-label {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--amber);
+}
+.flavour-panel .flavour-aux {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.04em;
+  text-transform: none;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.flavour-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: stretch;
+}
+.flavour-save {
+  font-size: 13px;
+  padding: 0 14px;
+  white-space: nowrap;
+}
+
 .drink-meta {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 10px;

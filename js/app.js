@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=30';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=30';
+import { $, $$, vibe } from './util.js?v=31';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=31';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
-  openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=30';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=30';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=30';
-import { ML_PER_OZ } from './calc.js?v=30';
+  openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
+} from './ui.js?v=31';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=31';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=31';
+import { ML_PER_OZ } from './calc.js?v=31';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v30 (drink rows wrap to two lines)');
+console.log('Beer Converter build v31 (edit-modal: distinct flavour panel + conditional save)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -165,6 +165,7 @@ $('#editVolume').addEventListener('input', updateEditEthanolPreview);
 $('#editAbv').addEventListener('input', updateEditEthanolPreview);
 $('#editUnit').addEventListener('change', e => { setUnitPref(e.target.value); applyUnit(e.target.value); convertVolumeField('#editVolume', e.target.value); updateEditEthanolPreview(); });
 $('#btnSaveEditDrink').addEventListener('click', submitEditDrink);
+$('#btnSaveEditFlavour').addEventListener('click', saveEditFlavourOnly);
 
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);

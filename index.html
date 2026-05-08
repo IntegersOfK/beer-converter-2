@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=30">
+<link rel="stylesheet" href="styles.css?v=31">
 </head>
 <body>
 
@@ -269,12 +269,18 @@
         <label>Name (optional)</label>
         <input class="input" id="editName" placeholder="e.g. Tall can" maxlength="40" title="Optional label for this drink" />
       </div>
-      <!-- Flavour with autocomplete: datalist is populated when the modal opens
-           with all known flavours of the matching product (from /catalog.json).
-           Always shown so the user can add a flavour after the fact. -->
-      <div class="field">
-        <label for="editFlavour">Flavour <span class="label-aux">(optional)</span></label>
-        <input class="input" id="editFlavour" list="editFlavourList" placeholder="e.g. Mango" maxlength="40" autocomplete="off" title="Variant of this product (this drink only)" />
+      <!-- Flavour panel: visually distinct so the curator/user knows this is
+           per-drink only — it never propagates to the saved type even when
+           the n/v/a scope toggle below is set to "All". -->
+      <div class="flavour-panel">
+        <label for="editFlavour" class="flavour-label">
+          <span>Flavour</span>
+          <span class="flavour-aux">this drink only — never updates the saved type</span>
+        </label>
+        <div class="flavour-input-row">
+          <input class="input" id="editFlavour" list="editFlavourList" placeholder="e.g. Mango" maxlength="40" autocomplete="off" />
+          <button type="button" class="btn btn-primary flavour-save" id="btnSaveEditFlavour" style="display:none;">Save flavour</button>
+        </div>
         <datalist id="editFlavourList"></datalist>
       </div>
       <div class="field-row">
@@ -300,24 +306,31 @@
         <span class="val" id="editEthanolPreviewVal" title="Pure ethanol = volume × (ABV ÷ 100) · 1 standard drink = 17.05 ml">—</span>
       </div>
     </div>
-    <div id="editScopeSection" style="display:none;">
-      <div class="ornament" id="editScopeOrnament"></div>
-      <label class="toggle-row">
-        <input type="radio" name="editScope" value="one" id="editScopeOne" />
-        <span>Just this drink</span>
-      </label>
-      <label class="toggle-row">
-        <input type="radio" name="editScope" value="all" id="editScopeAll" />
-        <span id="editScopeAllLabel">All drinks of this type</span>
-      </label>
+    <!-- Linked-to label is always visible when linked. The scope toggle
+         inside is only revealed when name/volume/abv have actually changed,
+         since otherwise there's nothing for it to govern. -->
+    <div id="editLinkedSection" style="display:none;">
+      <div class="ornament" id="editLinkedOrnament"></div>
+      <div id="editScopeToggle" style="display:none;">
+        <label class="toggle-row">
+          <input type="radio" name="editScope" value="one" id="editScopeOne" />
+          <span>Just this drink</span>
+        </label>
+        <label class="toggle-row">
+          <input type="radio" name="editScope" value="all" id="editScopeAll" />
+          <span id="editScopeAllLabel">All drinks of this type</span>
+        </label>
+      </div>
     </div>
     <div class="actions">
       <button class="btn btn-ghost" data-close>Cancel</button>
-      <button class="btn btn-primary" id="btnSaveEditDrink">Save</button>
+      <!-- Save button only appears once name/volume/abv has changed; flavour
+           saves are handled by its own inline button up top. -->
+      <button class="btn btn-primary" id="btnSaveEditDrink" style="display:none;">Save</button>
     </div>
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=30"></script>
+<script type="module" src="js/app.js?v=31"></script>
 </body>
 </html>
