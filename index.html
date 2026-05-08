@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=28">
+<link rel="stylesheet" href="styles.css?v=29">
 </head>
 <body>
 
@@ -269,6 +269,14 @@
         <label>Name (optional)</label>
         <input class="input" id="editName" placeholder="e.g. Tall can" maxlength="40" title="Optional label for this drink" />
       </div>
+      <!-- Flavour with autocomplete: datalist is populated when the modal opens
+           with all known flavours of the matching product (from /catalog.json).
+           Always shown so the user can add a flavour after the fact. -->
+      <div class="field">
+        <label for="editFlavour">Flavour <span class="label-aux">(optional)</span></label>
+        <input class="input" id="editFlavour" list="editFlavourList" placeholder="e.g. Mango" maxlength="40" autocomplete="off" title="Variant of this product (this drink only)" />
+        <datalist id="editFlavourList"></datalist>
+      </div>
       <div class="field-row">
         <div class="field">
           <label>Volume</label>
@@ -310,6 +318,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=28"></script>
+<script type="module" src="js/app.js?v=29"></script>
 </body>
 </html>

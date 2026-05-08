@@ -285,13 +285,19 @@ export function removeDrink(personIdx, drinkIdx) {
   saveState();
 }
 
-export function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv }) {
+export function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour }) {
   const d = state.people[personIdx]?.drinks[drinkIdx];
   if (!d) return;
   d.name = name || `${Math.round(volumeMl)} ml · ${abv}%`;
   d.volumeMl = +volumeMl;
   d.abv = +abv;
   d.presetId = null;
+  // Treat undefined as "leave alone"; treat empty string explicitly as clear.
+  if (flavour !== undefined) {
+    const trimmed = typeof flavour === 'string' ? flavour.trim() : '';
+    if (trimmed) d.flavour = trimmed;
+    else delete d.flavour;
+  }
   saveState();
 }
 

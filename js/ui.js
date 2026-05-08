@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=28';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=28';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=29';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=29';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -9,8 +9,9 @@ import {
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
-} from './state.js?v=28';
-import { submitProduct } from './submit.js?v=28';
+} from './state.js?v=29';
+import { submitProduct } from './submit.js?v=29';
+import { getFlavoursForName } from './products.js?v=29';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -858,6 +859,14 @@ export function openEditModal(personIdx, drinkIdx) {
     ? +(drink.volumeMl / ML_PER_OZ).toFixed(2)
     : Math.round(drink.volumeMl);
   $('#editAbv').value = (+drink.abv).toFixed(1);
+  // Populate flavour input + datalist of known flavours for this product.
+  const flavInput = $('#editFlavour');
+  if (flavInput) flavInput.value = drink.flavour || '';
+  const flavList = $('#editFlavourList');
+  if (flavList) {
+    const opts = getFlavoursForName(drink.name || '');
+    flavList.innerHTML = opts.map(f => `<option value="${escapeHtml(f)}">`).join('');
+  }
   updateEditEthanolPreview();
 
   const preset = drink.presetId ? state.presets.find(p => p.id === drink.presetId) : null;
@@ -880,6 +889,8 @@ export function submitEditDrink() {
   const unit = $('#editUnit').value;
   const volumeMl = unit === 'oz' ? raw * ML_PER_OZ : raw;
   const abv = parseFloat($('#editAbv').value);
+  // Empty string = clear the flavour. updateDrink handles either case.
+  const flavour = ($('#editFlavour')?.value || '').trim();
 
   if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a valid volume and ABV (0–100%).'); return;
@@ -889,9 +900,12 @@ export function submitEditDrink() {
   if (!drink) { closeModal(); return; }
 
   if (drink.presetId && $('#editScopeAll').checked) {
+    // "All drinks of this type" path — flavour stays per-drink even on bulk
+    // updates, since presets don't carry flavour.
     updatePresetAndDrinks(drink.presetId, { name, volumeMl, abv });
+    updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv, flavour });
   } else {
-    updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv });
+    updateDrink(editPersonIdx, editDrinkIdx, { name, volumeMl, abv, flavour });
   }
 
   closeModal();

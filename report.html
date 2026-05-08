@@ -433,7 +433,7 @@ function render(data) {
       ? `<div class="drink-row"><div class="dn" style="font-style:italic;color:var(--ink-soft)">No drinks logged</div></div>`
       : p.d.map(d => `
           <div class="drink-row">
-            <div class="dn">${esc(d.n)}</div>
+            <div class="dn">${esc(d.n)}${d.f ? ` <span style="color:var(--amber);font-style:italic;">· ${esc(d.f)}</span>` : ''}</div>
             <div class="dm">${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%</div>
             <div class="ds">+${fmt(stdOf(ethanolOf(d)), 2)}</div>
           </div>`).join('');
@@ -523,7 +523,11 @@ function importToApp() {
   const sessionDate = new Date(ts).toLocaleDateString('en-CA', { month: 'long', day: 'numeric' });
   const importedPeople = data.p.map(p => ({
     name: p.n,
-    drinks: p.d.map(d => ({ name: d.n, volumeMl: d.v, abv: d.a, presetId: null, t: ts })),
+    drinks: p.d.map(d => {
+      const o = { name: d.n, volumeMl: d.v, abv: d.a, presetId: null, t: ts };
+      if (d.f) o.flavour = d.f;
+      return o;
+    }),
   }));
   const newSess = {
     id: 's' + Date.now(),

@@ -31,6 +31,25 @@ let _loadPromise = null;    // de-dupes concurrent loads
 
 export function productsLoaded() { return _byUpc !== null; }
 
+// All distinct flavours we know about for a given product name. Used by the
+// edit-drink modal to autocomplete the Flavour input. Names match exactly
+// (case-sensitive) since that's how the curated model groups variants.
+export function getFlavoursForName(name) {
+  if (!_byUpc || !name) return [];
+  const seen = new Set();
+  const out = [];
+  for (const product of _byUpc.values()) {
+    if (product.name !== name || !product.flavour) continue;
+    // _byUpc has multiple keys pointing at the same object; dedupe by ref.
+    if (seen.has(product)) continue;
+    seen.add(product);
+    out.push(product.flavour);
+  }
+  // Dedupe identical flavour strings across distinct UPC entries (rare but
+  // possible if the curator linked two UPCs of the same flavour).
+  return [...new Set(out)].sort((a, b) => a.localeCompare(b));
+}
+
 export function loadProducts() {
   if (_byUpc) return Promise.resolve();
   if (_loadPromise) return _loadPromise;

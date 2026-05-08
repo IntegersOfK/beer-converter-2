@@ -5,22 +5,22 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=28';
-import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=28';
+import { $, $$, vibe } from './util.js?v=29';
+import { state, clearAllDrinks, getPresetIdForUpc, getBenchmark, getUnitPref, setUnitPref, newSession } from './state.js?v=29';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, updateEditEthanolPreview,
-} from './ui.js?v=28';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=28';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=28';
-import { ML_PER_OZ } from './calc.js?v=28';
+} from './ui.js?v=29';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=29';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=29';
+import { ML_PER_OZ } from './calc.js?v=29';
 
 // Visible build marker so you can confirm the new bundle is loaded:
 // open DevTools → Console → look for the "Beer Converter build v5" line.
-console.log('Beer Converter build v28 (Phase 3: flavour input on scan, never on presets)');
+console.log('Beer Converter build v29 (Phase 4: edit-drink flavour autocomplete + report flavour)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -89,7 +89,11 @@ $('#btnReport').addEventListener('click', () => {
     ts: Date.now(),
     p: state.people.map(p => ({
       n: p.name,
-      d: p.drinks.map(d => ({ n: d.name, v: +d.volumeMl.toFixed(1), a: +d.abv.toFixed(2) })),
+      d: p.drinks.map(d => {
+        const o = { n: d.name, v: +d.volumeMl.toFixed(1), a: +d.abv.toFixed(2) };
+        if (d.flavour) o.f = d.flavour;
+        return o;
+      }),
     })),
     bm: bench ? { n: bench.name, v: bench.volumeMl, a: bench.abv } : null,
   };
