@@ -5,25 +5,24 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=37';
+import { $, $$, vibe } from './util.js?v=38';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   getRecentSessions, forgetSessionLocal,
-} from './state.js?v=37';
+} from './state.js?v=38';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-  handlePostComment,
-} from './ui.js?v=37';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=37';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=37';
-import { ML_PER_OZ } from './calc.js?v=37';
+} from './ui.js?v=38';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=38';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=38';
+import { ML_PER_OZ } from './calc.js?v=38';
 
-console.log('Beer Converter build v37 (share-link button)');
+console.log('Beer Converter build v38 (report comments)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -191,29 +190,6 @@ $('#btnSaveEditFlavour').addEventListener('click', saveEditFlavourOnly);
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);
 $('#newPresetUnit').addEventListener('change', e => { setUnitPref(e.target.value); applyUnit(e.target.value); convertVolumeField('#newPresetVolume', e.target.value); });
-
-// --- Comments -------------------------------------------------------------
-const commentText = $('#commentText');
-const btnPostComment = $('#btnPostComment');
-
-if (commentText && btnPostComment) {
-  commentText.addEventListener('input', () => {
-    // Auto-expand textarea
-    commentText.style.height = 'auto';
-    commentText.style.height = commentText.scrollHeight + 'px';
-
-    btnPostComment.disabled = !commentText.value.trim();
-  });
-
-  commentText.addEventListener('keydown', e => {
-    if (e.key === 'Enter' && !e.shiftKey && !btnPostComment.disabled) {
-      e.preventDefault();
-      handlePostComment();
-    }
-  });
-
-  btnPostComment.addEventListener('click', handlePostComment);
-}
 
 // --- Scanner flow ---------------------------------------------------------
 let activeScanner = null;

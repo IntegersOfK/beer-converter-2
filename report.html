@@ -133,6 +133,7 @@
   .btn.primary { background: var(--amber); color: #1a140d; border-color: var(--amber-bright); font-weight: 600; }
   .btn.primary:hover { background: var(--amber-bright); }
   .btn.ghost { background: transparent; color: var(--ink-soft); }
+  .btn:disabled { opacity: 0.55; cursor: wait; }
 
   .footnote { font-size: 11px; color: var(--ink-soft); line-height: 1.6; }
   .footnote a { text-decoration: underline; text-underline-offset: 2px; opacity: 0.7; }
@@ -208,6 +209,29 @@
   .log-author { font-size: 12px; font-weight: 700; color: var(--amber); }
   .log-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); }
   .log-text { font-size: 13px; color: var(--ink-dim); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .comment-form {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px;
+    padding: 12px; margin-top: 10px;
+  }
+  .comment-fields { display: grid; grid-template-columns: 140px 1fr auto; gap: 8px; align-items: end; }
+  .comment-form input,
+  .comment-form textarea {
+    width: 100%; background: var(--bg-input); border: 1px solid var(--line);
+    border-radius: 8px; color: var(--ink); font: inherit; font-size: 13px;
+    padding: 9px 10px;
+  }
+  .comment-form textarea { min-height: 38px; max-height: 120px; resize: vertical; line-height: 1.4; }
+  .comment-form input:focus,
+  .comment-form textarea:focus { outline: none; border-color: var(--amber-deep); }
+  .comment-form input::placeholder,
+  .comment-form textarea::placeholder { color: var(--ink-soft); }
+  .comment-form .btn { height: 38px; padding: 0 16px; }
+  .comment-status { min-height: 16px; margin-top: 8px; font-size: 11px; color: var(--ink-soft); }
+  .comment-status.err { color: #d77b68; }
+  @media (max-width: 520px) {
+    .comment-fields { grid-template-columns: 1fr; }
+    .comment-form .btn { width: 100%; }
+  }
 
   /* Error / empty */
   .error { text-align: center; padding: 80px 20px; }
@@ -321,7 +345,7 @@ function fromServer(s) {
     _updatedAt: s.updatedAt,
     c: (s.comments || []).map(c => ({
       i: c.id,
-      author: personMap.get(c.personId) || 'Anonymous',
+      author: c.authorName || personMap.get(c.personId) || 'Anonymous',
       t: c.text,
       ts: c.t,
     })),
@@ -332,6 +356,20 @@ async function fetchSession(sid) {
   const r = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(sid));
   if (!r.ok) throw new Error('fetch failed: ' + r.status);
   return fromServer(await r.json());
+}
+
+async function postComment(sid, authorName, text) {
+  const r = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(sid) + '/comments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      authorName: authorName || null,
+      text,
+      t: Date.now(),
+    }),
+  });
+  if (!r.ok) throw new Error('comment failed: ' + r.status);
+  return r.json();
 }
 
 async function loadInitial() {
@@ -559,20 +597,28 @@ function render(data) {
     ${cards}
     ${buildComparison(people, bm)}
 
-    ${data.c && data.c.length > 0 ? `
-      <div class="comments-log">
-        <div class="log-title">Session Log</div>
-        ${data.c.map(c => `
-          <div class="log-item">
-            <div class="log-meta">
-              <span class="log-author">${esc(c.author)}</span>
-              <span class="log-time">${new Date(c.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-            </div>
-            <div class="log-text">${esc(c.t)}</div>
+    <div class="comments-log">
+      <div class="log-title">Session Log</div>
+      ${(data.c || []).length > 0 ? data.c.map(c => `
+        <div class="log-item">
+          <div class="log-meta">
+            <span class="log-author">${esc(c.author)}</span>
+            <span class="log-time">${new Date(c.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
-        `).join('')}
-      </div>
-    ` : ''}
+          <div class="log-text">${esc(c.t)}</div>
+        </div>
+      `).join('') : '<div class="log-item"><div class="log-text">No comments yet.</div></div>'}
+      ${data._sid ? `
+        <form class="comment-form" id="commentForm">
+          <div class="comment-fields">
+            <input id="commentAuthor" maxlength="40" placeholder="Your name (optional)" autocomplete="name">
+            <textarea id="commentText" maxlength="500" rows="1" placeholder="Add a comment"></textarea>
+            <button class="btn primary" id="btnPostComment" type="submit">Post</button>
+          </div>
+          <div class="comment-status" id="commentStatus"></div>
+        </form>
+      ` : ''}
+    </div>
 
     <div class="totals-grid">
       <div class="total-tile">
@@ -603,6 +649,43 @@ function render(data) {
       setTimeout(() => { btn.textContent = 'Copy report link'; }, 2200);
     }).catch(() => { prompt('Copy this link:', location.href); });
   });
+
+  const form = document.getElementById('commentForm');
+  if (form && data._sid) {
+    const author = document.getElementById('commentAuthor');
+    const text = document.getElementById('commentText');
+    const status = document.getElementById('commentStatus');
+    try { author.value = localStorage.getItem('beerConverter.authorName') || ''; } catch {}
+
+    text.addEventListener('input', () => {
+      text.style.height = 'auto';
+      text.style.height = Math.min(text.scrollHeight, 120) + 'px';
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const body = text.value.trim();
+      if (!body) return;
+      const btn = document.getElementById('btnPostComment');
+      btn.disabled = true;
+      status.className = 'comment-status';
+      status.textContent = 'Posting...';
+      try {
+        const name = author.value.trim();
+        try { localStorage.setItem('beerConverter.authorName', name); } catch {}
+        await postComment(data._sid, name, body);
+        text.value = '';
+        status.textContent = '';
+        maybeRender(await fetchSession(data._sid));
+      } catch (err) {
+        console.error('comment post failed', err);
+        status.className = 'comment-status err';
+        status.textContent = 'Comment did not post. Try again.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
 }
 
 // Keep a module-level reference so the polling loop can compare updatedAt.
