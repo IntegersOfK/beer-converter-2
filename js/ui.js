@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=37';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=37';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=38';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=38';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -10,11 +10,9 @@ import {
   switchSession, renameSession,
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
-  addComment, removeComment, updateComment,
-  toggleCommentReaction, getDeviceId,
-} from './state.js?v=37';
-import { submitProduct } from './submit.js?v=37';
-import { getFlavoursForName } from './products.js?v=37';
+} from './state.js?v=38';
+import { submitProduct } from './submit.js?v=38';
+import { getFlavoursForName } from './products.js?v=38';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -59,7 +57,6 @@ let compareDetailOpen = false;
 export function render() {
   renderPeople();
   renderCompare();
-  renderComments();
 }
 
 function renderPeople() {
@@ -920,120 +917,6 @@ export function submitEditDrink() {
   }
 
   closeModal();
-  render();
-}
-
-const REACTION_EMOJIS = ['🍻', '🥃', '🧊', '🤮', '🍕'];
-
-export function renderComments() {
-  const list = $('#commentList');
-  const authorInput = $('#commentAuthorName');
-  if (!list || !authorInput) return;
-
-  const deviceId = getDeviceId();
-
-  // Load remembered name once if empty
-  if (!authorInput.value && !authorInput.dataset.loaded) {
-    authorInput.value = localStorage.getItem('beerConverter.authorName') || '';
-    authorInput.dataset.loaded = 'true';
-  }
-
-  list.innerHTML = '';
-  if (state.comments.length === 0) {
-    list.innerHTML = '<div style="color:var(--ink-soft); font-size:13px; text-align:center; padding: 20px 0;">No comments yet.</div>';
-  } else {
-    state.comments.forEach(c => {
-      // Priority: authorName (free text) > person name (via link) > Anonymous
-      let author = 'Anonymous';
-      if (c.authorName) {
-        author = c.authorName;
-      } else if (c.personId) {
-        const person = state.people.find(p => p.id === c.personId);
-        if (person) author = person.name;
-      }
-      
-      const time = new Date(c.t).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-      
-      const reactionsForThis = state.reactions.filter(r => r.commentId === c.id);
-      const reactionGroups = {};
-      REACTION_EMOJIS.forEach(emoji => {
-        const reactions = reactionsForThis.filter(r => r.emoji === emoji);
-        const myReaction = reactions.some(r => r.deviceId === deviceId);
-        reactionGroups[emoji] = {
-          count: reactions.length,
-          active: myReaction
-        };
-      });
-
-      const item = document.createElement('div');
-      item.className = 'comment-item';
-      item.innerHTML = `
-        <div class="comment-meta">
-          <span class="comment-author">${escapeHtml(author)}</span>
-          <span class="comment-time">${escapeHtml(time)}</span>
-        </div>
-        <div class="comment-text">${escapeHtml(c.text)}</div>
-        <div class="comment-reactions">
-          ${REACTION_EMOJIS.map(emoji => {
-            const group = reactionGroups[emoji];
-            return `
-              <button class="reaction-btn${group.active ? ' active' : ''}" 
-                      data-comment-id="${c.id}" data-emoji="${emoji}"
-                      title="React with ${emoji}">
-                <span class="emoji">${emoji}</span>
-                <span class="count">${group.count || ''}</span>
-              </button>
-            `;
-          }).join('')}
-        </div>
-        <div class="comment-actions">
-          <button class="comment-btn" data-del-comment="${c.id}" title="Delete comment">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-          </button>
-        </div>
-      `;
-      list.appendChild(item);
-    });
-  }
-
-  $$('[data-emoji]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const cid = +btn.dataset.commentId;
-      const emoji = btn.dataset.emoji;
-      await toggleCommentReaction(cid, emoji, null);
-      render();
-    });
-  });
-
-  $$('[data-del-comment]').forEach(btn => {
-    btn.addEventListener('click', async () => {
-      const id = +btn.dataset.delComment;
-      if (confirm('Delete this comment?')) {
-        await removeComment(id);
-        render();
-      }
-    });
-  });
-
-  if (!authorInput.dataset.wired) {
-    authorInput.addEventListener('change', () => {
-      localStorage.setItem('beerConverter.authorName', authorInput.value.trim());
-    });
-    authorInput.dataset.wired = 'true';
-  }
-}
-
-export async function handlePostComment() {
-  const textInput = $('#commentText');
-  const authorInput = $('#commentAuthorName');
-  const text = textInput.value.trim();
-  if (!text) return;
-  const authorName = authorInput.value.trim() || null;
-
-  await addComment(text, { authorName });
-  textInput.value = '';
-  textInput.style.height = 'auto';
-  $('#btnPostComment').disabled = true;
   render();
 }
 
