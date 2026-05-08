@@ -641,7 +641,7 @@ header.app::after {
 
 .drink {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
   padding: 8px 10px;
@@ -656,7 +656,7 @@ header.app::after {
   to { opacity: 1; transform: none; }
 }
 
-.drink-info { flex: 1; min-width: 0; overflow: hidden; }
+.drink-info { flex: 1; min-width: 0; }
 
 .drink-edit-btn {
   background: transparent;
@@ -676,16 +676,30 @@ header.app::after {
 .drink-name {
   font-size: 14px;
   color: var(--ink);
+  line-height: 1.25;
+  /* Two-line clamp for long names without a flavour; flavour gets its own
+     row below, so most cans only use one line here. */
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+}
+
+/* Per-drink flavour: dedicated row beneath the name. Kept small + italic so
+   the structure reads "product · variant" without crowding the name. */
+.drink-flavour {
+  display: block;
+  font-size: 11px;
+  font-style: italic;
+  color: var(--amber);
+  line-height: 1.25;
+  margin-top: 1px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  line-height: 1.2;
-}
-
-.drink-flavour {
-  color: var(--amber);
-  font-style: italic;
-  font-weight: 400;
 }
 
 .drink-meta {
@@ -702,6 +716,8 @@ header.app::after {
   color: var(--amber);
   white-space: nowrap;
   font-weight: 500;
+  flex-shrink: 0;
+  padding-top: 2px;
 }
 
 .x-btn {

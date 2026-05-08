@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=29';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=29';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=30';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=30';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -9,9 +9,9 @@ import {
   addPerson, removePerson,
   rememberUpc, getUpcsForPreset, forgetUpc,
   switchSession, deleteSession, renameSession,
-} from './state.js?v=29';
-import { submitProduct } from './submit.js?v=29';
-import { getFlavoursForName } from './products.js?v=29';
+} from './state.js?v=30';
+import { submitProduct } from './submit.js?v=30';
+import { getFlavoursForName } from './products.js?v=30';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -92,7 +92,8 @@ function renderPeople() {
           : person.drinks.map((d, di) => `
             <div class="drink">
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
-                <div class="drink-name">${escapeHtml(d.name)}${d.flavour ? ` <span class="drink-flavour">· ${escapeHtml(d.flavour)}</span>` : ''}</div>
+                <div class="drink-name">${escapeHtml(d.name)}</div>
+                ${d.flavour ? `<div class="drink-flavour">${escapeHtml(d.flavour)}</div>` : ''}
                 <div class="drink-meta" title="Volume · alcohol by volume">${fmtVol(d.volumeMl)} · ${fmt(d.abv,1)}%</div>
               </button>
               <div class="drink-ethanol" title="Pure ethanol · ${fmt(ethanolOf(d)/STD_DRINK_ML,2)} standard drinks">+${fmt(ethanolOf(d),1)} ml ethanol</div>
