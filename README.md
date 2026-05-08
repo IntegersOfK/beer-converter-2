@@ -1,6 +1,6 @@
 # Beer Converter
 
-A two-person standard-drink comparison tool. Inputs volume + ABV, tells you who drank more ethanol and what that amount equals in a benchmark drink of your choice. All data stays in the browser via `localStorage`.
+A multi-person standard-drink comparison tool. Input volume + ABV to track ethanol across the group, compare totals, and see what the tally equals in a benchmark drink of your choice. All data stays in the browser via `localStorage` or optionally synced via shared sessions.
 
 ## Hosting
 
@@ -19,7 +19,7 @@ caddy file-server --listen :8080
 ## Structure
 
 ```
-beer-converter/
+.
 ├── index.html      — shell
 ├── styles.css      — all styling
 ├── bc_liquor_store_product_price_list_december_2025.csv

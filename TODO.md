@@ -11,7 +11,7 @@ so anyone with the session URL can contribute to the same tally.
   `submissions.jsonl`, `rejected.jsonl` with a single `data.db` via
   `better-sqlite3`. Existing JSON/JSONL files imported on first boot, then
   renamed `*.migrated`. All admin endpoints kept wire-compatible.
-- [ ] **Phase 1** — Sessions schema + endpoints. Tables: `sessions`,
+- [x] **Phase 1** — Sessions schema + endpoints. Tables: `sessions`,
   `session_people`, `session_drinks`, `session_presets`. Session id is a
   ~22-char URL-safe random (`crypto.randomBytes(16)` → base64url). REST API
   under `/api/sessions/...`. Permissions = obfuscation only; anyone with
