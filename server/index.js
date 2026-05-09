@@ -371,6 +371,11 @@ async function handleSessionRoute(req, res, url, origin) {
   const [pathOnly] = url.split('?', 1);
   const parts = pathOnly.split('/').filter(Boolean);   // ['api','sessions',...]
   // parts[0] = 'api', parts[1] = 'sessions'
+
+  if (parts[2] === 'reports') {
+    return handleReportRoute(req, res, url, origin, 3);
+  }
+
   const sid       = parts[2];
   const subType   = parts[3];   // 'people' | 'presets' | 'drinks' | undefined
   const subId     = parts[4];   // person id, preset key, or drink id
@@ -579,16 +584,16 @@ async function handleSessionRoute(req, res, url, origin) {
   send(res, 404, { error: 'session route not found' }, origin);
 }
 
-async function handleReportRoute(req, res, url, origin) {
+async function handleReportRoute(req, res, url, origin, idIndex = 2) {
   const [pathOnly] = url.split('?', 1);
   const parts = pathOnly.split('/').filter(Boolean);
-  const rid = parts[2];
-  const subType = parts[3];
-  const subId = parts[4];
+  const rid = parts[idIndex];
+  const subType = parts[idIndex + 1];
+  const subId = parts[idIndex + 2];
 
   if (!rid || !SID_RE.test(rid)) { send(res, 404, { error: 'report not found' }, origin); return; }
 
-  if (req.method === 'GET' && parts.length === 3) {
+  if (req.method === 'GET' && parts.length === idIndex + 1) {
     const report = db.getReportFull(rid);
     if (!report) { send(res, 404, { error: 'report not found' }, origin); return; }
     send(res, 200, report, origin);
@@ -599,7 +604,7 @@ async function handleReportRoute(req, res, url, origin) {
   if (!sid) { send(res, 404, { error: 'report not found' }, origin); return; }
 
   if (subType === 'comments') {
-    if (req.method === 'POST' && parts.length === 4) {
+    if (req.method === 'POST' && parts.length === idIndex + 2) {
       const body = await safeJsonBody(req, res, origin); if (body == null) return;
       if (!body || !body.text) {
         send(res, 400, { error: 'missing text' }, origin); return;
@@ -623,7 +628,7 @@ async function handleReportRoute(req, res, url, origin) {
     if (!Number.isInteger(commentId) || commentId <= 0) {
       send(res, 400, { error: 'invalid comment id' }, origin); return;
     }
-    if (req.method === 'POST' && parts.length === 6 && parts[5] === 'react') {
+    if (req.method === 'POST' && parts.length === idIndex + 4 && parts[idIndex + 3] === 'react') {
       const body = await safeJsonBody(req, res, origin); if (body == null) return;
       if (!body || !body.emoji) {
         send(res, 400, { error: 'missing emoji' }, origin); return;
@@ -712,7 +717,7 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
-  if (req.method === 'GET' && pathOnly === '/report') {
+  if (req.method === 'GET' && (pathOnly === '/report' || pathOnly === '/report/')) {
     return serveStatic(req, res, 'report.html', origin);
   }
 
