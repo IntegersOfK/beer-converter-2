@@ -579,6 +579,69 @@ async function handleSessionRoute(req, res, url, origin) {
   send(res, 404, { error: 'session route not found' }, origin);
 }
 
+async function handleReportRoute(req, res, url, origin) {
+  const [pathOnly] = url.split('?', 1);
+  const parts = pathOnly.split('/').filter(Boolean);
+  const rid = parts[2];
+  const subType = parts[3];
+  const subId = parts[4];
+
+  if (!rid || !SID_RE.test(rid)) { send(res, 404, { error: 'report not found' }, origin); return; }
+
+  if (req.method === 'GET' && parts.length === 3) {
+    const report = db.getReportFull(rid);
+    if (!report) { send(res, 404, { error: 'report not found' }, origin); return; }
+    send(res, 200, report, origin);
+    return;
+  }
+
+  const sid = db.getPrivateSessionIdForReport(rid);
+  if (!sid) { send(res, 404, { error: 'report not found' }, origin); return; }
+
+  if (subType === 'comments') {
+    if (req.method === 'POST' && parts.length === 4) {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !body.text) {
+        send(res, 400, { error: 'missing text' }, origin); return;
+      }
+      try {
+        const comment = db.addComment(sid, {
+          personId:   body.personId != null ? Number(body.personId) : null,
+          authorName: body.authorName || null,
+          text:       body.text,
+          t:          body.t,
+        });
+        send(res, 201, comment, origin);
+      } catch (e) {
+        const status = e.status || 500;
+        send(res, status, { error: e.message || 'add comment failed' }, origin);
+      }
+      return;
+    }
+
+    const commentId = Number(subId);
+    if (!Number.isInteger(commentId) || commentId <= 0) {
+      send(res, 400, { error: 'invalid comment id' }, origin); return;
+    }
+    if (req.method === 'POST' && parts.length === 6 && parts[5] === 'react') {
+      const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      if (!body || !body.emoji) {
+        send(res, 400, { error: 'missing emoji' }, origin); return;
+      }
+      const ok = db.toggleReaction(sid, commentId, {
+        personId: body.personId != null ? Number(body.personId) : null,
+        deviceId: body.deviceId ? String(body.deviceId).slice(0, 64) : null,
+        emoji: String(body.emoji).slice(0, 10),
+      });
+      if (!ok) { send(res, 404, { error: 'comment not found' }, origin); return; }
+      send(res, 200, { ok: true }, origin);
+      return;
+    }
+  }
+
+  send(res, 404, { error: 'report route not found' }, origin);
+}
+
 // readBody + JSON.parse with consistent error responses. Returns null after
 // emitting the error response, so callers can early-return.
 async function safeJsonBody(req, res, origin) {
@@ -655,6 +718,10 @@ const server = http.createServer(async (req, res) => {
   // the admin path and is NOT exposed publicly.
   if (pathOnly === '/api/sessions' || pathOnly.startsWith('/api/sessions/')) {
     return handleSessionRoute(req, res, url, origin);
+  }
+
+  if (pathOnly.startsWith('/api/reports/')) {
+    return handleReportRoute(req, res, url, origin);
   }
 
   if (req.method === 'POST' && pathOnly === '/submit') {

@@ -12,6 +12,7 @@
 
 const path = require('node:path');
 const fs   = require('node:fs');
+const crypto = require('node:crypto');
 const Database = require('better-sqlite3');
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname);
@@ -67,6 +68,7 @@ db.exec(`
   -- updated_at is bumped on any mutation so polling clients can detect change.
   CREATE TABLE IF NOT EXISTS sessions (
     id                    TEXT PRIMARY KEY,
+    public_id             TEXT UNIQUE,
     name                  TEXT NOT NULL,
     created_at            TEXT NOT NULL,
     updated_at            TEXT NOT NULL,
@@ -141,6 +143,26 @@ if (!tableInfo.some(c => c.name === 'author_name')) {
   console.log('Migration: adding author_name to session_comments');
   db.exec("ALTER TABLE session_comments ADD COLUMN author_name TEXT;");
 }
+
+const sessionTableInfo = db.prepare("PRAGMA table_info(sessions)").all();
+if (!sessionTableInfo.some(c => c.name === 'public_id')) {
+  console.log('Migration: adding public_id to sessions');
+  db.exec("ALTER TABLE sessions ADD COLUMN public_id TEXT;");
+}
+const missingPublicIds = db.prepare("SELECT id FROM sessions WHERE public_id IS NULL OR public_id = ''").all();
+if (missingPublicIds.length) {
+  const updatePublicId = db.prepare("UPDATE sessions SET public_id = ? WHERE id = ?");
+  const existingPublicId = db.prepare("SELECT 1 FROM sessions WHERE public_id = ?");
+  const tx = db.transaction((rows) => {
+    for (const row of rows) {
+      let publicId;
+      do { publicId = genSessionId(); } while (existingPublicId.get(publicId));
+      updatePublicId.run(publicId, row.id);
+    }
+  });
+  tx(missingPublicIds);
+}
+db.exec("CREATE UNIQUE INDEX IF NOT EXISTS sessions_public_id ON sessions(public_id);");
 
 // ---- prepared statements -------------------------------------------------
 
@@ -251,15 +273,26 @@ const stmts = {
 
   // ---- sessions ---------------------------------------------------------
   insertSession: db.prepare(`
-    INSERT INTO sessions (id, name, created_at, updated_at, benchmark_preset_key)
-    VALUES (@id, @name, @createdAt, @updatedAt, @benchmarkPresetKey)
+    INSERT INTO sessions (id, public_id, name, created_at, updated_at, benchmark_preset_key)
+    VALUES (@id, @publicId, @name, @createdAt, @updatedAt, @benchmarkPresetKey)
   `),
   getSession: db.prepare(`
-    SELECT id, name,
+    SELECT id,
+           public_id AS publicId,
+           name,
            created_at AS createdAt,
            updated_at AS updatedAt,
            benchmark_preset_key AS benchmarkPresetKey
       FROM sessions WHERE id = ?
+  `),
+  getSessionByPublicId: db.prepare(`
+    SELECT id,
+           public_id AS publicId,
+           name,
+           created_at AS createdAt,
+           updated_at AS updatedAt,
+           benchmark_preset_key AS benchmarkPresetKey
+      FROM sessions WHERE public_id = ?
   `),
   updateSessionName: db.prepare(`
     UPDATE sessions SET name = ?, updated_at = ? WHERE id = ?
@@ -275,6 +308,7 @@ const stmts = {
   // admin overview: sessions + counts (one query thanks to LEFT JOIN + COUNT).
   listSessionsAdmin: db.prepare(`
     SELECT s.id,
+           s.public_id AS publicId,
            s.name,
            s.created_at AS createdAt,
            s.updated_at AS updatedAt,
@@ -548,8 +582,6 @@ function isRejected(upc) { return !!stmts.isRejected.get(upc); }
 
 // ---- session DAO -------------------------------------------------------
 
-const crypto = require('node:crypto');
-
 // 16 random bytes → 22-char base64url (~128 bits of entropy). Ample for
 // pure-obfuscation auth — collision probability is astronomically low.
 function genSessionId() {
@@ -567,10 +599,13 @@ function nowIso() { return new Date().toISOString(); }
 
 const createSessionTx = db.transaction((payload) => {
   const id = payload.id || genSessionId();
+  const publicId = genSessionId();
   const now = nowIso();
   const name = (payload.name || '').toString().trim().slice(0, 60) || defaultSessionName(now);
   stmts.insertSession.run({
-    id, name,
+    id,
+    publicId,
+    name,
     createdAt: now,
     updatedAt: now,
     benchmarkPresetKey: payload.benchmarkPresetKey || null,
@@ -627,6 +662,20 @@ function getSessionFull(id) {
   s.comments  = stmts.listComments.all(id);
   s.reactions = stmts.listReactionsForSession.all(id);
   return s;
+}
+
+function getReportFull(publicId) {
+  const meta = stmts.getSessionByPublicId.get(publicId);
+  if (!meta) return null;
+  const s = getSessionFull(meta.id);
+  if (!s) return null;
+  delete s.id;
+  return s;
+}
+
+function getPrivateSessionIdForReport(publicId) {
+  const meta = stmts.getSessionByPublicId.get(publicId);
+  return meta ? meta.id : null;
 }
 
 function getSessionMeta(id) { return stmts.getSession.get(id) || null; }
@@ -984,7 +1033,8 @@ module.exports = {
 
   // sessions
   genSessionId,
-  createSession, getSessionFull, getSessionMeta, listSessions, deleteSession,
+  createSession, getSessionFull, getReportFull, getPrivateSessionIdForReport,
+  getSessionMeta, listSessions, deleteSession,
   renameSession, setBenchmark, touchSession,
   addPerson, renamePerson, removePerson,
   upsertPreset, updatePresetCascade, touchPreset, removePreset,

@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=39';
+import { api, ApiError } from './api.js?v=40';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -101,6 +101,7 @@ export function forgetSessionLocal(sid) {
 
 export const state = {
   sid: null,
+  publicId: null,
   name: '',
   updatedAt: null,
   benchmarkPresetId: null,
@@ -118,6 +119,7 @@ let lastFetchedAt = 0;
 function hydrate(serverPayload) {
   const s = serverPayload || {};
   state.sid = s.id || null;
+  state.publicId = s.publicId || null;
   state.name = s.name || '';
   state.updatedAt = s.updatedAt || null;
   state.benchmarkPresetId = s.benchmarkPresetKey || null;
@@ -166,6 +168,7 @@ function hydrate(serverPayload) {
   // Snapshot people + drink count into the recents list so the session
   // switcher can show context without re-fetching every session.
   rememberSession(state.sid, state.name, {
+    publicId: state.publicId,
     peopleNames: state.people.map(p => p.name),
     drinkCount:  state.people.reduce((n, p) => n + p.drinks.length, 0),
   });
@@ -202,7 +205,7 @@ export async function createSession({ name, importPresetsFromSid } = {}) {
     presets,
     benchmarkPresetKey: 'pstd',
   });
-  rememberSession(data.id, data.name);
+  rememberSession(data.id, data.name, { publicId: data.publicId || null });
   return data.id;
 }
 

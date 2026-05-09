@@ -341,7 +341,8 @@ function fromServer(s) {
     ts: s.updatedAt ? Date.parse(s.updatedAt) : Date.now(),
     p: (s.people || []).map(p => ({ n: p.name, d: drinksByPerson.get(p.id) || [] })),
     bm,
-    _sid: s.id,
+    _sid: s.id || null,
+    _reportId: s.publicId || null,
     _updatedAt: s.updatedAt,
     c: (s.comments || []).map(c => ({
       i: c.id,
@@ -358,8 +359,14 @@ async function fetchSession(sid) {
   return fromServer(await r.json());
 }
 
-async function postComment(sid, authorName, text) {
-  const r = await fetch(API_BASE + '/api/sessions/' + encodeURIComponent(sid) + '/comments', {
+async function fetchReport(rid) {
+  const r = await fetch(API_BASE + '/api/reports/' + encodeURIComponent(rid));
+  if (!r.ok) throw new Error('fetch failed: ' + r.status);
+  return fromServer(await r.json());
+}
+
+async function postComment(reportId, authorName, text) {
+  const r = await fetch(API_BASE + '/api/reports/' + encodeURIComponent(reportId) + '/comments', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
@@ -374,9 +381,20 @@ async function postComment(sid, authorName, text) {
 
 async function loadInitial() {
   const params = new URLSearchParams(location.search);
+  const rid = params.get('r');
+  if (rid) {
+    try { return await fetchReport(rid); }
+    catch (e) { console.error('report fetch failed', e); return null; }
+  }
   const sid = params.get('s');
   if (sid) {
-    try { return await fetchSession(sid); }
+    try {
+      const data = await fetchSession(sid);
+      if (data?._reportId && history.replaceState) {
+        history.replaceState(null, '', 'report.html?r=' + encodeURIComponent(data._reportId));
+      }
+      return data;
+    }
     catch (e) { console.error('session fetch failed', e); return null; }
   }
   return decodeLegacy();
@@ -608,7 +626,7 @@ function render(data) {
           <div class="log-text">${esc(c.t)}</div>
         </div>
       `).join('') : '<div class="log-item"><div class="log-text">No comments yet.</div></div>'}
-      ${data._sid ? `
+      ${data._reportId ? `
         <form class="comment-form" id="commentForm">
           <div class="comment-fields">
             <input id="commentAuthor" maxlength="40" placeholder="Your name (optional)" autocomplete="name">
@@ -651,7 +669,7 @@ function render(data) {
   });
 
   const form = document.getElementById('commentForm');
-  if (form && data._sid) {
+  if (form && data._reportId) {
     const author = document.getElementById('commentAuthor');
     const text = document.getElementById('commentText');
     const status = document.getElementById('commentStatus');
@@ -673,10 +691,10 @@ function render(data) {
       try {
         const name = author.value.trim();
         try { localStorage.setItem('beerConverter.authorName', name); } catch {}
-        await postComment(data._sid, name, body);
+        await postComment(data._reportId, name, body);
         text.value = '';
         status.textContent = '';
-        maybeRender(await fetchSession(data._sid));
+        maybeRender(await fetchReport(data._reportId));
       } catch (err) {
         console.error('comment post failed', err);
         status.className = 'comment-status err';
@@ -704,11 +722,13 @@ function maybeRender(data) {
 
   // Poll every 5 s for live updates when this report points at a server
   // session. Static (?d=) reports skip polling.
-  const sid = new URLSearchParams(location.search).get('s');
-  if (!sid) return;
+  const params = new URLSearchParams(location.search);
+  const rid = params.get('r');
+  const sid = params.get('s');
+  if (!rid && !sid) return;
   setInterval(async () => {
     if (document.visibilityState !== 'visible') return;
-    try { maybeRender(await fetchSession(sid)); }
+    try { maybeRender(rid ? await fetchReport(rid) : await fetchSession(sid)); }
     catch (e) { /* network blip — try again next tick */ }
   }, 5000);
 })();
