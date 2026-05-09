@@ -391,7 +391,7 @@ async function loadInitial() {
     try {
       const data = await fetchSession(sid);
       if (data?._reportId && history.replaceState) {
-        history.replaceState(null, '', 'report.html?r=' + encodeURIComponent(data._reportId));
+        history.replaceState(null, '', 'report?r=' + encodeURIComponent(data._reportId));
       }
       return data;
     }

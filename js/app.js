@@ -5,24 +5,24 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=40';
+import { $, $$, vibe } from './util.js?v=41';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   getRecentSessions, forgetSessionLocal,
-} from './state.js?v=40';
+} from './state.js?v=41';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=40';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=40';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=40';
-import { ML_PER_OZ } from './calc.js?v=40';
+} from './ui.js?v=41';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=41';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=41';
+import { ML_PER_OZ } from './calc.js?v=41';
 
-console.log('Beer Converter build v40 (api base paths)');
+console.log('Beer Converter build v41 (api base paths)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -120,8 +120,8 @@ $('#btnReport').addEventListener('click', () => {
   // Report fetches the session live by id — no base64 blob, no copy of state.
   const a = Object.assign(document.createElement('a'), {
     href: state.publicId
-      ? 'report.html?r=' + encodeURIComponent(state.publicId)
-      : 'report.html?s=' + encodeURIComponent(state.sid),
+      ? 'report?r=' + encodeURIComponent(state.publicId)
+      : 'report?s=' + encodeURIComponent(state.sid),
     target: '_blank', rel: 'noopener noreferrer',
   });
   document.body.appendChild(a);

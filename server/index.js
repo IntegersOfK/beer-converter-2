@@ -712,6 +712,10 @@ const server = http.createServer(async (req, res) => {
     return;
   }
 
+  if (req.method === 'GET' && pathOnly === '/report') {
+    return serveStatic(req, res, 'report.html', origin);
+  }
+
   // ---- Public sessions API -----------------------------------------------
   // No auth: knowing the session id IS the credential. Anyone with the link
   // can read or write. The admin overview (GET /api/sessions) lives under
