@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=42">
+<link rel="stylesheet" href="styles.css?v=43">
 </head>
 <body>
 
@@ -356,6 +356,18 @@
   </div>
 </div>
 
+<!-- New session modal -->
+<div class="modal-overlay" id="newSessionModal">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 id="newSessionTitle">New session</h2>
+      <button class="close-btn" data-close>&times;</button>
+    </div>
+    <div id="newSessionBody"></div>
+    <div class="new-session-status" id="newSessionStatus"></div>
+  </div>
+</div>
+
 <!-- Edit logged drink modal -->
 <div class="modal-overlay" id="editDrinkModal">
   <div class="modal">
@@ -430,6 +442,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=42"></script>
+<script type="module" src="js/app.js?v=43"></script>
 </body>
 </html>

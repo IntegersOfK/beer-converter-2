@@ -1482,6 +1482,128 @@ input.session-name-input:focus {
   flex-shrink: 0;
 }
 
+/* New-session import flow */
+.new-session-choice-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.new-session-choice {
+  display: grid;
+  gap: 5px;
+  width: 100%;
+  padding: 14px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--ink);
+  font-family: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.new-session-choice:hover {
+  border-color: var(--amber-deep);
+  background: rgba(224, 163, 74, 0.06);
+}
+
+.new-session-choice:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.choice-title {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.choice-meta,
+.new-session-note,
+.new-session-status {
+  font-size: 12px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.new-session-note {
+  margin: 0 0 12px;
+}
+
+.new-session-status {
+  min-height: 18px;
+  margin-top: 10px;
+}
+
+.new-session-status.err {
+  color: var(--danger);
+}
+
+.import-session-list {
+  margin-bottom: 12px;
+}
+
+.import-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.import-toolbar .btn {
+  flex: 1;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.import-type-list {
+  display: grid;
+  gap: 8px;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.import-type-item {
+  display: grid;
+  grid-template-columns: 18px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  padding: 10px 12px;
+  border: 1px solid var(--line-soft);
+  border-radius: 10px;
+  background: var(--bg-card);
+  cursor: pointer;
+}
+
+.import-type-item:hover {
+  border-color: var(--amber-deep);
+}
+
+.import-type-item input {
+  margin: 2px 0 0;
+  accent-color: var(--amber);
+}
+
+.import-type-main {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.import-type-name {
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+
+.import-type-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-soft);
+  overflow-wrap: anywhere;
+}
+
 .ornament {
   display: flex;
   align-items: center;

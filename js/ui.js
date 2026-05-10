@@ -1,18 +1,19 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=42';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=42';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=43';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=43';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
+  createSession, fetchSessionSnapshot,
   switchSession, renameSession,
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
-} from './state.js?v=42';
-import { submitProduct } from './submit.js?v=42';
-import { getFlavoursForName } from './products.js?v=42';
+} from './state.js?v=43';
+import { submitProduct } from './submit.js?v=43';
+import { getFlavoursForName } from './products.js?v=43';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -52,6 +53,8 @@ let editPersonIdx = 0;
 let editDrinkIdx = 0;
 // Whether the multi-person comparison detail panel is expanded.
 let compareDetailOpen = false;
+let newSessionSource = null;
+let newSessionSelectedPresetKeys = new Set();
 
 // --- Rendering --------------------------------------------------------------
 export function render() {
@@ -766,6 +769,299 @@ function renderSessionList() {
       renderSessionList();
     });
   });
+}
+
+// --- New-session import flow -----------------------------------------------
+export function openNewSessionModal() {
+  $('#sessionsModal')?.classList.remove('open');
+  newSessionSource = null;
+  newSessionSelectedPresetKeys = new Set();
+  renderNewSessionStart();
+  $('#newSessionModal').classList.add('open');
+}
+
+function setNewSessionStatus(text = '', variant = '') {
+  const el = $('#newSessionStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'new-session-status' + (variant ? ` ${variant}` : '');
+}
+
+function currentSessionOption() {
+  if (!state.sid) return null;
+  return {
+    sid: state.sid,
+    name: state.name || 'Current session',
+    lastSeen: Date.now(),
+    peopleNames: state.people.map(p => p.name),
+    drinkCount: state.people.reduce((n, p) => n + p.drinks.length, 0),
+    isCurrent: true,
+  };
+}
+
+function importSourceOptions() {
+  const options = [];
+  const seen = new Set();
+  const current = currentSessionOption();
+  if (current) {
+    options.push(current);
+    seen.add(current.sid);
+  }
+  getRecentSessions().forEach(rec => {
+    if (!rec?.sid || seen.has(rec.sid)) return;
+    options.push(rec);
+    seen.add(rec.sid);
+  });
+  return options;
+}
+
+function plural(n, one, many = `${one}s`) {
+  return n === 1 ? one : many;
+}
+
+function renderNewSessionStart() {
+  const body = $('#newSessionBody');
+  const sources = importSourceOptions();
+  const canImport = sources.length > 0;
+  $('#newSessionTitle').textContent = 'New session';
+  setNewSessionStatus('');
+  body.innerHTML = `
+    <div class="new-session-choice-grid">
+      <button class="new-session-choice" data-create-blank-session>
+        <span class="choice-title">Start blank</span>
+        <span class="choice-meta">Default drink types, no logged drinks.</span>
+      </button>
+      <button class="new-session-choice" data-pick-import-source${canImport ? '' : ' disabled'}>
+        <span class="choice-title">Import drink types</span>
+        <span class="choice-meta">Choose a session first, then pick reusable drink types.</span>
+      </button>
+    </div>
+  `;
+  body.querySelector('[data-create-blank-session]').addEventListener('click', e => {
+    createBlankNewSession(e.currentTarget);
+  });
+  body.querySelector('[data-pick-import-source]')?.addEventListener('click', () => {
+    renderNewSessionSourceList();
+  });
+}
+
+function sessionOptionMeta(rec) {
+  const drinks = Number(rec.drinkCount) || 0;
+  const peopleNames = (rec.peopleNames || []).filter(Boolean);
+  const peopleStr = peopleNames.length ? peopleNames.join(' · ') : '(no one yet)';
+  const date = new Date(rec.lastSeen || Date.now()).toLocaleDateString('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    year: 'numeric',
+  });
+  return { drinks, peopleStr, date };
+}
+
+function renderNewSessionSourceList() {
+  const body = $('#newSessionBody');
+  const sources = importSourceOptions();
+  $('#newSessionTitle').textContent = 'Import drink types';
+  setNewSessionStatus('');
+
+  if (!sources.length) {
+    body.innerHTML = `
+      <p class="new-session-note">No recent sessions on this device yet.</p>
+      <div class="actions">
+        <button class="btn btn-ghost" data-new-session-back>Back</button>
+        <button class="btn btn-primary" data-create-blank-session>Start blank</button>
+      </div>
+    `;
+    body.querySelector('[data-new-session-back]').addEventListener('click', renderNewSessionStart);
+    body.querySelector('[data-create-blank-session]').addEventListener('click', e => createBlankNewSession(e.currentTarget));
+    return;
+  }
+
+  body.innerHTML = `
+    <p class="new-session-note">Choose the session to copy from.</p>
+    <div class="session-list import-session-list">
+      ${sources.map(rec => {
+        const { drinks, peopleStr, date } = sessionOptionMeta(rec);
+        return `
+          <div class="session-item">
+            <div class="session-item-info">
+              <div class="session-item-name">${escapeHtml(rec.name || rec.sid)}${rec.isCurrent ? ' <span class="session-badge">current</span>' : ''}</div>
+              <div class="session-item-people" title="${escapeHtml(peopleStr)}">${escapeHtml(peopleStr)}</div>
+              <div class="session-item-meta">${escapeHtml(date)} · ${drinks} ${plural(drinks, 'drink')}</div>
+            </div>
+            <button class="btn btn-ghost session-switch-btn" data-import-source="${escapeHtml(rec.sid)}">choose</button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-new-session-back>Back</button>
+      <button class="btn btn-primary" data-create-blank-session>Start blank</button>
+    </div>
+  `;
+
+  body.querySelector('[data-new-session-back]').addEventListener('click', renderNewSessionStart);
+  body.querySelector('[data-create-blank-session]').addEventListener('click', e => createBlankNewSession(e.currentTarget));
+  body.querySelectorAll('[data-import-source]').forEach(btn => {
+    btn.addEventListener('click', () => loadNewSessionSource(btn.dataset.importSource));
+  });
+}
+
+async function loadNewSessionSource(sid) {
+  if (!sid) return;
+  setNewSessionStatus('Loading session...');
+  try {
+    newSessionSource = await fetchSessionSnapshot(sid);
+    const types = sourceDrinkTypes(newSessionSource);
+    newSessionSelectedPresetKeys = new Set(types.map(p => String(p.presetKey)));
+    renderNewSessionTypeList();
+  } catch (e) {
+    console.error('import source load failed', e);
+    setNewSessionStatus('Could not load that session. Try another one.', 'err');
+  }
+}
+
+function sourceDrinkTypes(source) {
+  return (source?.presets || [])
+    .filter(p => p && p.presetKey && p.name)
+    .slice()
+    .sort((a, b) => {
+      const lb = Number(b.lastUsedAt) || 0;
+      const la = Number(a.lastUsedAt) || 0;
+      if (lb !== la) return lb - la;
+      return String(a.name).localeCompare(String(b.name));
+    });
+}
+
+function fmtAbv(abv) {
+  const n = Number(abv);
+  return Number.isFinite(n) ? n.toFixed(1) : '0.0';
+}
+
+function renderNewSessionTypeList() {
+  const body = $('#newSessionBody');
+  const source = newSessionSource;
+  const types = sourceDrinkTypes(source);
+  $('#newSessionTitle').textContent = 'Choose drink types';
+  setNewSessionStatus('');
+
+  if (!types.length) {
+    body.innerHTML = `
+      <p class="new-session-note">That session has no saved drink types to import.</p>
+      <div class="actions">
+        <button class="btn btn-ghost" data-new-session-back>Back</button>
+        <button class="btn btn-primary" data-create-blank-session>Start blank</button>
+      </div>
+    `;
+    body.querySelector('[data-new-session-back]').addEventListener('click', renderNewSessionSourceList);
+    body.querySelector('[data-create-blank-session]').addEventListener('click', e => createBlankNewSession(e.currentTarget));
+    return;
+  }
+
+  const sourceName = source?.name || 'that session';
+  body.innerHTML = `
+    <p class="new-session-note">Copying drink types from ${escapeHtml(sourceName)}.</p>
+    <div class="import-toolbar">
+      <button class="btn btn-ghost" data-select-all-types>Select all</button>
+      <button class="btn btn-ghost" data-select-no-types>Select none</button>
+    </div>
+    <div class="import-type-list">
+      ${types.map(p => {
+        const key = String(p.presetKey);
+        return `
+          <label class="import-type-item">
+            <input type="checkbox" data-import-type="${escapeHtml(key)}"${newSessionSelectedPresetKeys.has(key) ? ' checked' : ''}>
+            <span class="import-type-main">
+              <span class="import-type-name">${escapeHtml(p.name || 'Drink type')}</span>
+              <span class="import-type-meta">${fmtVol(p.volumeMl)} · ${fmtAbv(p.abv)}%</span>
+            </span>
+          </label>
+        `;
+      }).join('')}
+    </div>
+    <div class="actions">
+      <button class="btn btn-ghost" data-new-session-back>Back</button>
+      <button class="btn btn-primary" id="btnCreateImportSession"></button>
+    </div>
+  `;
+
+  body.querySelector('[data-new-session-back]').addEventListener('click', renderNewSessionSourceList);
+  body.querySelector('[data-select-all-types]').addEventListener('click', () => {
+    newSessionSelectedPresetKeys = new Set(types.map(p => String(p.presetKey)));
+    body.querySelectorAll('[data-import-type]').forEach(input => { input.checked = true; });
+    updateImportCreateCopy();
+  });
+  body.querySelector('[data-select-no-types]').addEventListener('click', () => {
+    newSessionSelectedPresetKeys = new Set();
+    body.querySelectorAll('[data-import-type]').forEach(input => { input.checked = false; });
+    updateImportCreateCopy();
+  });
+  body.querySelectorAll('[data-import-type]').forEach(input => {
+    input.addEventListener('change', () => {
+      if (input.checked) newSessionSelectedPresetKeys.add(input.dataset.importType);
+      else newSessionSelectedPresetKeys.delete(input.dataset.importType);
+      updateImportCreateCopy();
+    });
+  });
+  $('#btnCreateImportSession').addEventListener('click', e => createImportedNewSession(e.currentTarget));
+  updateImportCreateCopy();
+}
+
+function updateImportCreateCopy() {
+  const btn = $('#btnCreateImportSession');
+  if (!btn) return;
+  const n = newSessionSelectedPresetKeys.size;
+  btn.textContent = n ? `Create with ${n} ${plural(n, 'type')}` : 'Start blank';
+}
+
+async function createBlankNewSession(btn) {
+  if (btn) btn.disabled = true;
+  setNewSessionStatus('Creating session...');
+  try {
+    const sid = await createSession({});
+    switchSession(sid);
+  } catch (e) {
+    console.error('newSession failed', e);
+    setNewSessionStatus('New session failed. Try again.', 'err');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function importedSessionPayload(source, selectedTypes) {
+  const selectedKeys = new Set(selectedTypes.map(p => String(p.presetKey)));
+  const preferredBenchmark = String(source?.benchmarkPresetKey || '');
+  const benchmarkPresetKey = selectedKeys.has(preferredBenchmark)
+    ? preferredBenchmark
+    : String(selectedTypes[0]?.presetKey || 'pstd');
+  return {
+    presets: selectedTypes.map(p => ({
+      presetKey:    p.presetKey,
+      name:         p.name,
+      volumeMl:     p.volumeMl,
+      abv:          p.abv,
+      kcalPer100ml: p.kcalPer100ml,
+      lastUsedAt:   p.lastUsedAt,
+    })),
+    benchmarkPresetKey,
+  };
+}
+
+async function createImportedNewSession(btn) {
+  const source = newSessionSource;
+  const selected = sourceDrinkTypes(source).filter(p => newSessionSelectedPresetKeys.has(String(p.presetKey)));
+  if (!source || selected.length === 0) {
+    await createBlankNewSession(btn);
+    return;
+  }
+  if (btn) btn.disabled = true;
+  setNewSessionStatus('Creating session...');
+  try {
+    const sid = await createSession(importedSessionPayload(source, selected));
+    switchSession(sid);
+  } catch (e) {
+    console.error('imported newSession failed', e);
+    setNewSessionStatus('Import failed. Try again.', 'err');
+    if (btn) btn.disabled = false;
+  }
 }
 
 // --- Shared ---------------------------------------------------------------

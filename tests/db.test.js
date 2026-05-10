@@ -32,4 +32,24 @@ test('Session lifecycle', async (t) => {
     assert.strictEqual(session.comments[0].authorName, 'Alice');
     assert.strictEqual(session.comments[0].text, 'Hello world');
   });
+
+  await t.test('create session with selected imported drink types', () => {
+    const sid = dbLayer.genSessionId();
+    const session = dbLayer.createSession({
+      id: sid,
+      name: 'Imported Types',
+      people: [{ name: 'You' }, { name: 'Friend' }],
+      presets: [
+        { presetKey: 'p1', name: 'Tall can', volumeMl: 473, abv: 5 },
+        { presetKey: 'u1', name: 'House wine', volumeMl: 142, abv: 12.5 },
+      ],
+      benchmarkPresetKey: 'p1',
+    });
+
+    assert.strictEqual(session.people.length, 2);
+    assert.strictEqual(session.presets.length, 2);
+    assert.strictEqual(session.drinks.length, 0);
+    assert.deepStrictEqual(session.presets.map(p => p.presetKey), ['p1', 'u1']);
+    assert.strictEqual(session.benchmarkPresetKey, 'p1');
+  });
 });

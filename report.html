@@ -379,6 +379,8 @@ async function postComment(reportId, authorName, text) {
   return r.json();
 }
 
+let editSessionHref = '/';
+
 async function loadInitial() {
   const params = new URLSearchParams(location.search);
   const rid = params.get('r');
@@ -389,6 +391,7 @@ async function loadInitial() {
   const sid = params.get('s');
   if (sid) {
     try {
+      editSessionHref = '/?s=' + encodeURIComponent(sid);
       const data = await fetchSession(sid);
       if (data?._reportId && history.replaceState) {
         history.replaceState(null, '', 'report/?r=' + encodeURIComponent(data._reportId));
@@ -596,6 +599,9 @@ function render(data) {
         <div class="ts">ml combined</div>
        </div>`;
 
+  const inputHref = data._sid ? '/?s=' + encodeURIComponent(data._sid) : editSessionHref;
+  const inputLabel = inputHref === '/' ? 'Open drink input' : 'Back to drink input';
+
   document.getElementById('root').innerHTML = `
     <div class="brand">
       <span class="brand-name">Beer Converter</span>
@@ -649,7 +655,7 @@ function render(data) {
 
     <div class="actions">
       <button class="btn primary" id="btnCopy">Copy report link</button>
-      <a href="/" class="btn ghost">← New session</a>
+      <a href="${esc(inputHref)}" class="btn ghost">${esc(inputLabel)}</a>
     </div>
 
     <p class="footnote">

@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=42';
+import { api, ApiError } from './api.js?v=43';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -183,13 +183,25 @@ export async function loadSession(sid) {
   return state;
 }
 
-export async function createSession({ name, importPresetsFromSid } = {}) {
-  let presets = defaultPresets();
+export async function fetchSessionSnapshot(sid) {
+  if (!sid) return null;
+  return api.get(`/api/sessions/${encodeURIComponent(sid)}`);
+}
+
+export async function createSession({
+  name,
+  importPresetsFromSid,
+  people,
+  presets,
+  benchmarkPresetKey,
+} = {}) {
+  let seedPeople = Array.isArray(people) && people.length ? people : DEFAULT_PEOPLE();
+  let seedPresets = Array.isArray(presets) && presets.length ? presets : defaultPresets();
   if (importPresetsFromSid) {
     try {
       const src = await api.get(`/api/sessions/${encodeURIComponent(importPresetsFromSid)}`);
       if (src && Array.isArray(src.presets) && src.presets.length) {
-        presets = src.presets.map(p => ({
+        seedPresets = src.presets.map(p => ({
           presetKey:    p.presetKey,
           name:         p.name,
           volumeMl:     p.volumeMl,
@@ -201,9 +213,9 @@ export async function createSession({ name, importPresetsFromSid } = {}) {
   }
   const data = await api.post('/api/sessions', {
     name: name || undefined,
-    people: DEFAULT_PEOPLE(),
-    presets,
-    benchmarkPresetKey: 'pstd',
+    people: seedPeople,
+    presets: seedPresets,
+    benchmarkPresetKey: benchmarkPresetKey || 'pstd',
   });
   rememberSession(data.id, data.name, { publicId: data.publicId || null });
   return data.id;

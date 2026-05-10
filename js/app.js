@@ -5,24 +5,25 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=42';
+import { $, $$, vibe } from './util.js?v=43';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   getRecentSessions, forgetSessionLocal,
-} from './state.js?v=42';
+} from './state.js?v=43';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-} from './ui.js?v=42';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=42';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=42';
-import { ML_PER_OZ } from './calc.js?v=42';
+  openNewSessionModal,
+} from './ui.js?v=43';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=43';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=43';
+import { ML_PER_OZ } from './calc.js?v=43';
 
-console.log('Beer Converter build v42 (api base paths)');
+console.log('Beer Converter build v43 (new session import flow)');
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -72,21 +73,7 @@ $('#btnUnit').addEventListener('click', () => {
 // --- Header actions -------------------------------------------------------
 $('#btnSessions').addEventListener('click', openSessionsModal);
 $('#btnCurrentSession').addEventListener('click', openSessionsModal);
-$('#btnNewSession').addEventListener('click', async () => {
-  // Optional preset import: if there are other sessions in the recents
-  // list, offer to copy types from the most recent. Skip the prompt for
-  // first-time users so the friction stays at zero.
-  const others = getRecentSessions().filter(s => s.sid !== state.sid);
-  let importFrom = null;
-  if (others.length > 0) {
-    const pick = others[0];
-    if (confirm(`Copy drink types from "${pick.name}"?`)) importFrom = pick.sid;
-  }
-  try {
-    const sid = await createSession({ importPresetsFromSid: importFrom });
-    switchSession(sid);   // navigates; full reload picks up the new session
-  } catch (e) { console.error('newSession failed', e); alert('New session failed'); }
-});
+$('#btnNewSession').addEventListener('click', openNewSessionModal);
 
 $('#btnPresets').addEventListener('click', openPresetsModal);
 
