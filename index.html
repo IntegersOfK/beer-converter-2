@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=43">
+<link rel="stylesheet" href="styles.css?v=44">
 </head>
 <body>
 
@@ -215,9 +215,7 @@
         <label>Name (optional)</label>
         <input class="input" id="customName" placeholder="Red Stripe tall can" maxlength="40" title="Optional label for this drink" />
       </div>
-      <!-- Flavour: hidden by default, shown only when prefilled from a curated
-           UPC scan that knew which flavour. Stays as drink metadata; not saved
-           into a preset. -->
+      <!-- Flavour stays as drink metadata; the saved drink type is name/volume/ABV. -->
       <div class="field" id="customFlavourField" style="display:none;">
         <label for="customFlavour">Flavour <span class="label-aux">(this drink only)</span></label>
         <input class="input" id="customFlavour" placeholder="e.g. Mango" maxlength="40" title="Variant of this product (for this drink only — not saved into the drink type)" />
@@ -442,6 +440,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=43"></script>
+<script type="module" src="js/app.js?v=44"></script>
 </body>
 </html>

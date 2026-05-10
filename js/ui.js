@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=43';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=43';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=44';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=44';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -11,9 +11,10 @@ import {
   switchSession, renameSession,
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
-} from './state.js?v=43';
-import { submitProduct } from './submit.js?v=43';
-import { getFlavoursForName } from './products.js?v=43';
+  presetSignature,
+} from './state.js?v=44';
+import { submitProduct } from './submit.js?v=44';
+import { getFlavoursForName } from './products.js?v=44';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -25,6 +26,7 @@ function fmtVol(ml) {
 // array order for never-used ones. Chip trays read this so the drink you
 // just logged sits at the front for one-tap re-use.
 function presetsByRecency() {
+  const seen = new Set();
   return state.presets
     .map((p, i) => ({ p, i }))
     .sort((a, b) => {
@@ -33,7 +35,13 @@ function presetsByRecency() {
       if (lb !== la) return lb - la;
       return a.i - b.i;   // stable for never-used presets
     })
-    .map(x => x.p);
+    .map(x => x.p)
+    .filter(p => {
+      const sig = presetSignature(p) || p.id;
+      if (seen.has(sig)) return false;
+      seen.add(sig);
+      return true;
+    });
 }
 
 // Person badge label: A, B, … Z, then numeric (#27, #28, …) so we never run out.
@@ -490,11 +498,8 @@ function resetCustomForm() {
   // Default ON: most users want a one-tap "save as type" path; the save is
   // a no-op silently when no name is given (existing alert handles that).
   $('#saveAsPreset').checked = true;
-  // Flavour stays hidden until a curated scan prefills it.
   const flavInput = $('#customFlavour');
   if (flavInput) flavInput.value = '';
-  const flavField = $('#customFlavourField');
-  if (flavField) flavField.style.display = 'none';
   updateEthanolPreview();
   updateSaveAsPresetCopy();
 }
@@ -526,12 +531,9 @@ export function prefillCustomForm({
   const phMl = volumePlaceholder != null ? volumePlaceholder : 473;
   $('#customVolume').setAttribute('placeholder',
     u === 'oz' ? String(+(phMl / ML_PER_OZ).toFixed(1)) : String(Math.round(phMl)));
-  // Flavour: only show the field when it's actually prefilled (curated scan).
   const flavInput = $('#customFlavour');
-  const flavField = $('#customFlavourField');
-  if (flavInput && flavField) {
+  if (flavInput) {
     flavInput.value = flavour || '';
-    flavField.style.display = flavour ? '' : 'none';
   }
   // Save-as-type defaults ON whether or not there's a UPC; matches the
   // resetCustomForm default. Scan flow especially benefits from this — the
@@ -551,6 +553,8 @@ export function updateSaveAsPresetCopy() {
   const hint     = $('#saveAsPresetHint');
   if (!label || !hint) return;
 
+  updateCustomFlavourVisibility();
+
   label.textContent = upc
     ? 'Save as a drink type & remember this barcode'
     : 'Save this as a drink type';
@@ -565,6 +569,15 @@ export function updateSaveAsPresetCopy() {
   } else {
     hint.style.display = 'none';
   }
+}
+
+function updateCustomFlavourVisibility() {
+  const flavInput = $('#customFlavour');
+  const flavField = $('#customFlavourField');
+  if (!flavInput || !flavField) return;
+  const hasUpc = !!$('#customUpc').value.trim();
+  const hasFlavour = !!flavInput.value.trim();
+  flavField.style.display = (hasUpc || hasFlavour) ? '' : 'none';
 }
 
 function updateEthanolPreview() {
@@ -921,6 +934,7 @@ async function loadNewSessionSource(sid) {
 }
 
 function sourceDrinkTypes(source) {
+  const seen = new Set();
   return (source?.presets || [])
     .filter(p => p && p.presetKey && p.name)
     .slice()
@@ -929,6 +943,12 @@ function sourceDrinkTypes(source) {
       const la = Number(a.lastUsedAt) || 0;
       if (lb !== la) return lb - la;
       return String(a.name).localeCompare(String(b.name));
+    })
+    .filter(p => {
+      const sig = presetSignature(p) || p.presetKey;
+      if (seen.has(sig)) return false;
+      seen.add(sig);
+      return true;
     });
 }
 

@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=43';
+import { api, ApiError } from './api.js?v=44';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -196,18 +196,18 @@ export async function createSession({
   benchmarkPresetKey,
 } = {}) {
   let seedPeople = Array.isArray(people) && people.length ? people : DEFAULT_PEOPLE();
-  let seedPresets = Array.isArray(presets) && presets.length ? presets : defaultPresets();
+  let seedPresets = Array.isArray(presets) && presets.length ? dedupePresetSeeds(presets) : defaultPresets();
   if (importPresetsFromSid) {
     try {
       const src = await api.get(`/api/sessions/${encodeURIComponent(importPresetsFromSid)}`);
       if (src && Array.isArray(src.presets) && src.presets.length) {
-        seedPresets = src.presets.map(p => ({
+        seedPresets = dedupePresetSeeds(src.presets.map(p => ({
           presetKey:    p.presetKey,
           name:         p.name,
           volumeMl:     p.volumeMl,
           abv:          p.abv,
           kcalPer100ml: p.kcalPer100ml,
-        }));
+        })));
       }
     } catch (e) { console.warn('preset import failed; using defaults', e); }
   }
@@ -219,6 +219,16 @@ export async function createSession({
   });
   rememberSession(data.id, data.name, { publicId: data.publicId || null });
   return data.id;
+}
+
+function dedupePresetSeeds(presets) {
+  const seen = new Set();
+  return presets.filter(p => {
+    const sig = presetSignature(p) || p.presetKey;
+    if (!sig || seen.has(sig)) return false;
+    seen.add(sig);
+    return true;
+  });
 }
 
 // "Switch to this session" = navigate. Full page load for simplicity, so the
@@ -308,11 +318,31 @@ export async function setBenchmark(presetId) {
 
 // ---- presets ------------------------------------------------------------
 
+export function presetSignature({ name, volumeMl, abv } = {}) {
+  const cleanName = String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const vol = Number(volumeMl);
+  const alc = Number(abv);
+  if (!cleanName || !Number.isFinite(vol) || !Number.isFinite(alc)) return '';
+  return `${cleanName}|${vol.toFixed(2)}|${alc.toFixed(2)}`;
+}
+
+export function findMatchingPreset({ name, volumeMl, abv } = {}) {
+  const sig = presetSignature({ name, volumeMl, abv });
+  if (!sig) return null;
+  return state.presets.find(p => presetSignature(p) === sig) || null;
+}
+
 // Returns synchronously so call sites can immediately reference the new
 // preset's id. The server save runs in the background; failure rolls the
 // optimistic add back and alerts.
 export function addPreset({ name, volumeMl, abv, kcalPer100ml = null } = {}) {
   if (!state.sid) return null;
+  const existing = findMatchingPreset({ name, volumeMl, abv });
+  if (existing) {
+    existing.lastUsedAt = Date.now();
+    touchPreset(existing.id).catch(() => {});
+    return existing;
+  }
   const presetKey = 'u' + Date.now();
   const local = { id: presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: Date.now() };
   state.presets.push(local);
