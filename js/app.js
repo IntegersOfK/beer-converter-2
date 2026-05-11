@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, vibe } from './util.js?v=44';
+import { $, $$, escapeHtml, vibe } from './util.js?v=45';
 import {
   state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
-  getRecentSessions, forgetSessionLocal,
-} from './state.js?v=44';
+  fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
+} from './state.js?v=45';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,12 +18,14 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal,
-} from './ui.js?v=44';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=44';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=44';
-import { ML_PER_OZ } from './calc.js?v=44';
+} from './ui.js?v=45';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=45';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=45';
+import { ML_PER_OZ } from './calc.js?v=45';
 
-console.log('Beer Converter build v44 (deduped drink types)');
+console.log('Beer Converter build v45 (session entry gates)');
+
+const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
 // Kick off the BC Liquor catalogue load eagerly so it's usually warm by the
 // time the user finishes scanning. Failures are logged but non-fatal — the
@@ -142,6 +144,7 @@ $$('[data-close-scanner]').forEach(el => el.addEventListener('click', () => {
 $$('.modal-overlay').forEach(m => {
   m.addEventListener('click', e => {
     if (e.target !== m) return;
+    if (m.id === 'sessionGateModal') return;
     // Backdrop click: scanner only closes itself; other modals close fully.
     if (m.id === 'scannerModal') { stopActiveScanner(); closeScannerOnly(); }
     else { stopActiveScanner(); closeModal(); render(); }
@@ -314,48 +317,298 @@ document.addEventListener('dblclick', e => {
 }, { passive: false });
 
 // --- Boot ------------------------------------------------------------------
-// The app always opens "into" a server-side session via ?s=<sid>. If the
-// URL has none we redirect — to the most recent session in localStorage if
-// any, else create a fresh one. This means a bare visit to bc.ajwest.ca
-// always lands in a valid session within one round trip.
+// Bare visits are intentionally explicit once a trip is stale. Direct links to
+// already-known sessions still open immediately; new shared links pause first
+// so it is clear that the link is a live tally.
+
+function recentSessionsByLastSeen() {
+  const seen = new Set();
+  return getRecentSessions()
+    .filter(rec => {
+      if (!rec?.sid || seen.has(rec.sid)) return false;
+      seen.add(rec.sid);
+      return true;
+    })
+    .sort((a, b) => (Number(b.lastSeen) || 0) - (Number(a.lastSeen) || 0));
+}
+
+function hasKnownSession(sid) {
+  return getRecentSessions().some(rec => rec?.sid === sid);
+}
+
+function isFreshRecent(rec) {
+  const lastSeen = Number(rec?.lastSeen) || 0;
+  return lastSeen > 0 && Date.now() - lastSeen < SESSION_AUTO_OPEN_MS;
+}
+
+function sessionDisplayTime(ts) {
+  const n = Number(ts) || Date.parse(ts || '');
+  const d = new Date(Number.isFinite(n) && n > 0 ? n : Date.now());
+  return d.toLocaleString('en-CA', {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function sessionOption(raw = {}) {
+  const sid = raw.sid || raw.id || '';
+  const peopleNames = Array.isArray(raw.peopleNames)
+    ? raw.peopleNames.filter(Boolean)
+    : Array.isArray(raw.people)
+      ? raw.people.map(p => p?.name).filter(Boolean)
+      : [];
+  const drinkCount = Number.isFinite(Number(raw.drinkCount))
+    ? Number(raw.drinkCount)
+    : Array.isArray(raw.drinks)
+      ? raw.drinks.length
+      : 0;
+  const lastSeen = Number(raw.lastSeen) || Date.parse(raw.updatedAt || raw.createdAt || '') || Date.now();
+  return {
+    sid,
+    name: raw.name || sid || 'Session',
+    peopleNames,
+    drinkCount,
+    lastSeen,
+  };
+}
+
+function sessionPeopleLine(opt) {
+  return opt.peopleNames.length ? opt.peopleNames.join(' · ') : '(no one yet)';
+}
+
+function sessionMetaLine(opt) {
+  const drinks = Number(opt.drinkCount) || 0;
+  return `${sessionDisplayTime(opt.lastSeen)} · ${drinks} drink${drinks === 1 ? '' : 's'}`;
+}
+
+function sessionGateList(recents, { markLatest = false } = {}) {
+  if (!recents.length) return '';
+  return `
+    <div class="session-list session-gate-list">
+      ${recents.map((rec, idx) => {
+        const opt = sessionOption(rec);
+        const people = sessionPeopleLine(opt);
+        const badge = markLatest && idx === 0 ? ' <span class="session-badge">latest</span>' : '';
+        return `
+          <div class="session-item session-gate-item">
+            <div class="session-item-info">
+              <div class="session-item-name">${escapeHtml(opt.name)}${badge}</div>
+              <div class="session-item-people" title="${escapeHtml(people)}">${escapeHtml(people)}</div>
+              <div class="session-item-meta">${escapeHtml(sessionMetaLine(opt))}</div>
+            </div>
+            <button class="btn btn-ghost session-switch-btn" data-gate-open-session="${escapeHtml(opt.sid)}">open</button>
+          </div>
+        `;
+      }).join('')}
+    </div>
+  `;
+}
+
+function sessionGateSummary(raw) {
+  const opt = sessionOption(raw);
+  const people = sessionPeopleLine(opt);
+  return `
+    <div class="session-gate-summary">
+      <div class="session-gate-summary-name">${escapeHtml(opt.name)}</div>
+      <div class="session-item-people" title="${escapeHtml(people)}">${escapeHtml(people)}</div>
+      <div class="session-item-meta">${escapeHtml(sessionMetaLine(opt))}</div>
+    </div>
+  `;
+}
+
+function setSessionGateStatus(text = '', variant = '') {
+  const el = $('#sessionGateStatus');
+  if (!el) return;
+  el.textContent = text;
+  el.className = 'session-gate-status' + (variant ? ` ${variant}` : '');
+}
+
+function showSessionGate(title, bodyHtml, { statusText = '', statusVariant = '' } = {}) {
+  $('#sessionGateTitle').textContent = title;
+  $('#sessionGateBody').innerHTML = bodyHtml;
+  setSessionGateStatus(statusText, statusVariant);
+  const modal = $('#sessionGateModal');
+  modal.classList.add('open');
+  wireSessionGateActions();
+  requestAnimationFrame(() => (modal.querySelector('.btn-primary') || modal.querySelector('button'))?.focus());
+}
+
+function closeSessionGate() {
+  $('#sessionGateModal')?.classList.remove('open');
+}
+
+function wireSessionGateActions() {
+  const body = $('#sessionGateBody');
+  body.querySelectorAll('[data-gate-create-session]').forEach(btn => {
+    btn.addEventListener('click', () => createGateSession(btn));
+  });
+  body.querySelectorAll('[data-gate-open-session]').forEach(btn => {
+    btn.addEventListener('click', () => switchSession(btn.dataset.gateOpenSession));
+  });
+  body.querySelectorAll('[data-gate-join-session]').forEach(btn => {
+    btn.addEventListener('click', () => enterSessionFromGate(btn.dataset.gateJoinSession, btn));
+  });
+  body.querySelectorAll('[data-gate-retry-session]').forEach(btn => {
+    btn.addEventListener('click', () => showSharedSessionGate(btn.dataset.gateRetrySession));
+  });
+}
+
+async function createGateSession(btn) {
+  if (btn) btn.disabled = true;
+  setSessionGateStatus('Creating session...');
+  try {
+    const sid = await createSession({});
+    switchSession(sid);
+  } catch (e) {
+    console.error('initial session creation failed', e);
+    setSessionGateStatus('Could not reach the server. Try again.', 'err');
+    if (btn) btn.disabled = false;
+  }
+}
+
+async function enterSession(sid) {
+  await loadSession(sid);
+  closeSessionGate();
+  render();
+  startPolling(render);
+}
+
+async function enterSessionFromGate(sid, btn) {
+  if (!sid) return;
+  if (btn) btn.disabled = true;
+  setSessionGateStatus('Opening session...');
+  try {
+    await enterSession(sid);
+  } catch (e) {
+    if (e?.status === 404) {
+      forgetSessionLocal(sid);
+      showMissingSessionGate();
+      return;
+    }
+    console.error('loadSession failed', e);
+    setSessionGateStatus('Could not load that session. Try again.', 'err');
+    if (btn) btn.disabled = false;
+  }
+}
+
+function showFirstSessionGate() {
+  showSessionGate('Start your first session', `
+    <p class="session-gate-copy">
+      A session is the live tally for one outing. It gets its own link, and anyone with that link contributes to the same count.
+    </p>
+    <div class="actions">
+      <button class="btn btn-primary" data-gate-create-session>Start first session</button>
+    </div>
+  `);
+}
+
+function showChooseSessionGate(recents = recentSessionsByLastSeen()) {
+  showSessionGate('Choose a session', `
+    <p class="session-gate-copy">
+      It has been a while since this device opened Beer Converter. Continue a saved live tally or start a clean one.
+    </p>
+    ${sessionGateList(recents, { markLatest: true })}
+    <div class="actions">
+      <button class="btn btn-primary" data-gate-create-session>Start new session</button>
+    </div>
+  `);
+}
+
+function showMissingSessionGate() {
+  const recents = recentSessionsByLastSeen();
+  const copy = recents.length
+    ? 'That link does not point to a live session anymore. Start a new tally, or open one saved on this device.'
+    : 'That link does not point to a live session anymore. Start a new tally to keep going.';
+  showSessionGate('Session not found', `
+    <p class="session-gate-copy">
+      ${escapeHtml(copy)}
+    </p>
+    ${sessionGateList(recents)}
+    <div class="actions">
+      <button class="btn btn-primary" data-gate-create-session>Start new session</button>
+    </div>
+  `);
+}
+
+function showSessionLoadErrorGate(sid) {
+  showSessionGate('Could not reach session', `
+    <p class="session-gate-copy">
+      The app could not load this session. Check the connection, then try again.
+    </p>
+    <div class="actions">
+      <button class="btn btn-ghost" data-gate-create-session>Start new session</button>
+      <button class="btn btn-primary" data-gate-retry-session="${escapeHtml(sid)}">Try again</button>
+    </div>
+  `);
+}
+
+async function showSharedSessionGate(sid) {
+  showSessionGate('Opening shared link', `
+    <p class="session-gate-copy">
+      Checking the live session before adding it to this device.
+    </p>
+  `, { statusText: 'Loading session...' });
+
+  try {
+    const snapshot = await fetchSessionSnapshot(sid);
+    showSessionGate('Open shared session?', `
+      <p class="session-gate-copy">
+        This link is a live shared tally. Opening it adds the session to this device so you can switch back later.
+      </p>
+      ${sessionGateSummary(snapshot)}
+      <div class="actions">
+        <button class="btn btn-ghost" data-gate-create-session>Start new instead</button>
+        <button class="btn btn-primary" data-gate-join-session="${escapeHtml(sid)}">Open live session</button>
+      </div>
+    `);
+  } catch (e) {
+    if (e?.status === 404) {
+      forgetSessionLocal(sid);
+      showMissingSessionGate();
+      return;
+    }
+    console.error('shared session preview failed', e);
+    showSessionLoadErrorGate(sid);
+  }
+}
+
+function handleSessionLoadFailure(sid, e) {
+  if (e?.status === 404) {
+    forgetSessionLocal(sid);
+    showMissingSessionGate();
+    return;
+  }
+  console.error('loadSession failed', e);
+  showSessionLoadErrorGate(sid);
+}
 
 async function boot() {
   const params = new URLSearchParams(location.search);
   const sid = params.get('s');
 
   if (!sid) {
-    const recents = getRecentSessions();
-    if (recents.length > 0) {
-      switchSession(recents[0].sid);   // navigates
+    const recents = recentSessionsByLastSeen();
+    if (!recents.length) {
+      showFirstSessionGate();
       return;
     }
-    try {
-      const newSid = await createSession({});
-      switchSession(newSid);
-    } catch (e) {
-      console.error('initial session creation failed', e);
-      document.body.innerHTML = '<div style="padding:40px;text-align:center;color:#a08d6e;font-family:Fraunces,serif;">Could not reach the server. Try refreshing.</div>';
+    if (isFreshRecent(recents[0])) {
+      switchSession(recents[0].sid);
+      return;
     }
+    showChooseSessionGate(recents);
     return;
   }
 
-  try {
-    await loadSession(sid);
-  } catch (e) {
-    if (e?.status === 404) {
-      // Session was deleted server-side. Drop it from recents and start fresh.
-      forgetSessionLocal(sid);
-      try { const newSid = await createSession({}); switchSession(newSid); } catch {}
-      return;
-    }
-    console.error('loadSession failed', e);
-    alert('Could not load session — refreshing in 3 seconds.');
-    setTimeout(() => location.reload(), 3000);
+  if (!hasKnownSession(sid)) {
+    await showSharedSessionGate(sid);
     return;
   }
 
-  render();
-  startPolling(render);
+  try { await enterSession(sid); }
+  catch (e) { handleSessionLoadFailure(sid, e); }
 }
 
 boot();

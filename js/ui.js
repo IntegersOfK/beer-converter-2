@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=44';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=44';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=45';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=45';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -12,9 +12,9 @@ import {
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
   presetSignature,
-} from './state.js?v=44';
-import { submitProduct } from './submit.js?v=44';
-import { getFlavoursForName } from './products.js?v=44';
+} from './state.js?v=45';
+import { submitProduct } from './submit.js?v=45';
+import { getFlavoursForName } from './products.js?v=45';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -1086,7 +1086,9 @@ async function createImportedNewSession(btn) {
 
 // --- Shared ---------------------------------------------------------------
 export function closeModal() {
-  $$('.modal-overlay').forEach(m => m.classList.remove('open'));
+  $$('.modal-overlay').forEach(m => {
+    if (m.id !== 'sessionGateModal') m.classList.remove('open');
+  });
 }
 
 // Expose the preview updater for app.js input wiring.

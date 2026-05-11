@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=44">
+<link rel="stylesheet" href="styles.css?v=45">
 </head>
 <body>
 
@@ -338,6 +338,17 @@
   </div>
 </div>
 
+<!-- Session entry gate -->
+<div class="modal-overlay session-gate-overlay" id="sessionGateModal" role="dialog" aria-modal="true" aria-labelledby="sessionGateTitle">
+  <div class="modal session-gate-modal">
+    <div class="modal-head session-gate-head">
+      <h2 id="sessionGateTitle">Sessions</h2>
+    </div>
+    <div id="sessionGateBody"></div>
+    <div class="session-gate-status" id="sessionGateStatus"></div>
+  </div>
+</div>
+
 <!-- Sessions modal -->
 <div class="modal-overlay" id="sessionsModal">
   <div class="modal">
@@ -440,6 +451,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=44"></script>
+<script type="module" src="js/app.js?v=45"></script>
 </body>
 </html>
