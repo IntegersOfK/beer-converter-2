@@ -108,6 +108,8 @@ db.exec(`
     flavour     TEXT,
     volume_ml   REAL NOT NULL,
     abv         REAL NOT NULL,
+    input_kind  TEXT NOT NULL DEFAULT 'whole',
+    components_json TEXT,
     t           INTEGER NOT NULL,
     created_at  TEXT NOT NULL
   );
@@ -182,6 +184,16 @@ if (missingPublicIds.length) {
   tx(missingPublicIds);
 }
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS sessions_public_id ON sessions(public_id);");
+
+const drinkTableInfo = db.prepare("PRAGMA table_info(session_drinks)").all();
+if (!drinkTableInfo.some(c => c.name === 'input_kind')) {
+  console.log('Migration: adding input_kind to session_drinks');
+  db.exec("ALTER TABLE session_drinks ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';");
+}
+if (!drinkTableInfo.some(c => c.name === 'components_json')) {
+  console.log('Migration: adding components_json to session_drinks');
+  db.exec("ALTER TABLE session_drinks ADD COLUMN components_json TEXT;");
+}
 
 // ---- prepared statements -------------------------------------------------
 
@@ -416,16 +428,16 @@ const stmts = {
   // ---- session_drinks ---------------------------------------------------
   insertDrink: db.prepare(`
     INSERT INTO session_drinks
-      (session_id, person_id, preset_key, name, flavour, volume_ml, abv, t, created_at)
+      (session_id, person_id, preset_key, name, flavour, volume_ml, abv, input_kind, components_json, t, created_at)
     VALUES
-      (@sessionId, @personId, @presetKey, @name, @flavour, @volumeMl, @abv, @t, @createdAt)
+      (@sessionId, @personId, @presetKey, @name, @flavour, @volumeMl, @abv, @inputKind, @componentsJson, @t, @createdAt)
   `),
   listDrinks: db.prepare(`
     SELECT id, person_id AS personId,
            preset_key AS presetKey,
            name, flavour,
            volume_ml AS volumeMl,
-           abv, t,
+           abv, input_kind AS inputKind, components_json AS componentsJson, t,
            created_at AS createdAt
       FROM session_drinks
      WHERE session_id = ?
@@ -434,7 +446,7 @@ const stmts = {
   getDrink: db.prepare(`
     SELECT id, session_id AS sessionId, person_id AS personId,
            preset_key AS presetKey, name, flavour,
-           volume_ml AS volumeMl, abv, t,
+           volume_ml AS volumeMl, abv, input_kind AS inputKind, components_json AS componentsJson, t,
            created_at AS createdAt
       FROM session_drinks
      WHERE id = ?
@@ -443,12 +455,14 @@ const stmts = {
     UPDATE session_drinks
        SET name = @name, flavour = @flavour,
            volume_ml = @volumeMl, abv = @abv,
+           input_kind = @inputKind, components_json = @componentsJson,
            preset_key = @presetKey
      WHERE id = @id
   `),
   updateDrinksByPresetStmt: db.prepare(`
     UPDATE session_drinks
-       SET name = @name, volume_ml = @volumeMl, abv = @abv
+       SET name = @name, volume_ml = @volumeMl, abv = @abv,
+           input_kind = 'whole', components_json = NULL
      WHERE session_id = @sessionId AND preset_key = @presetKey
   `),
   deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
@@ -689,7 +703,7 @@ function getSessionFull(id) {
   if (!s) return null;
   s.people    = stmts.listPeople.all(id);
   s.presets   = stmts.listPresets.all(id);
-  s.drinks    = stmts.listDrinks.all(id);
+  s.drinks    = stmts.listDrinks.all(id).map(rowWithComponents);
   s.events    = stmts.listEvents.all(id).map(e => ({
     ...e,
     data: e.data ? JSON.parse(e.data) : {},
@@ -825,6 +839,56 @@ function removePreset(sessionId, presetKey) {
   return true;
 }
 
+function parseDrinkComponents(row) {
+  if (!row || !row.componentsJson) return [];
+  try {
+    const parsed = JSON.parse(row.componentsJson);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch { return []; }
+}
+
+function rowWithComponents(row) {
+  if (!row) return row;
+  const components = parseDrinkComponents(row);
+  const { componentsJson, ...rest } = row;
+  return { ...rest, components };
+}
+
+function normalizeComponents(raw) {
+  if (!Array.isArray(raw)) return [];
+  return raw.map(c => ({
+    name: String(c?.name || 'Component').trim().slice(0, 60) || 'Component',
+    volumeMl: +Number(c?.volumeMl).toFixed(2),
+    abv: +Number(c?.abv).toFixed(2),
+    upc: c?.upc ? String(c.upc).replace(/\D+/g, '').slice(0, 32) : null,
+  })).filter(c => Number.isFinite(c.volumeMl) && c.volumeMl > 0 && Number.isFinite(c.abv) && c.abv >= 0 && c.abv <= 100);
+}
+
+function effectiveDrinkValues(drink, fallback = {}) {
+  const inputKind = drink.inputKind === 'cocktail' ? 'cocktail' : 'whole';
+  const components = inputKind === 'cocktail' ? normalizeComponents(drink.components) : [];
+  if (components.length) {
+    const volumeMl = components.reduce((sum, c) => sum + c.volumeMl, 0);
+    const ethanolMl = components.reduce((sum, c) => sum + c.volumeMl * c.abv / 100, 0);
+    return {
+      inputKind,
+      components,
+      volumeMl: +volumeMl.toFixed(2),
+      abv: +(volumeMl > 0 ? ethanolMl / volumeMl * 100 : 0).toFixed(2),
+      componentsJson: JSON.stringify(components),
+    };
+  }
+  const volumeMl = drink.volumeMl != null ? Number(drink.volumeMl) : Number(fallback.volumeMl);
+  const abv = drink.abv != null ? Number(drink.abv) : Number(fallback.abv);
+  return {
+    inputKind: 'whole',
+    components: [],
+    volumeMl: +volumeMl.toFixed(2),
+    abv: +abv.toFixed(2),
+    componentsJson: null,
+  };
+}
+
 function drinkEventData(person, drink) {
   return {
     personName: person?.name || '',
@@ -832,6 +896,8 @@ function drinkEventData(person, drink) {
     flavour:    drink.flavour || null,
     volumeMl:   drink.volumeMl,
     abv:        drink.abv,
+    inputKind:  drink.inputKind || 'whole',
+    components: drink.components || [],
   };
 }
 
@@ -855,13 +921,20 @@ const addDrinkTx = db.transaction((sessionId, drink) => {
     throw Object.assign(new Error('person not in session'), { status: 400 });
   }
   const now = nowIso();
+  const effective = effectiveDrinkValues(drink);
+  if (!Number.isFinite(effective.volumeMl) || effective.volumeMl <= 0 || !Number.isFinite(effective.abv) || effective.abv < 0 || effective.abv > 100) {
+    throw Object.assign(new Error('invalid drink values'), { status: 400 });
+  }
   const savedDrink = {
     personId:  drink.personId,
-    presetKey: drink.presetKey || null,
-    name:      String(drink.name || '').slice(0, 60) || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
+    presetKey: effective.inputKind === 'cocktail' ? null : (drink.presetKey || null),
+    name:      String(drink.name || '').slice(0, 60) || `${Math.round(effective.volumeMl)} ml · ${effective.abv}%`,
     flavour:   drink.flavour ? String(drink.flavour).slice(0, 60) : null,
-    volumeMl:  +Number(drink.volumeMl).toFixed(2),
-    abv:       +Number(drink.abv).toFixed(2),
+    volumeMl:  effective.volumeMl,
+    abv:       effective.abv,
+    inputKind: effective.inputKind,
+    components: effective.components,
+    componentsJson: effective.componentsJson,
     t:         drink.t == null ? Date.now() : Number(drink.t),
     createdAt: now,
   };
@@ -884,27 +957,31 @@ const addDrinkTx = db.transaction((sessionId, drink) => {
 });
 function addDrink(sessionId, drink) {
   const id = addDrinkTx(sessionId, drink);
-  return stmts.getDrink.get(id);
+  return rowWithComponents(stmts.getDrink.get(id));
 }
 
 function updateDrink(sessionId, drinkId, fields) {
   const cur = stmts.getDrink.get(drinkId);
   if (!cur || cur.sessionId !== sessionId) return null;
+  const effective = effectiveDrinkValues(fields, cur);
+  if (!Number.isFinite(effective.volumeMl) || effective.volumeMl <= 0 || !Number.isFinite(effective.abv) || effective.abv < 0 || effective.abv > 100) return null;
   const next = {
     id: drinkId,
     name:      fields.name     != null ? String(fields.name).slice(0, 60) : cur.name,
     flavour:   fields.flavour !== undefined
                   ? (fields.flavour ? String(fields.flavour).slice(0, 60) : null)
                   : (cur.flavour || null),
-    volumeMl:  fields.volumeMl != null ? +Number(fields.volumeMl).toFixed(2) : cur.volumeMl,
-    abv:       fields.abv      != null ? +Number(fields.abv).toFixed(2) : cur.abv,
+    volumeMl:  effective.volumeMl,
+    abv:       effective.abv,
+    inputKind: effective.inputKind,
+    componentsJson: effective.componentsJson,
     // Editing a single drink unlinks it from its preset (matches frontend
     // semantics: "all of this type" goes through updatePresetCascade).
-    presetKey: fields.unlinkPreset === true ? null : (cur.presetKey || null),
+    presetKey: fields.unlinkPreset === true || effective.inputKind === 'cocktail' ? null : (cur.presetKey || null),
   };
   stmts.updateDrinkStmt.run(next);
   stmts.touchSession.run(nowIso(), sessionId);
-  return stmts.getDrink.get(drinkId);
+  return rowWithComponents(stmts.getDrink.get(drinkId));
 }
 
 function removeDrink(sessionId, drinkId) {
@@ -917,7 +994,7 @@ function removeDrink(sessionId, drinkId) {
     type: 'drink_removed',
     personId: cur.personId,
     drinkId,
-    data: drinkEventData(person, cur),
+    data: drinkEventData(person, rowWithComponents(cur)),
     t: Date.now(),
     createdAt: now,
   });

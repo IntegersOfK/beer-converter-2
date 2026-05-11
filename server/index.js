@@ -489,8 +489,9 @@ async function handleSessionRoute(req, res, url, origin) {
   if (subType === 'drinks') {
     if (req.method === 'POST' && parts.length === 4) {
       const body = await safeJsonBody(req, res, origin); if (body == null) return;
+      const hasCocktailComponents = body?.inputKind === 'cocktail' && Array.isArray(body.components) && body.components.length > 0;
       if (!body || !Number.isInteger(Number(body.personId))
-          || body.volumeMl == null || body.abv == null) {
+          || (!hasCocktailComponents && (body.volumeMl == null || body.abv == null))) {
         send(res, 400, { error: 'missing fields' }, origin); return;
       }
       try {
@@ -499,8 +500,10 @@ async function handleSessionRoute(req, res, url, origin) {
           presetKey: body.presetKey || null,
           name: body.name,
           flavour: body.flavour,
-          volumeMl: Number(body.volumeMl),
-          abv: Number(body.abv),
+          volumeMl: body.volumeMl == null ? null : Number(body.volumeMl),
+          abv: body.abv == null ? null : Number(body.abv),
+          inputKind: body.inputKind,
+          components: body.components,
           t: body.t,
         });
         send(res, 201, drink, origin);

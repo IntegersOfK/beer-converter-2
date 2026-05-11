@@ -1108,6 +1108,116 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   line-height: 1.4;
 }
 
+
+.mode-switch {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.mode-switch label {
+  cursor: pointer;
+}
+
+.mode-switch input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.mode-switch span {
+  display: block;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--bg-card);
+  color: var(--ink-dim);
+  text-align: center;
+  font-size: 12px;
+  font-family: 'IBM Plex Mono', monospace;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.mode-switch input:checked + span {
+  border-color: rgba(224,163,74,0.65);
+  color: var(--amber);
+  background: rgba(224,163,74,0.10);
+}
+
+#wholeDrinkFields,
+.cocktail-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.cocktail-help {
+  margin-left: 0;
+}
+
+.cocktail-components {
+  display: grid;
+  gap: 10px;
+}
+
+.cocktail-component {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--bg-card);
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+}
+
+.cocktail-component-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.cocktail-component-title {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  color: var(--ink-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.cocktail-component-meta {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cocktail-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.cocktail-summary,
+.drink-components {
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+
+.drink-components {
+  margin-top: 2px;
+}
+
+@media (max-width: 420px) {
+  .mode-switch,
+  .cocktail-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
 .label-aux {
   font-family: 'IBM Plex Mono', monospace;
   font-size: 9px;

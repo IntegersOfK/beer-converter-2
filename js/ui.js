@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=50';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=50';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=51';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=51';
 import {
   state, getBenchmark, getUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
@@ -13,14 +13,186 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=50';
-import { submitProduct } from './submit.js?v=50';
-import { getFlavoursForName } from './products.js?v=50';
+} from './state.js?v=51';
+import { submitProduct } from './submit.js?v=51';
+import { getFlavoursForName } from './products.js?v=51';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
     ? `${fmt(ml / ML_PER_OZ, 1)} oz`
     : `${fmt(ml, 0)} ml`;
+}
+
+
+function fmtComponentVolume(ml) {
+  return getUnitPref() === 'oz'
+    ? `${fmt(ml / ML_PER_OZ, 2)} oz`
+    : `${fmt(ml, 0)} ml`;
+}
+
+function componentSummary(components = []) {
+  return components
+    .filter(c => Number.isFinite(+c.volumeMl) && +c.volumeMl > 0 && Number.isFinite(+c.abv))
+    .map(c => {
+      const name = c.name || 'component';
+      const upc = c.upc ? ` · UPC ${c.upc}` : '';
+      return `${name}: ${fmtComponentVolume(+c.volumeMl)} @ ${fmt(+c.abv, 1)}%${upc}`;
+    })
+    .join(' + ');
+}
+
+function drinkMeta(d) {
+  if (d?.inputKind === 'cocktail' && Array.isArray(d.components) && d.components.length) {
+    const componentCount = d.components.length;
+    const totalVolume = d.components.reduce((sum, c) => sum + (+c.volumeMl || 0), 0);
+    const effectiveAbv = totalVolume > 0 ? (ethanolOf(d) / totalVolume) * 100 : 0;
+    return `${componentCount} component${componentCount === 1 ? '' : 's'} · ${fmtVol(totalVolume)} alcoholic volume · ${fmt(effectiveAbv, 1)}% effective`;
+  }
+  return `${fmtVol(d.volumeMl)} · ${fmt(d.abv,1)}%`;
+}
+
+function drinkMetaTitle(d) {
+  if (d?.inputKind === 'cocktail') {
+    return componentSummary(d.components) || 'Alcoholic components only; mixers ignored';
+  }
+  return 'Volume · alcohol by volume';
+}
+
+function currentCustomInputMode() {
+  return document.querySelector('input[name="customInputMode"]:checked')?.value === 'cocktail' ? 'cocktail' : 'whole';
+}
+
+function cocktailRowsFromDom() {
+  return $$('.cocktail-component', $('#cocktailComponents')).map(row => {
+    const unit = row.querySelector('[data-cocktail-unit]')?.value === 'oz' ? 'oz' : 'ml';
+    const raw = parseFloat(row.querySelector('[data-cocktail-volume]')?.value);
+    return {
+      name: (row.querySelector('[data-cocktail-name]')?.value || '').trim(),
+      volumeMl: Number.isFinite(raw) ? (unit === 'oz' ? raw * ML_PER_OZ : raw) : NaN,
+      abv: parseFloat(row.querySelector('[data-cocktail-abv]')?.value),
+      upc: (row.querySelector('[data-cocktail-upc]')?.value || '').trim() || null,
+    };
+  });
+}
+
+function completeCocktailComponents() {
+  return cocktailRowsFromDom()
+    .filter(c => c.name || c.upc || Number.isFinite(c.volumeMl) || Number.isFinite(c.abv))
+    .map(c => ({
+      name: c.name || 'Component',
+      volumeMl: +c.volumeMl,
+      abv: +c.abv,
+      upc: c.upc || null,
+    }));
+}
+
+function effectiveCocktailFromComponents(components) {
+  const volumeMl = components.reduce((sum, c) => sum + (+c.volumeMl || 0), 0);
+  const ethanolMl = components.reduce((sum, c) => sum + ((+c.volumeMl || 0) * (+c.abv || 0)) / 100, 0);
+  return {
+    volumeMl,
+    ethanolMl,
+    abv: volumeMl > 0 ? (ethanolMl / volumeMl) * 100 : NaN,
+  };
+}
+
+function renderCocktailComponents(rows = null) {
+  const list = $('#cocktailComponents');
+  if (!list) return;
+  const data = rows || cocktailRowsFromDom();
+  if (!data.length) data.push({ name: '', volumeMl: NaN, abv: NaN, upc: null });
+  const unitPref = getUnitPref();
+  list.innerHTML = data.map((row, idx) => {
+    const unit = row.unit || unitPref;
+    const rawVol = Number.isFinite(+row.volumeMl)
+      ? (unit === 'oz' ? +(+row.volumeMl / ML_PER_OZ).toFixed(2) : Math.round(+row.volumeMl))
+      : '';
+    const abv = Number.isFinite(+row.abv) ? (+row.abv).toFixed(1) : '';
+    const title = row.upc ? `UPC ${row.upc}` : 'Alcoholic component';
+    return `
+      <div class="cocktail-component" data-cocktail-component="${idx}">
+        <div class="cocktail-component-head">
+          <div>
+            <div class="cocktail-component-title">Component ${idx + 1}</div>
+            <div class="cocktail-component-meta" title="${escapeHtml(title)}">${escapeHtml(title)}</div>
+          </div>
+          <button class="x-btn" type="button" data-remove-cocktail-component="${idx}" aria-label="Remove component">×</button>
+        </div>
+        <div class="field">
+          <label>Name</label>
+          <input class="input" data-cocktail-name maxlength="40" placeholder="Gin" value="${escapeHtml(row.name || '')}" />
+        </div>
+        <div class="field-row">
+          <div class="field">
+            <label>Amount</label>
+            <div class="input-wrap">
+              <input class="input mono" data-cocktail-volume type="number" inputmode="decimal" step="0.25" placeholder="${unit === 'oz' ? '1.5' : '44'}" value="${escapeHtml(String(rawVol))}" />
+              <select class="unit-sel" data-cocktail-unit aria-label="Component unit">
+                <option value="ml"${unit === 'ml' ? ' selected' : ''}>ML</option>
+                <option value="oz"${unit === 'oz' ? ' selected' : ''}>OZ</option>
+              </select>
+            </div>
+          </div>
+          <div class="field">
+            <label>ABV</label>
+            <div class="input-wrap pct">
+              <input class="input mono" data-cocktail-abv type="number" inputmode="decimal" step="0.1" placeholder="40.0" value="${escapeHtml(abv)}" />
+            </div>
+          </div>
+        </div>
+        <div class="field">
+          <label>Barcode <span class="label-aux">(optional bottle UPC)</span></label>
+          <input class="input mono" data-cocktail-upc inputmode="numeric" placeholder="scan or type bottle UPC" value="${escapeHtml(row.upc || '')}" />
+        </div>
+      </div>
+    `;
+  }).join('');
+  $$('input, select', list).forEach(el => {
+    el.addEventListener('input', updateEthanolPreview);
+    el.addEventListener('change', e => {
+      if (e.currentTarget.matches('[data-cocktail-unit]')) setUnitPref(e.currentTarget.value);
+      updateEthanolPreview();
+    });
+  });
+  $$('[data-remove-cocktail-component]', list).forEach(btn => {
+    btn.addEventListener('click', e => {
+      const idx = Number(e.currentTarget.dataset.removeCocktailComponent);
+      const rows = cocktailRowsFromDom();
+      rows.splice(idx, 1);
+      renderCocktailComponents(rows.length ? rows : [{ name: '', volumeMl: NaN, abv: NaN, upc: null }]);
+      updateEthanolPreview();
+    });
+  });
+}
+
+export function setCustomInputMode(mode) {
+  const next = mode === 'cocktail' ? 'cocktail' : 'whole';
+  const radio = document.querySelector(`input[name="customInputMode"][value="${next}"]`);
+  if (radio) radio.checked = true;
+  $('#wholeDrinkFields').style.display = next === 'whole' ? 'grid' : 'none';
+  $('#cocktailFields').style.display = next === 'cocktail' ? 'grid' : 'none';
+  $('#customModeHint').textContent = next === 'cocktail'
+    ? 'Build the drink from alcoholic components only. Scan spirit, liqueur, and wine bottles to prefill their ABV and UPC.'
+    : 'Use whole drink for beer, wine, coolers, seltzers, and UPC-scanned cans where the package volume is the drink.';
+  if (next === 'cocktail' && !$('#cocktailComponents').children.length) renderCocktailComponents();
+  updateEthanolPreview();
+  updateSaveAsPresetCopy();
+}
+
+export function addCocktailComponent(prefill = {}) {
+  let rows = cocktailRowsFromDom();
+  const next = {
+    name: prefill.name || '',
+    volumeMl: prefill.volumeMl != null ? +prefill.volumeMl : NaN,
+    abv: prefill.abv != null ? +prefill.abv : NaN,
+    upc: prefill.upc || null,
+  };
+  const onlyBlank = rows.length === 1 && !rows[0].name && !rows[0].upc && !Number.isFinite(rows[0].volumeMl) && !Number.isFinite(rows[0].abv);
+  if (onlyBlank && (next.name || next.upc || Number.isFinite(next.volumeMl) || Number.isFinite(next.abv))) rows = [next];
+  else rows.push(next);
+  renderCocktailComponents(rows);
+  setCustomInputMode('cocktail');
+  updateEthanolPreview();
 }
 
 // Presets sorted with most-recently-used first, falling back to original
@@ -139,7 +311,9 @@ function activityText(e) {
   const data = e.data || {};
   const drink = data.drinkName || 'a drink';
   const flavour = data.flavour ? ` · ${data.flavour}` : '';
-  const meta = data.volumeMl && data.abv ? ` (${fmtVol(data.volumeMl)} · ${fmt(data.abv, 1)}%)` : '';
+  const meta = data.inputKind === 'cocktail'
+    ? ` (${(data.components || []).length} cocktail component${(data.components || []).length === 1 ? '' : 's'})`
+    : (data.volumeMl && data.abv ? ` (${fmtVol(data.volumeMl)} · ${fmt(data.abv, 1)}%)` : '');
   return `${person} ${action} ${drink}${flavour}${meta} ${preposition} their tally.`;
 }
 
@@ -336,7 +510,8 @@ function renderPeople() {
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
                 <div class="drink-name">${escapeHtml(d.name)}</div>
                 ${d.flavour ? `<div class="drink-flavour">${escapeHtml(d.flavour)}</div>` : ''}
-                <div class="drink-meta" title="Volume · alcohol by volume">${fmtVol(d.volumeMl)} · ${fmt(d.abv,1)}%</div>
+                <div class="drink-meta" title="${escapeHtml(drinkMetaTitle(d))}">${escapeHtml(drinkMeta(d))}</div>
+                ${d.inputKind === 'cocktail' && d.components?.length ? `<div class="drink-components">${escapeHtml(componentSummary(d.components))}</div>` : ''}
               </button>
               <div class="drink-ethanol" title="Pure ethanol · ${fmt(ethanolOf(d)/STD_DRINK_ML,2)} standard drinks">+${fmt(ethanolOf(d),1)} ml ethanol</div>
               <button class="x-btn" data-remove="${idx}:${di}" title="Remove" aria-label="Remove drink">×</button>
@@ -409,6 +584,8 @@ function renderPeople() {
         abv: prev.abv,
         presetId: prev.presetId || null,
         flavour: prev.flavour || '',
+        inputKind: prev.inputKind || 'whole',
+        components: Array.isArray(prev.components) ? prev.components.map(c => ({ ...c })) : undefined,
       });
     });
   });
@@ -661,15 +838,29 @@ function presetToDrink(preset) {
 export function logDrink(personIdx, drink, { upc } = {}) {
   addDrink(personIdx, drink);
   vibe(12);
-  submitProduct({
-    upc,
-    name: drink.name,
-    abv: drink.abv,
-    volumeMl: drink.volumeMl,
-    flavour: drink.flavour || undefined,
-    from: state.people[personIdx]?.name,
-    people: state.people.map(p => p.name),
-  });
+  if (drink.inputKind === 'cocktail' && Array.isArray(drink.components)) {
+    drink.components.forEach(component => {
+      if (!component.upc) return;
+      submitProduct({
+        upc: component.upc,
+        name: component.name || drink.name,
+        abv: component.abv,
+        volumeMl: component.volumeMl,
+        from: state.people[personIdx]?.name,
+        people: state.people.map(p => p.name),
+      });
+    });
+  } else {
+    submitProduct({
+      upc,
+      name: drink.name,
+      abv: drink.abv,
+      volumeMl: drink.volumeMl,
+      flavour: drink.flavour || undefined,
+      from: state.people[personIdx]?.name,
+      people: state.people.map(p => p.name),
+    });
+  }
   render();
   const hero = $(`[data-hero="${personIdx}"]`);
   if (hero) {
@@ -741,6 +932,8 @@ function resetCustomForm() {
   $('#customAbv').value = '';
   $('#customUpc').value = '';
   $('#customKcal').value = '';
+  renderCocktailComponents([{ name: '', volumeMl: NaN, abv: NaN, upc: null }]);
+  setCustomInputMode('whole');
   // Default ON: most users want a one-tap "save as type" path; the save is
   // a no-op silently when no name is given (existing alert handles that).
   $('#saveAsPreset').checked = true;
@@ -766,6 +959,7 @@ export function prefillCustomForm({
   flavour = '',
 } = {}) {
   const u = getUnitPref();
+  setCustomInputMode('whole');
   $('#customName').value = name || '';
   $('#customUnit').value = u;
   $('#customVolume').value = volumeMl != null && isFinite(volumeMl)
@@ -801,6 +995,11 @@ export function updateSaveAsPresetCopy() {
 
   updateCustomFlavourVisibility();
 
+  if (currentCustomInputMode() === 'cocktail') {
+    hint.style.display = 'none';
+    return;
+  }
+
   label.textContent = upc
     ? 'Save as a drink type & remember this barcode'
     : 'Save this as a drink type';
@@ -827,9 +1026,20 @@ function updateCustomFlavourVisibility() {
 }
 
 function updateEthanolPreview() {
+  const el = $('#ethanolPreviewVal');
+  if (currentCustomInputMode() === 'cocktail') {
+    const components = completeCocktailComponents();
+    const invalid = components.some(c => !Number.isFinite(c.volumeMl) || c.volumeMl <= 0 || !Number.isFinite(c.abv) || c.abv < 0 || c.abv > 100);
+    if (!components.length || invalid) {
+      el.textContent = '—';
+      return;
+    }
+    const totals = effectiveCocktailFromComponents(components);
+    el.textContent = `${fmt(totals.ethanolMl,1)} ml  ·  ${fmt(totals.ethanolMl/STD_DRINK_ML, 2)} std  ·  ${components.length} component${components.length === 1 ? '' : 's'}`;
+    return;
+  }
   const v = getCustomVolumeMl();
   const a = parseFloat($('#customAbv').value);
-  const el = $('#ethanolPreviewVal');
   if (!isFinite(v) || !isFinite(a) || v <= 0 || a < 0) {
     el.textContent = '—';
   } else {
@@ -852,13 +1062,33 @@ function getNewPresetVolumeMl() {
 
 export function submitCustomDrink() {
   const name = $('#customName').value.trim();
-  const volumeMl = getCustomVolumeMl();
-  const abv = parseFloat($('#customAbv').value);
   const upc = $('#customUpc').value.trim() || null;
   const kcalRaw = parseFloat($('#customKcal').value);
   const kcalPer100ml = isFinite(kcalRaw) ? kcalRaw : null;
   // Flavour is per-drink metadata only; never folded into the preset.
   const flavour = ($('#customFlavour')?.value || '').trim() || null;
+
+  if (currentCustomInputMode() === 'cocktail') {
+    const components = completeCocktailComponents();
+    if (!components.length) { alert('Add at least one alcoholic component.'); return false; }
+    const bad = components.find(c => !Number.isFinite(c.volumeMl) || c.volumeMl <= 0 || !Number.isFinite(c.abv) || c.abv < 0 || c.abv > 100);
+    if (bad) { alert('Each cocktail component needs a valid amount and ABV (0–100%).'); return false; }
+    const totals = effectiveCocktailFromComponents(components);
+    logDrink(addModalPersonIdx, {
+      name: name || 'Cocktail',
+      volumeMl: totals.volumeMl,
+      abv: totals.abv,
+      presetId: null,
+      flavour,
+      inputKind: 'cocktail',
+      components,
+    });
+    closeModal();
+    return true;
+  }
+
+  const volumeMl = getCustomVolumeMl();
+  const abv = parseFloat($('#customAbv').value);
 
   if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a valid volume and ABV (0–100%).'); return false;
