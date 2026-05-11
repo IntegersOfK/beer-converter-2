@@ -1337,6 +1337,28 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   border-color: var(--amber-deep);
 }
 
+.preset-edit-btn {
+  min-width: 44px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  font-family: 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+
+.preset-edit-btn:hover {
+  color: var(--amber);
+  border-color: var(--amber-deep);
+  background: rgba(224, 163, 74, 0.08);
+}
+
 .actions { display: flex; gap: 8px; margin-top: 18px; }
 .actions .btn { flex: 1; }
 
