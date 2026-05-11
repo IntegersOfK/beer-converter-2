@@ -11,6 +11,7 @@ import {
   switchSession, renameSession,
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
+  addComment, updateComment, removeComment,
   presetSignature,
 } from './state.js?v=48';
 import { submitProduct } from './submit.js?v=48';
@@ -66,10 +67,160 @@ let compareDetailOpen = false;
 let newSessionSource = null;
 let newSessionSelectedPresetKeys = new Set();
 
+
+const AUTHOR_KEY = 'beerConverter.authorName';
+
+function actorNameFromEvent(e) {
+  const person = state.people.find(p => p.id === e.personId);
+  return e.data?.personName || person?.name || 'Someone';
+}
+
+function commentAuthor(c) {
+  if (c.authorName) return c.authorName;
+  const person = state.people.find(p => p.id === c.personId);
+  return person?.name || 'Anonymous';
+}
+
+function fmtLogTime(ts) {
+  const d = new Date(Number(ts) || Date.now());
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function activityText(e) {
+  const action = e.type === 'drink_removed' ? 'removed' : 'added';
+  const preposition = e.type === 'drink_removed' ? 'from' : 'to';
+  const person = actorNameFromEvent(e);
+  const data = e.data || {};
+  const drink = data.drinkName || 'a drink';
+  const flavour = data.flavour ? ` · ${data.flavour}` : '';
+  const meta = data.volumeMl && data.abv ? ` (${fmtVol(data.volumeMl)} · ${fmt(data.abv, 1)}%)` : '';
+  return `${person} ${action} ${drink}${flavour}${meta} ${preposition} their tally.`;
+}
+
+export function hydrateCommentForm() {
+  const author = $('#commentAuthor');
+  if (!author) return;
+  try { author.value = localStorage.getItem(AUTHOR_KEY) || ''; } catch {}
+}
+
+export function updateCommentTextarea() {
+  const text = $('#commentText');
+  if (!text) return;
+  text.style.height = 'auto';
+  text.style.height = Math.min(text.scrollHeight, 120) + 'px';
+}
+
+function setCommentStatus(text = '', variant = '') {
+  const status = $('#commentStatus');
+  if (!status) return;
+  status.textContent = text;
+  status.className = 'comment-status' + (variant ? ` ${variant}` : '');
+}
+
+export function renderActivityLog() {
+  const list = $('#activityList');
+  if (!list) return;
+  const events = state.events
+    .filter(e => e.type === 'drink_added' || e.type === 'drink_removed')
+    .slice()
+    .sort((a, b) => (Number(b.t) || 0) - (Number(a.t) || 0));
+  list.innerHTML = events.length ? events.map(e => `
+    <div class="activity-item ${e.type === 'drink_removed' ? 'removed' : 'added'}">
+      <div class="activity-icon" aria-hidden="true">${e.type === 'drink_removed' ? '−' : '+'}</div>
+      <div class="activity-body">
+        <div class="activity-text">${escapeHtml(activityText(e))}</div>
+        <div class="activity-time">${escapeHtml(fmtLogTime(e.t))}</div>
+      </div>
+    </div>
+  `).join('') : '<div class="activity-empty">No drink activity yet.</div>';
+}
+
+export function renderComments() {
+  const list = $('#commentsList');
+  if (!list) return;
+  const comments = state.comments.slice().sort((a, b) => (Number(a.t) || 0) - (Number(b.t) || 0));
+  list.innerHTML = comments.length ? comments.map(c => `
+    <div class="comment-item">
+      <div class="comment-body">
+        <div class="comment-meta">
+          <span class="comment-author">${escapeHtml(commentAuthor(c))}</span>
+          <span class="comment-time">${escapeHtml(fmtLogTime(c.t))}</span>
+        </div>
+        <div class="comment-text">${escapeHtml(c.text)}</div>
+      </div>
+      <div class="comment-actions">
+        <button class="comment-action" data-edit-comment="${c.id}" type="button">Edit</button>
+        <button class="x-btn comment-delete" data-remove-comment="${c.id}" title="Delete comment" aria-label="Delete comment">×</button>
+      </div>
+    </div>
+  `).join('') : '<div class="comment-empty">No comments yet.</div>';
+
+  list.querySelectorAll('[data-edit-comment]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.editComment);
+      const cur = state.comments.find(c => c.id === id);
+      if (!cur) return;
+      const next = prompt('Edit comment:', cur.text);
+      if (next == null) return;
+      const trimmed = next.trim();
+      if (!trimmed || trimmed === cur.text) return;
+      btn.disabled = true;
+      try {
+        await updateComment(id, trimmed);
+        renderComments();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
+  list.querySelectorAll('[data-remove-comment]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.removeComment);
+      if (!Number.isInteger(id)) return;
+      if (!confirm('Delete this comment?')) return;
+      btn.disabled = true;
+      try {
+        await removeComment(id);
+        renderComments();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+}
+
+export async function submitMainComment() {
+  const author = $('#commentAuthor');
+  const text = $('#commentText');
+  const btn = $('#btnPostComment');
+  if (!text) return;
+  const body = text.value.trim();
+  if (!body) return;
+  if (btn) btn.disabled = true;
+  setCommentStatus('Posting...');
+  try {
+    const name = author?.value.trim() || '';
+    try { localStorage.setItem(AUTHOR_KEY, name); } catch {}
+    await addComment(body, { authorName: name || null });
+    text.value = '';
+    updateCommentTextarea();
+    setCommentStatus('');
+    renderComments();
+  } catch (e) {
+    console.error('comment post failed', e);
+    setCommentStatus('Comment did not post. Try again.', 'err');
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
 // --- Rendering --------------------------------------------------------------
 export function render() {
   renderPeople();
   renderCompare();
+  renderActivityLog();
+  renderComments();
 }
 
 function renderPeople() {

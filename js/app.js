@@ -19,6 +19,7 @@ import {
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal,
 } from './ui.js?v=48';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=48';
 import { startScanner, barcodeScannerAvailable } from './scanner.js?v=48';
 import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=48';
 import { ML_PER_OZ } from './calc.js?v=48';
@@ -120,6 +121,13 @@ $('#btnReport').addEventListener('click', () => {
 
 // Toggle the "compare everyone" detail panel under the tally strip.
 $('#compareExpandBtn').addEventListener('click', toggleCompareDetail);
+
+hydrateCommentForm();
+$('#commentText').addEventListener('input', updateCommentTextarea);
+$('#commentForm').addEventListener('submit', e => {
+  e.preventDefault();
+  submitMainComment();
+});
 
 // --- Global modal close wiring -------------------------------------------
 // `data-close`         — closes every overlay (top-level modals)

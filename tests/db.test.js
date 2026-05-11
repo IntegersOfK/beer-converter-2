@@ -19,18 +19,50 @@ test('Session lifecycle', async (t) => {
   await t.test('add and list comments', () => {
     const sid = dbLayer.genSessionId();
     dbLayer.createSession({ id: sid, name: 'Comment Test' });
-    
+
     // addComment expects (sessionId, { authorName, text, ... })
-    dbLayer.addComment(sid, { 
-      authorName: 'Alice', 
-      text: 'Hello world' 
+    const comment = dbLayer.addComment(sid, {
+      authorName: 'Alice',
+      text: 'Hello world'
     });
-    
+
     const session = dbLayer.getSessionFull(sid);
-    
+
     assert.strictEqual(session.comments.length, 1);
     assert.strictEqual(session.comments[0].authorName, 'Alice');
     assert.strictEqual(session.comments[0].text, 'Hello world');
+
+    assert.strictEqual(dbLayer.removeComment(sid, comment.id), true);
+    assert.strictEqual(dbLayer.getSessionFull(sid).comments.length, 0);
+  });
+
+  await t.test('drink activity events capture add and remove', () => {
+    const sid = dbLayer.genSessionId();
+    const session = dbLayer.createSession({
+      id: sid,
+      name: 'Activity Test',
+      people: [{ name: 'Alice' }],
+    });
+
+    const drink = dbLayer.addDrink(sid, {
+      personId: session.people[0].id,
+      name: 'Pint',
+      volumeMl: 568,
+      abv: 5,
+      t: 123,
+    });
+
+    let full = dbLayer.getSessionFull(sid);
+    assert.strictEqual(full.events.length, 1);
+    assert.strictEqual(full.events[0].type, 'drink_added');
+    assert.strictEqual(full.events[0].data.personName, 'Alice');
+    assert.strictEqual(full.events[0].data.drinkName, 'Pint');
+
+    assert.strictEqual(dbLayer.removeDrink(sid, drink.id), true);
+    full = dbLayer.getSessionFull(sid);
+    assert.strictEqual(full.events.length, 2);
+    assert.deepStrictEqual(full.events.map(e => e.type), ['drink_added', 'drink_removed']);
+    assert.strictEqual(full.events[1].data.drinkName, 'Pint');
   });
 
   await t.test('create session with selected imported drink types', () => {

@@ -114,6 +114,18 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS session_drinks_session ON session_drinks(session_id, t);
   CREATE INDEX IF NOT EXISTS session_drinks_person  ON session_drinks(person_id);
 
+  CREATE TABLE IF NOT EXISTS session_events (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id  TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
+    type        TEXT NOT NULL,
+    person_id   INTEGER REFERENCES session_people(id) ON DELETE SET NULL,
+    drink_id    INTEGER,
+    data        TEXT,
+    t           INTEGER NOT NULL,
+    created_at  TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS session_events_session ON session_events(session_id, t, id);
+
   CREATE TABLE IF NOT EXISTS session_comments (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id   TEXT NOT NULL REFERENCES sessions(id) ON DELETE CASCADE,
@@ -434,6 +446,18 @@ const stmts = {
   `),
   deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
 
+  // ---- session_events ---------------------------------------------------
+  insertEvent: db.prepare(`
+    INSERT INTO session_events (session_id, type, person_id, drink_id, data, t, created_at)
+    VALUES (@sessionId, @type, @personId, @drinkId, @data, @t, @createdAt)
+  `),
+  listEvents: db.prepare(`
+    SELECT id, type, person_id AS personId, drink_id AS drinkId, data, t, created_at AS createdAt
+      FROM session_events
+     WHERE session_id = ?
+     ORDER BY t ASC, id ASC
+  `),
+
   // ---- session_comments -------------------------------------------------
   insertComment: db.prepare(`
     INSERT INTO session_comments (session_id, person_id, author_name, text, t, created_at)
@@ -659,6 +683,10 @@ function getSessionFull(id) {
   s.people    = stmts.listPeople.all(id);
   s.presets   = stmts.listPresets.all(id);
   s.drinks    = stmts.listDrinks.all(id);
+  s.events    = stmts.listEvents.all(id).map(e => ({
+    ...e,
+    data: e.data ? JSON.parse(e.data) : {},
+  }));
   s.comments  = stmts.listComments.all(id);
   s.reactions = stmts.listReactionsForSession.all(id);
   return s;
@@ -790,6 +818,29 @@ function removePreset(sessionId, presetKey) {
   return true;
 }
 
+function drinkEventData(person, drink) {
+  return {
+    personName: person?.name || '',
+    drinkName:  drink.name || '',
+    flavour:    drink.flavour || null,
+    volumeMl:   drink.volumeMl,
+    abv:        drink.abv,
+  };
+}
+
+function insertSessionEvent({ sessionId, type, personId = null, drinkId = null, data = {}, t = Date.now(), createdAt = nowIso() }) {
+  const info = stmts.insertEvent.run({
+    sessionId,
+    type,
+    personId,
+    drinkId,
+    data: JSON.stringify(data || {}),
+    t,
+    createdAt,
+  });
+  return info.lastInsertRowid;
+}
+
 const addDrinkTx = db.transaction((sessionId, drink) => {
   // Verify person belongs to this session.
   const person = stmts.getPerson.get(drink.personId);
@@ -797,8 +848,7 @@ const addDrinkTx = db.transaction((sessionId, drink) => {
     throw Object.assign(new Error('person not in session'), { status: 400 });
   }
   const now = nowIso();
-  const info = stmts.insertDrink.run({
-    sessionId,
+  const savedDrink = {
     personId:  drink.personId,
     presetKey: drink.presetKey || null,
     name:      String(drink.name || '').slice(0, 60) || `${Math.round(drink.volumeMl)} ml · ${drink.abv}%`,
@@ -806,6 +856,16 @@ const addDrinkTx = db.transaction((sessionId, drink) => {
     volumeMl:  +Number(drink.volumeMl).toFixed(2),
     abv:       +Number(drink.abv).toFixed(2),
     t:         drink.t == null ? Date.now() : Number(drink.t),
+    createdAt: now,
+  };
+  const info = stmts.insertDrink.run({ sessionId, ...savedDrink });
+  insertSessionEvent({
+    sessionId,
+    type: 'drink_added',
+    personId: drink.personId,
+    drinkId: info.lastInsertRowid,
+    data: drinkEventData(person, savedDrink),
+    t: savedDrink.t,
     createdAt: now,
   });
   // If linked to a preset, bump its lastUsedAt so the recency sort picks it up.
@@ -843,8 +903,19 @@ function updateDrink(sessionId, drinkId, fields) {
 function removeDrink(sessionId, drinkId) {
   const cur = stmts.getDrink.get(drinkId);
   if (!cur || cur.sessionId !== sessionId) return false;
+  const person = stmts.getPerson.get(cur.personId);
+  const now = nowIso();
+  insertSessionEvent({
+    sessionId,
+    type: 'drink_removed',
+    personId: cur.personId,
+    drinkId,
+    data: drinkEventData(person, cur),
+    t: Date.now(),
+    createdAt: now,
+  });
   stmts.deleteDrinkStmt.run(drinkId);
-  stmts.touchSession.run(nowIso(), sessionId);
+  stmts.touchSession.run(now, sessionId);
   return true;
 }
 
