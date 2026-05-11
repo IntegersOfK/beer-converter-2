@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=46';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=46';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=47';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=47';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -12,9 +12,9 @@ import {
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
   presetSignature,
-} from './state.js?v=46';
-import { submitProduct } from './submit.js?v=46';
-import { getFlavoursForName } from './products.js?v=46';
+} from './state.js?v=47';
+import { submitProduct } from './submit.js?v=47';
+import { getFlavoursForName } from './products.js?v=47';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -63,6 +63,7 @@ let editDrinkIdx = 0;
 let compareDetailOpen = false;
 let newSessionSource = null;
 let newSessionSelectedPresetKeys = new Set();
+let editingPresetId = null;
 
 // --- Rendering --------------------------------------------------------------
 export function render() {
@@ -646,12 +647,47 @@ export function submitCustomDrink() {
 
 // --- Presets modal ---------------------------------------------------------
 export function openPresetsModal() {
+  resetPresetEditor();
   renderPresetList();
+  $('#presetsModal').classList.add('open');
+}
+
+function resetPresetEditor() {
+  editingPresetId = null;
   $('#newPresetName').value = '';
   $('#newPresetVolume').value = '';
   $('#newPresetUnit').value = getUnitPref();
   $('#newPresetAbv').value = '';
-  $('#presetsModal').classList.add('open');
+  const ornament = $('#presetsModal .ornament');
+  if (ornament) ornament.textContent = 'Add new type';
+  $('#btnAddPreset').textContent = 'Save type';
+  const cancel = $('#btnCancelPresetEdit');
+  if (cancel) cancel.style.display = 'none';
+}
+
+function startPresetEdit(id) {
+  const preset = state.presets.find(p => p.id === id);
+  if (!preset) return;
+  editingPresetId = id;
+  const u = getUnitPref();
+  $('#newPresetName').value = preset.name || '';
+  $('#newPresetUnit').value = u;
+  $('#newPresetVolume').value = u === 'oz'
+    ? +(preset.volumeMl / ML_PER_OZ).toFixed(2)
+    : Math.round(preset.volumeMl);
+  $('#newPresetAbv').value = (+preset.abv).toFixed(1);
+  const ornament = $('#presetsModal .ornament');
+  if (ornament) ornament.textContent = 'Edit type';
+  $('#btnAddPreset').textContent = 'Save changes';
+  const cancel = $('#btnCancelPresetEdit');
+  if (cancel) cancel.style.display = '';
+  renderPresetList();
+  $('#newPresetName').focus();
+}
+
+export function cancelPresetEdit() {
+  resetPresetEditor();
+  renderPresetList();
 }
 
 function renderPresetList() {
@@ -659,18 +695,22 @@ function renderPresetList() {
   list.innerHTML = '';
   state.presets.forEach(preset => {
     const row = document.createElement('div');
-    row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '');
+    row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '') + (preset.id === editingPresetId ? ' editing' : '');
     row.innerHTML = `
       <div class="preset-row-main">
         <div class="info">
           <div class="name">${escapeHtml(preset.name)}</div>
           <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
         </div>
+        <button class="preset-edit-btn" title="Edit this drink type" data-edit-preset="${preset.id}" aria-label="Edit ${escapeHtml(preset.name)}">Edit</button>
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>
       </div>
     `;
     list.appendChild(row);
+  });
+  $$('[data-edit-preset]', list).forEach(btn => {
+    btn.addEventListener('click', e => { vibe(8); startPresetEdit(e.currentTarget.dataset.editPreset); });
   });
   $$('[data-star]', list).forEach(btn => {
     btn.addEventListener('click', e => { vibe(12); setBenchmark(e.currentTarget.dataset.star); renderPresetList(); render(); });
@@ -681,6 +721,7 @@ function renderPresetList() {
       const ok = await removePreset(id);
       if (!ok) alert('Keep at least one drink type.');
       else {
+        if (editingPresetId === id) resetPresetEditor();
         renderPresetList();
         render();
       }
@@ -697,10 +738,15 @@ export function submitNewPreset() {
   if (!name || !isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a name, valid volume, and ABV.'); return false;
   }
-  addPreset({ name, volumeMl, abv });
-  $('#newPresetName').value = '';
-  $('#newPresetVolume').value = '';
-  $('#newPresetAbv').value = '';
+  if (editingPresetId) {
+    updatePresetAndDrinks(editingPresetId, { name, volumeMl, abv });
+    resetPresetEditor();
+  } else {
+    addPreset({ name, volumeMl, abv });
+    $('#newPresetName').value = '';
+    $('#newPresetVolume').value = '';
+    $('#newPresetAbv').value = '';
+  }
   renderPresetList();
   render();
   return true;
