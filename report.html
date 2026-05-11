@@ -209,6 +209,24 @@
   .log-author { font-size: 12px; font-weight: 700; color: var(--amber); }
   .log-time { font-family: 'IBM Plex Mono', monospace; font-size: 10px; color: var(--ink-soft); }
   .log-text { font-size: 13px; color: var(--ink-dim); line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+  .comment-reactions {
+    display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px;
+  }
+  .comment-reaction {
+    display: inline-flex; align-items: center; gap: 4px; min-height: 28px;
+    border: 1px solid var(--line-soft); background: color-mix(in srgb, var(--bg-card) 78%, transparent);
+    color: var(--ink-dim); border-radius: 999px; cursor: pointer; padding: 3px 8px;
+    transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+  }
+  .comment-reaction:hover,
+  .comment-reaction.is-active {
+    border-color: var(--amber-deep); background: rgba(224, 163, 74, 0.12); transform: translateY(-1px);
+  }
+  .comment-reaction:disabled { cursor: wait; opacity: 0.7; transform: none; }
+  .comment-reaction-emoji { font-size: 15px; line-height: 1; }
+  .comment-reaction-count {
+    color: var(--ink-soft); font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 700;
+  }
   .comment-form {
     background: var(--bg-elev); border: 1px solid var(--line); border-radius: 10px;
     padding: 12px; margin-top: 10px;
@@ -288,6 +306,9 @@
 <script>
 const STD_DRINK_ML = 17.05;
 const COLORS = ['#f5be5e','#c56434','#6db672','#6aa8c8','#a87bc8','#c87ba0'];
+const AUTHOR_KEY = 'beerConverter.authorName';
+const DEVICE_KEY = 'beerConverter.deviceId';
+const COMMENT_REACTIONS = ['🍻', '🥃', '🧊', '🤮', '🍕'];
 
 function ethanolOf(d) { return d.v * d.a / 100; }
 function stdOf(e)      { return e / STD_DRINK_ML; }
@@ -296,6 +317,19 @@ function esc(s) {
   return String(s == null ? '' : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+function getDeviceId() {
+  try {
+    let id = localStorage.getItem(DEVICE_KEY);
+    if (!id) {
+      id = 'dev_' + Math.random().toString(36).slice(2) + Date.now().toString(36);
+      localStorage.setItem(DEVICE_KEY, id);
+    }
+    return id;
+  } catch { return 'anonymous'; }
+}
+function currentCommentAuthorName() {
+  return document.getElementById('commentAuthor')?.value.trim() || '';
 }
 
 // Two paths into the report:
@@ -350,6 +384,13 @@ function fromServer(s) {
       t: c.text,
       ts: c.t,
     })),
+    _reactions: (s.reactions || []).map(r => ({
+      commentId: r.commentId,
+      emoji: r.emoji,
+      personId: r.personId || null,
+      deviceId: r.deviceId || null,
+      authorName: r.authorName || personMap.get(r.personId) || null,
+    })),
   };
 }
 
@@ -376,6 +417,20 @@ async function postComment(reportId, authorName, text) {
     }),
   });
   if (!r.ok) throw new Error('comment failed: ' + r.status);
+  return r.json();
+}
+
+async function postReaction(reportId, commentId, emoji, authorName) {
+  const r = await fetch(API_BASE + '/api/sessions/reports/' + encodeURIComponent(reportId) + '/comments/' + encodeURIComponent(commentId) + '/react', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      emoji,
+      deviceId: getDeviceId(),
+      authorName: authorName || null,
+    }),
+  });
+  if (!r.ok) throw new Error('reaction failed: ' + r.status);
   return r.json();
 }
 
@@ -476,6 +531,36 @@ function buildDonut(people) {
         <div class="donut-legend">${legend}</div>
       </div>
     </div>`;
+}
+
+function reactionsForComment(data, commentId) {
+  const grouped = new Map(COMMENT_REACTIONS.map(emoji => [emoji, { emoji, count: 0, names: [] }]));
+  for (const reaction of (data._reactions || []).filter(r => r.commentId === commentId)) {
+    if (!grouped.has(reaction.emoji)) grouped.set(reaction.emoji, { emoji: reaction.emoji, count: 0, names: [] });
+    const group = grouped.get(reaction.emoji);
+    group.count += 1;
+    if (reaction.authorName && !group.names.includes(reaction.authorName)) group.names.push(reaction.authorName);
+  }
+  return Array.from(grouped.values()).filter(group => COMMENT_REACTIONS.includes(group.emoji) || group.count > 0);
+}
+
+function reactionTitle(group) {
+  return group.names.length ? `${group.names.join(', ')} reacted with ${group.emoji}` : '';
+}
+
+function renderCommentReactions(data, comment) {
+  const deviceId = getDeviceId();
+  return `
+    <div class="comment-reactions" aria-label="Comment reactions">
+      ${reactionsForComment(data, comment.i).map(group => {
+        const title = reactionTitle(group);
+        const active = (data._reactions || []).some(r => r.commentId === comment.i && r.emoji === group.emoji && r.deviceId === deviceId);
+        return `<button class="comment-reaction${active ? ' is-active' : ''}" data-react-comment="${comment.i}" data-reaction-emoji="${esc(group.emoji)}" type="button" aria-label="React with ${esc(group.emoji)}"${title ? ` title="${esc(title)}"` : ''}>
+          <span class="comment-reaction-emoji">${esc(group.emoji)}</span>${group.count ? `<span class="comment-reaction-count">${group.count}</span>` : ''}
+        </button>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 // Collapsible per-person breakdown + pairwise matrix (3+ people).
@@ -630,6 +715,7 @@ function render(data) {
             <span class="log-time">${new Date(c.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
           <div class="log-text">${esc(c.t)}</div>
+          ${data._reportId ? renderCommentReactions(data, c) : ''}
         </div>
       `).join('') : '<div class="log-item"><div class="log-text">No comments yet.</div></div>'}
       ${data._reportId ? `
@@ -674,12 +760,30 @@ function render(data) {
     }).catch(() => { prompt('Copy this link:', location.href); });
   });
 
+  document.querySelectorAll('[data-react-comment]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const commentId = Number(btn.dataset.reactComment);
+      const emoji = btn.dataset.reactionEmoji;
+      if (!data._reportId || !Number.isInteger(commentId) || !emoji) return;
+      btn.disabled = true;
+      try {
+        await postReaction(data._reportId, commentId, emoji, currentCommentAuthorName() || null);
+        currentData = null;
+        maybeRender(await fetchReport(data._reportId));
+      } catch (err) {
+        console.error('reaction failed', err);
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
+
   const form = document.getElementById('commentForm');
   if (form && data._reportId) {
     const author = document.getElementById('commentAuthor');
     const text = document.getElementById('commentText');
     const status = document.getElementById('commentStatus');
-    try { author.value = localStorage.getItem('beerConverter.authorName') || ''; } catch {}
+    try { author.value = localStorage.getItem(AUTHOR_KEY) || ''; } catch {}
 
     text.addEventListener('input', () => {
       text.style.height = 'auto';
@@ -696,7 +800,7 @@ function render(data) {
       status.textContent = 'Posting...';
       try {
         const name = author.value.trim();
-        try { localStorage.setItem('beerConverter.authorName', name); } catch {}
+        try { localStorage.setItem(AUTHOR_KEY, name); } catch {}
         await postComment(data._reportId, name, body);
         text.value = '';
         status.textContent = '';
