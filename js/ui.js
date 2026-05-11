@@ -870,7 +870,7 @@ function renderPresetList() {
           <div class="name">${escapeHtml(preset.name)}</div>
           <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
         </div>
-        <button class="preset-edit-btn" title="Edit this drink type" data-edit-preset="${preset.id}">Edit</button>
+        <button class="preset-edit-btn" title="Edit this drink type" data-edit-preset="${preset.id}" aria-label="Edit ${escapeHtml(preset.name)}">Edit</button>
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
         <button class="x-btn" title="Delete" data-del-preset="${preset.id}" aria-label="Delete">×</button>
       </div>
