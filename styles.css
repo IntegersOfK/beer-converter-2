@@ -1711,10 +1711,51 @@ input.session-name-input:focus {
 }
 
 
+/* ===== Edit dashboard ===== */
+.session-dashboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(320px, 420px);
+  align-items: start;
+  gap: 16px;
+  padding: 0 16px 16px;
+}
+
+.session-dashboard .people {
+  padding: 0;
+}
+
+.session-sidebar {
+  position: sticky;
+  top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+@media (max-width: 1040px) {
+  .session-dashboard { grid-template-columns: 1fr; }
+  .session-sidebar { position: static; }
+}
+
+@media (max-width: 520px) {
+  .session-dashboard { padding: 0 10px 14px; }
+}
+
+.session-sidebar .activity-list,
+.session-sidebar .comment-list {
+  max-height: min(34vh, 320px);
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.session-sidebar .comment-list:empty,
+.session-sidebar .activity-list:empty { max-height: none; }
+
 /* ===== Session log + comments ===== */
 .session-log,
 .comments-panel {
-  margin: 0 16px 24px;
+  margin: 0;
   padding: 16px;
   background: var(--bg-elev);
   border: 1px solid var(--line);
@@ -1722,7 +1763,6 @@ input.session-name-input:focus {
   box-shadow: var(--shadow);
 }
 
-.comments-panel { margin-bottom: 28px; }
 
 .panel-head {
   display: flex;
@@ -1876,7 +1916,7 @@ input.session-name-input:focus {
 
 .comment-fields {
   display: grid;
-  grid-template-columns: minmax(120px, 170px) 1fr auto;
+  grid-template-columns: 1fr;
   gap: 8px;
   align-items: end;
 }
@@ -1925,10 +1965,7 @@ input.session-name-input:focus {
 
 .comment-status.err { color: var(--danger); }
 
-@media (max-width: 680px) {
-  .comment-fields { grid-template-columns: 1fr; }
-  .comment-form .btn { width: 100%; }
-}
+.comment-form .btn { width: 100%; }
 
 .footnote {
   text-align: center;

@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=48">
+<link rel="stylesheet" href="styles.css?v=49">
 </head>
 <body>
 
@@ -97,35 +97,39 @@
   <div class="compare-detail" id="compareDetail" style="display:none;"></div>
 </section>
 
-<main class="people" id="peopleGrid"></main>
+<div class="session-dashboard">
+  <main class="people" id="peopleGrid"></main>
 
-<section class="session-log" id="sessionLog">
-  <div class="panel-head">
-    <div>
-      <h2>Session Log</h2>
-      <p>Drink additions and removals from this shared tally.</p>
-    </div>
-  </div>
-  <div class="activity-list" id="activityList"></div>
-</section>
+  <aside class="session-sidebar" aria-label="Session collaboration">
+    <section class="session-log" id="sessionLog">
+      <div class="panel-head">
+        <div>
+          <h2>Session Log</h2>
+          <p>Drink additions and removals from this shared tally.</p>
+        </div>
+      </div>
+      <div class="activity-list" id="activityList"></div>
+    </section>
 
-<section class="comments-panel" id="commentsPanel">
-  <div class="panel-head">
-    <div>
-      <h2>Comments</h2>
-      <p>Shared notes for everyone on this session and final report.</p>
-    </div>
-  </div>
-  <div class="comment-list" id="commentsList"></div>
-  <form class="comment-form" id="commentForm">
-    <div class="comment-fields">
-      <input id="commentAuthor" maxlength="40" placeholder="Your name (optional)" autocomplete="name">
-      <textarea id="commentText" maxlength="500" rows="1" placeholder="Add a comment"></textarea>
-      <button class="btn btn-primary" id="btnPostComment" type="submit">Post</button>
-    </div>
-    <div class="comment-status" id="commentStatus"></div>
-  </form>
-</section>
+    <section class="comments-panel" id="commentsPanel">
+      <div class="panel-head">
+        <div>
+          <h2>Comments</h2>
+          <p>Shared notes for everyone on this session and final report.</p>
+        </div>
+      </div>
+      <div class="comment-list" id="commentsList"></div>
+      <form class="comment-form" id="commentForm">
+        <div class="comment-fields">
+          <input id="commentAuthor" maxlength="40" placeholder="Your name (optional)" autocomplete="name">
+          <textarea id="commentText" maxlength="500" rows="1" placeholder="Add a comment"></textarea>
+          <button class="btn btn-primary" id="btnPostComment" type="submit">Post</button>
+        </div>
+        <div class="comment-status" id="commentStatus"></div>
+      </form>
+    </section>
+  </aside>
+</div>
 
 <div class="footnote">
   1 std drink = 17.05 ml ethanol ·
@@ -476,6 +480,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=48"></script>
+<script type="module" src="js/app.js?v=49"></script>
 </body>
 </html>
