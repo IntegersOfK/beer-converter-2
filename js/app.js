@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=46';
+import { $, $$, escapeHtml, vibe } from './util.js?v=47';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=46';
+} from './state.js?v=47';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,12 +18,12 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal,
-} from './ui.js?v=46';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=46';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=46';
-import { ML_PER_OZ } from './calc.js?v=46';
+} from './ui.js?v=47';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=47';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=47';
+import { ML_PER_OZ } from './calc.js?v=47';
 
-console.log('Beer Converter build v46 (remove session clear button)');
+console.log('Beer Converter build v47 (SQLite catalogue import)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
@@ -248,7 +248,7 @@ async function handleUpcFound(upc) {
   stopActiveScanner();
   setScannerStatus(`Found ${upc}. Looking up…`, 'working');
 
-  // BC Liquor catalogue (bundled CSV) + curated entries. The old per-device
+  // SQLite-backed BC Liquor catalogue. The old per-device
   // UPC→preset cache went away with Phase 2 — every scan goes through the
   // shared catalogue now.
   if (!productsLoaded()) {

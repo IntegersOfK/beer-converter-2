@@ -1024,6 +1024,8 @@ try { migrateLegacyCuratedIfNeeded(); }
 catch (e) { console.error('legacy curated migration failed:', e); process.exit(1); }
 try { db.migrateFromJsonIfNeeded(); }
 catch (e) { console.error('SQLite migration failed:', e); process.exit(1); }
+try { db.migrateBcLiquorSeedIfNeeded(); }
+catch (e) { console.error('BC Liquor catalogue seed import failed:', e); process.exit(1); }
 
 server.listen(PORT, () => {
   console.log(`Beer Converter API listening on :${PORT}`);

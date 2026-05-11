@@ -1,6 +1,6 @@
 # Beer Converter — Agent Instructions
 
-A standard-drink tracker for BC Liquor products. Users log drinks by volume + ABV or by scanning a barcode against the bundled BC Liquor CSV.
+A standard-drink tracker for BC Liquor products. Users log drinks by volume + ABV or by scanning a barcode against the SQLite-backed BC Liquor catalogue.
 
 Primary data (people, drinks, presets) lives in **server-side shared sessions** backed by SQLite. The app always operates on a session identified by `?s=<sid>`, allowing multiple people to contribute to a live tally via a shared link.
 
@@ -34,7 +34,7 @@ Plain ES modules, no framework, no bundler. State is hydrated from the server.
 | `js/api.js` | Thin `fetch` wrapper for the sessions API |
 | `js/ui.js` | All rendering + modal logic + comment log rendering |
 | `js/calc.js` | Pure ethanol math — `ethanolOf`, `personStats`, `STD_DRINK_ML = 17.05` |
-| `js/products.js` | Loads BC Liquor CSV + fetches `/catalog.json`; merges into UPC index |
+| `js/products.js` | Loads `/catalog.json` from the SQLite-backed catalogue into a UPC index |
 | `js/scanner.js` | `BarcodeDetector` API wrapper + volume string parser |
 | `js/submit.js` | Fire-and-forget POST to `/submit` for crowdsourcing the catalogue |
 | `js/util.js` | `$`, `$$`, `fmt(n, digits)`, `escapeHtml`, `vibe` |
@@ -72,9 +72,9 @@ Data directory defaults to `server/` — override with `DATA_DIR` env var.
 
 ## BC Liquor catalogue
 
-Source: `bc_liquor_store_product_price_list_december_2025.csv`
+Source seed: `server/bc_liquor_catalog_seed.json`, imported once into SQLite on server boot.
 
-To update: replace the CSV and update `CSV_PATH` in `js/products.js`. Curated entries from the database override CSV entries.
+To update: replace the seed with normalized catalogue rows, clear the matching row in `catalogue_imports` for the source file if re-importing into an existing database, then restart the server. Existing UPCs in the database remain authoritative during import. After a successful import, the server deletes the seed automatically when the seed lives in `DATA_DIR` (the default); set `DELETE_CATALOGUE_SEED=1` to force cleanup for custom layouts or `KEEP_CATALOGUE_SEED=1` to retain it.
 
 ## Coding conventions
 

@@ -35,13 +35,29 @@ db.exec(`
   );
 
   CREATE TABLE IF NOT EXISTS upcs (
-    upc         TEXT PRIMARY KEY,
-    product_id  TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
-    flavour     TEXT,
-    added_at    TEXT NOT NULL,
-    updated_at  TEXT
+    upc          TEXT PRIMARY KEY,
+    product_id   TEXT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    flavour      TEXT,
+    added_at     TEXT NOT NULL,
+    updated_at   TEXT,
+    scan_name    TEXT,
+    scan_abv     REAL,
+    scan_volume_ml REAL,
+    source_sku   TEXT,
+    category     TEXT,
+    subcategory  TEXT
   );
   CREATE INDEX IF NOT EXISTS upcs_product ON upcs(product_id);
+
+  CREATE TABLE IF NOT EXISTS catalogue_imports (
+    source          TEXT PRIMARY KEY,
+    imported_at     TEXT NOT NULL,
+    rows_seen       INTEGER NOT NULL,
+    products_added  INTEGER NOT NULL,
+    upcs_added      INTEGER NOT NULL,
+    upcs_preserved  INTEGER NOT NULL,
+    rows_skipped    INTEGER NOT NULL
+  );
 
   CREATE TABLE IF NOT EXISTS submissions (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,6 +180,21 @@ if (missingPublicIds.length) {
 }
 db.exec("CREATE UNIQUE INDEX IF NOT EXISTS sessions_public_id ON sessions(public_id);");
 
+const upcTableInfo = db.prepare("PRAGMA table_info(upcs)").all();
+for (const [name, definition] of [
+  ['scan_name', 'TEXT'],
+  ['scan_abv', 'REAL'],
+  ['scan_volume_ml', 'REAL'],
+  ['source_sku', 'TEXT'],
+  ['category', 'TEXT'],
+  ['subcategory', 'TEXT'],
+]) {
+  if (!upcTableInfo.some(c => c.name === name)) {
+    console.log(`Migration: adding ${name} to upcs`);
+    db.exec(`ALTER TABLE upcs ADD COLUMN ${name} ${definition};`);
+  }
+}
+
 // ---- prepared statements -------------------------------------------------
 
 const stmts = {
@@ -222,17 +253,43 @@ const stmts = {
   ),
   deleteUpc: db.prepare(`DELETE FROM upcs WHERE upc = ?`),
   countUpcsForProduct: db.prepare(`SELECT COUNT(*) AS n FROM upcs WHERE product_id = ?`),
+  insertImportedUpc: db.prepare(
+    `INSERT OR IGNORE INTO upcs
+      (upc, product_id, flavour, added_at, updated_at, scan_name, scan_abv, scan_volume_ml,
+       source_sku, category, subcategory)
+     VALUES
+      (@upc, @productId, @flavour, @addedAt, @updatedAt, @scanName, @scanAbv, @scanVolumeMl,
+       @sourceSku, @category, @subcategory)`
+  ),
 
   // joined catalogue (the public /catalog.json shape)
   joinedCatalogue: db.prepare(`
     SELECT u.upc,
            u.product_id AS productId,
-           p.name,
-           p.abv,
-           p.volume_ml AS volumeMl,
-           u.flavour
+           COALESCE(u.scan_name, p.name) AS name,
+           COALESCE(u.scan_abv, p.abv) AS abv,
+           COALESCE(u.scan_volume_ml, p.volume_ml) AS volumeMl,
+           u.flavour,
+           u.source_sku AS sourceSku,
+           u.category,
+           u.subcategory,
+           u.scan_name IS NULL AS curated
       FROM upcs u
       JOIN products p ON p.id = u.product_id
+  `),
+
+  getCatalogueImport: db.prepare(`
+    SELECT source, imported_at AS importedAt, rows_seen AS rowsSeen,
+           products_added AS productsAdded, upcs_added AS upcsAdded,
+           upcs_preserved AS upcsPreserved, rows_skipped AS rowsSkipped
+      FROM catalogue_imports
+     WHERE source = ?
+  `),
+  insertCatalogueImport: db.prepare(`
+    INSERT INTO catalogue_imports
+      (source, imported_at, rows_seen, products_added, upcs_added, upcs_preserved, rows_skipped)
+    VALUES
+      (@source, @importedAt, @rowsSeen, @productsAdded, @upcsAdded, @upcsPreserved, @rowsSkipped)
   `),
 
   // submissions
@@ -923,6 +980,168 @@ function readJsonSafe(file, fallback) {
   }
 }
 
+function normaliseUpc(s) {
+  return typeof s === 'string' || typeof s === 'number' ? String(s).replace(/\s+/g, '') : '';
+}
+function isValidUpc(s) { return /^\d{6,20}$/.test(s); }
+
+function normaliseAbv(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n) || n < 0 || n > 100) return null;
+  return +n.toFixed(2);
+}
+
+function normaliseVolume(v) {
+  if (v == null || v === '') return null;
+  const n = Number(v);
+  if (!Number.isFinite(n) || n <= 0 || n >= 100000) return null;
+  return +n.toFixed(2);
+}
+
+function makeProductId(name) {
+  const slug = String(name || '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24) || 'p';
+  const hex = Math.floor(Math.random() * 0x10000).toString(16).padStart(4, '0');
+  return `p_${slug}_${hex}`;
+}
+
+function tidyCatalogueName(s) {
+  const cleaned = String(s || '').trim().replace(/\s+/g, ' ');
+  if (!cleaned) return '';
+  return cleaned.toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase());
+}
+
+function normaliseCatalogueRow(raw) {
+  if (!raw || typeof raw !== 'object') return null;
+  const upc = normaliseUpc(raw.upc || raw.PRODUCT_BASE_UPC_NO || '');
+  if (!isValidUpc(upc)) return null;
+  const name = tidyCatalogueName(raw.name || raw.PRODUCT_LONG_NAME || '');
+  if (!name || name.length > 80) return null;
+  const litres = raw.litres == null ? raw.PRODUCT_LITRES_PER_CONTAINER : raw.litres;
+  const volumeRaw = raw.volumeMl == null ? Number(litres) * 1000 : Number(raw.volumeMl);
+  const volumeMl = normaliseVolume(volumeRaw);
+  if (volumeMl == null) return null;
+  const abv = normaliseAbv(raw.abv == null ? raw.PRODUCT_ALCOHOL_PERCENT : raw.abv);
+  if (abv == null) return null;
+  const trimOrNull = (v, max) => {
+    if (typeof v !== 'string' && typeof v !== 'number') return null;
+    const t = String(v).trim();
+    return t ? t.slice(0, max) : null;
+  };
+  return {
+    upc,
+    name,
+    volumeMl,
+    abv,
+    sourceSku: trimOrNull(raw.sourceSku || raw.PRODUCT_SKU_NO, 40),
+    category: trimOrNull(raw.category || raw.ITEM_CATEGORY_NAME, 60),
+    subcategory: trimOrNull(raw.subcategory || raw.ITEM_SUBCATEGORY_NAME, 80),
+  };
+}
+
+const importBcLiquorRowsTx = db.transaction((rows, source) => {
+  const stats = {
+    source,
+    importedAt: nowIso(),
+    rowsSeen: Array.isArray(rows) ? rows.length : 0,
+    productsAdded: 0,
+    upcsAdded: 0,
+    upcsPreserved: 0,
+    rowsSkipped: 0,
+  };
+
+  for (const raw of rows || []) {
+    const row = normaliseCatalogueRow(raw);
+    if (!row) { stats.rowsSkipped++; continue; }
+    if (stmts.getUpc.get(row.upc)) { stats.upcsPreserved++; continue; }
+
+    let prod = stmts.getProductByName.get(row.name);
+    if (!prod) {
+      prod = {
+        id: makeProductId(row.name),
+        name: row.name,
+        abv: row.abv,
+        volumeMl: row.volumeMl,
+        createdAt: stats.importedAt,
+        updatedAt: stats.importedAt,
+      };
+      stmts.insertProduct.run(prod);
+      stats.productsAdded++;
+    }
+
+    const info = stmts.insertImportedUpc.run({
+      upc: row.upc,
+      productId: prod.id,
+      flavour: null,
+      addedAt: stats.importedAt,
+      updatedAt: null,
+      scanName: row.name,
+      scanAbv: row.abv,
+      scanVolumeMl: row.volumeMl,
+      sourceSku: row.sourceSku,
+      category: row.category,
+      subcategory: row.subcategory,
+    });
+    if (info.changes > 0) stats.upcsAdded++;
+    else stats.upcsPreserved++;
+  }
+
+  stmts.insertCatalogueImport.run(stats);
+  return stats;
+});
+
+function importBcLiquorRows(rows, source = 'bc-liquor-catalogue') {
+  if (stmts.getCatalogueImport.get(source)) return null;
+  return importBcLiquorRowsTx(rows, source);
+}
+
+function shouldDeleteCatalogueSeed(seedPath) {
+  if (process.env.KEEP_CATALOGUE_SEED === '1') return false;
+  if (process.env.DELETE_CATALOGUE_SEED === '1') return true;
+  return path.resolve(path.dirname(seedPath)) === path.resolve(DATA_DIR);
+}
+
+function deleteCatalogueSeed(seedPath) {
+  if (!shouldDeleteCatalogueSeed(seedPath) || !fs.existsSync(seedPath)) return false;
+  try {
+    fs.unlinkSync(seedPath);
+    console.log(`catalogue seed: deleted ${seedPath}.`);
+    return true;
+  } catch (e) {
+    console.warn(`catalogue seed: delete ${seedPath} failed:`, e.message);
+    return false;
+  }
+}
+
+function migrateBcLiquorSeedIfNeeded(seedPath = path.join(__dirname, 'bc_liquor_catalog_seed.json')) {
+  const source = path.basename(seedPath);
+  if (stmts.getCatalogueImport.get(source)) {
+    deleteCatalogueSeed(seedPath);
+    return null;
+  }
+  if (!fs.existsSync(seedPath)) {
+    console.log(`catalogue seed: ${seedPath} not found; skipping.`);
+    return null;
+  }
+  const rows = readJsonSafe(seedPath, []);
+  if (!Array.isArray(rows) || !rows.length) {
+    console.log(`catalogue seed: ${seedPath} has no importable rows; skipping.`);
+    return null;
+  }
+  const stats = importBcLiquorRows(rows, source);
+  if (stats) {
+    console.log(
+      `catalogue seed: imported ${stats.upcsAdded} UPCs, added ${stats.productsAdded} products, ` +
+      `preserved ${stats.upcsPreserved} existing UPCs, skipped ${stats.rowsSkipped} rows.`
+    );
+    deleteCatalogueSeed(seedPath);
+  }
+  return stats;
+}
+
+
 function readJsonl(file) {
   if (!fs.existsSync(file)) return [];
   const text = fs.readFileSync(file, 'utf8');
@@ -1020,7 +1239,7 @@ module.exports = {
   upsertUpc, deleteUpc,
 
   // catalogue
-  joinedCatalogue,
+  joinedCatalogue, importBcLiquorRows, migrateBcLiquorSeedIfNeeded,
 
   // legacy adapter
   upsertCurated,
