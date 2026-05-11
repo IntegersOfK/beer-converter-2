@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=45';
+import { $, $$, escapeHtml, vibe } from './util.js?v=46';
 import {
-  state, clearAllDrinks, getBenchmark, getUnitPref, setUnitPref,
+  state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=45';
+} from './state.js?v=46';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,12 +18,12 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal,
-} from './ui.js?v=45';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=45';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=45';
-import { ML_PER_OZ } from './calc.js?v=45';
+} from './ui.js?v=46';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=46';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=46';
+import { ML_PER_OZ } from './calc.js?v=46';
 
-console.log('Beer Converter build v45 (session entry gates)');
+console.log('Beer Converter build v46 (remove session clear button)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
@@ -120,14 +120,6 @@ $('#btnReport').addEventListener('click', () => {
 
 // Toggle the "compare everyone" detail panel under the tally strip.
 $('#compareExpandBtn').addEventListener('click', toggleCompareDetail);
-
-$('#btnReset').addEventListener('click', () => {
-  const any = state.people.some(p => p.drinks.length > 0);
-  if (!any) return;
-  if (!confirm('Clear all logged drinks for everyone?')) return;
-  clearAllDrinks();
-  render();
-});
 
 // --- Global modal close wiring -------------------------------------------
 // `data-close`         — closes every overlay (top-level modals)
