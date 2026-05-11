@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=48';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=48';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=49';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=49';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -13,9 +13,9 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment,
   presetSignature,
-} from './state.js?v=48';
-import { submitProduct } from './submit.js?v=48';
-import { getFlavoursForName } from './products.js?v=48';
+} from './state.js?v=49';
+import { submitProduct } from './submit.js?v=49';
+import { getFlavoursForName } from './products.js?v=49';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
