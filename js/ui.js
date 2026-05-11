@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=47';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=47';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=48';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=48';
 import {
   state, getBenchmark, getUnitPref,
   addPreset, removePreset, setBenchmark,
@@ -12,9 +12,9 @@ import {
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
   presetSignature,
-} from './state.js?v=47';
-import { submitProduct } from './submit.js?v=47';
-import { getFlavoursForName } from './products.js?v=47';
+} from './state.js?v=48';
+import { submitProduct } from './submit.js?v=48';
+import { getFlavoursForName } from './products.js?v=48';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -56,6 +56,8 @@ export function toggleCompareDetail() {
 
 // Which person the add-drink modal is currently targeting.
 let addModalPersonIdx = 0;
+let addModalMode = 'drink';
+let presetEditId = null;
 // Which drink the edit modal is targeting.
 let editPersonIdx = 0;
 let editDrinkIdx = 0;
@@ -63,7 +65,6 @@ let editDrinkIdx = 0;
 let compareDetailOpen = false;
 let newSessionSource = null;
 let newSessionSelectedPresetKeys = new Set();
-let editingPresetId = null;
 
 // --- Rendering --------------------------------------------------------------
 export function render() {
@@ -466,9 +467,13 @@ export function logDrink(personIdx, drink, { upc } = {}) {
 
 // --- Add-drink modal -------------------------------------------------------
 export function openAddModal(personIdx) {
+  addModalMode = 'drink';
+  presetEditId = null;
   addModalPersonIdx = personIdx;
   $('#addModalTitle').textContent = `Add drink · ${state.people[personIdx].name}`;
+  $('#btnAddCustom').textContent = 'Add drink';
   const tray = $('#addPresetTray');
+  tray.style.display = '';
   tray.innerHTML = '';
   presetsByRecency().forEach(preset => {
     const chip = document.createElement('button');
@@ -482,7 +487,33 @@ export function openAddModal(personIdx) {
     tray.appendChild(chip);
   });
   resetCustomForm();
+  setSaveAsPresetVisible(true);
   $('#addModal').classList.add('open');
+}
+
+function setSaveAsPresetVisible(visible) {
+  const row = $('#saveAsPreset')?.closest('.toggle-row');
+  if (row) row.style.display = visible ? '' : 'none';
+  const hint = $('#saveAsPresetHint');
+  if (hint && !visible) hint.style.display = 'none';
+}
+
+function openPresetEditFlow(id) {
+  const preset = state.presets.find(p => p.id === id);
+  if (!preset) return;
+  addModalMode = 'preset-edit';
+  presetEditId = id;
+  closeModal();
+  $('#addModalTitle').textContent = `Edit drink type · ${preset.name}`;
+  $('#addPresetTray').innerHTML = '';
+  $('#addPresetTray').style.display = 'none';
+  resetCustomForm();
+  prefillCustomForm(preset);
+  $('#customUpc').value = '';
+  setSaveAsPresetVisible(false);
+  $('#btnAddCustom').textContent = 'Save type';
+  $('#addModal').classList.add('open');
+  $('#customName').focus();
 }
 
 export function getAddModalPersonIdx() { return addModalPersonIdx; }
@@ -619,6 +650,27 @@ export function submitCustomDrink() {
     alert('Enter a valid volume and ABV (0–100%).'); return false;
   }
 
+  if (addModalMode === 'preset-edit') {
+    if (!name) { alert('Enter a name so this drink type can be saved.'); return false; }
+    updatePresetAndDrinks(presetEditId, { name, volumeMl, abv });
+    if (upc) {
+      submitProduct({
+        upc,
+        name,
+        abv,
+        volumeMl,
+        flavour: flavour || undefined,
+        from: 'drink-type-menu',
+        people: state.people.map(p => p.name),
+      });
+    }
+    addModalMode = 'drink';
+    presetEditId = null;
+    closeModal();
+    render();
+    return true;
+  }
+
   // If the user has a barcode in the form they almost always want it remembered.
   // Hard-blocking the submit when "save as type" is unchecked but a UPC is
   // present has burned users (they think the drink saved but the UPC didn't).
@@ -647,47 +699,12 @@ export function submitCustomDrink() {
 
 // --- Presets modal ---------------------------------------------------------
 export function openPresetsModal() {
-  resetPresetEditor();
   renderPresetList();
-  $('#presetsModal').classList.add('open');
-}
-
-function resetPresetEditor() {
-  editingPresetId = null;
   $('#newPresetName').value = '';
   $('#newPresetVolume').value = '';
   $('#newPresetUnit').value = getUnitPref();
   $('#newPresetAbv').value = '';
-  const ornament = $('#presetsModal .ornament');
-  if (ornament) ornament.textContent = 'Add new type';
-  $('#btnAddPreset').textContent = 'Save type';
-  const cancel = $('#btnCancelPresetEdit');
-  if (cancel) cancel.style.display = 'none';
-}
-
-function startPresetEdit(id) {
-  const preset = state.presets.find(p => p.id === id);
-  if (!preset) return;
-  editingPresetId = id;
-  const u = getUnitPref();
-  $('#newPresetName').value = preset.name || '';
-  $('#newPresetUnit').value = u;
-  $('#newPresetVolume').value = u === 'oz'
-    ? +(preset.volumeMl / ML_PER_OZ).toFixed(2)
-    : Math.round(preset.volumeMl);
-  $('#newPresetAbv').value = (+preset.abv).toFixed(1);
-  const ornament = $('#presetsModal .ornament');
-  if (ornament) ornament.textContent = 'Edit type';
-  $('#btnAddPreset').textContent = 'Save changes';
-  const cancel = $('#btnCancelPresetEdit');
-  if (cancel) cancel.style.display = '';
-  renderPresetList();
-  $('#newPresetName').focus();
-}
-
-export function cancelPresetEdit() {
-  resetPresetEditor();
-  renderPresetList();
+  $('#presetsModal').classList.add('open');
 }
 
 function renderPresetList() {
@@ -695,7 +712,7 @@ function renderPresetList() {
   list.innerHTML = '';
   state.presets.forEach(preset => {
     const row = document.createElement('div');
-    row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '') + (preset.id === editingPresetId ? ' editing' : '');
+    row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '');
     row.innerHTML = `
       <div class="preset-row-main">
         <div class="info">
@@ -710,7 +727,7 @@ function renderPresetList() {
     list.appendChild(row);
   });
   $$('[data-edit-preset]', list).forEach(btn => {
-    btn.addEventListener('click', e => { vibe(8); startPresetEdit(e.currentTarget.dataset.editPreset); });
+    btn.addEventListener('click', e => { vibe(8); openPresetEditFlow(e.currentTarget.dataset.editPreset); });
   });
   $$('[data-star]', list).forEach(btn => {
     btn.addEventListener('click', e => { vibe(12); setBenchmark(e.currentTarget.dataset.star); renderPresetList(); render(); });
@@ -721,7 +738,6 @@ function renderPresetList() {
       const ok = await removePreset(id);
       if (!ok) alert('Keep at least one drink type.');
       else {
-        if (editingPresetId === id) resetPresetEditor();
         renderPresetList();
         render();
       }
@@ -738,15 +754,10 @@ export function submitNewPreset() {
   if (!name || !isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a name, valid volume, and ABV.'); return false;
   }
-  if (editingPresetId) {
-    updatePresetAndDrinks(editingPresetId, { name, volumeMl, abv });
-    resetPresetEditor();
-  } else {
-    addPreset({ name, volumeMl, abv });
-    $('#newPresetName').value = '';
-    $('#newPresetVolume').value = '';
-    $('#newPresetAbv').value = '';
-  }
+  addPreset({ name, volumeMl, abv });
+  $('#newPresetName').value = '';
+  $('#newPresetVolume').value = '';
+  $('#newPresetAbv').value = '';
   renderPresetList();
   render();
   return true;

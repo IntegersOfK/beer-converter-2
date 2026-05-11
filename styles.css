@@ -1337,11 +1337,6 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   border-color: var(--amber-deep);
 }
 
-.preset-list-item.editing {
-  border-color: var(--amber);
-  box-shadow: 0 0 0 1px rgba(224, 163, 74, 0.18);
-}
-
 .preset-edit-btn {
   min-width: 44px;
   height: 32px;
@@ -1358,8 +1353,7 @@ input[type="number"] { -moz-appearance: textfield; appearance: textfield; }
   flex-shrink: 0;
 }
 
-.preset-edit-btn:hover,
-.preset-list-item.editing .preset-edit-btn {
+.preset-edit-btn:hover {
   color: var(--amber);
   border-color: var(--amber-deep);
   background: rgba(224, 163, 74, 0.08);
