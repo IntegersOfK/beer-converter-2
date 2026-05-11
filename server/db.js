@@ -142,6 +142,7 @@ db.exec(`
     comment_id  INTEGER NOT NULL REFERENCES session_comments(id) ON DELETE CASCADE,
     person_id   INTEGER REFERENCES session_people(id) ON DELETE CASCADE,
     device_id   TEXT, -- For anonymous reactions
+    author_name TEXT,
     emoji       TEXT NOT NULL,
     created_at  TEXT NOT NULL,
     UNIQUE(comment_id, person_id, device_id, emoji)
@@ -154,6 +155,12 @@ const tableInfo = db.prepare("PRAGMA table_info(session_comments)").all();
 if (!tableInfo.some(c => c.name === 'author_name')) {
   console.log('Migration: adding author_name to session_comments');
   db.exec("ALTER TABLE session_comments ADD COLUMN author_name TEXT;");
+}
+
+const reactionTableInfo = db.prepare("PRAGMA table_info(session_comment_reactions)").all();
+if (!reactionTableInfo.some(c => c.name === 'author_name')) {
+  console.log('Migration: adding author_name to session_comment_reactions');
+  db.exec("ALTER TABLE session_comment_reactions ADD COLUMN author_name TEXT;");
 }
 
 const sessionTableInfo = db.prepare("PRAGMA table_info(sessions)").all();
@@ -481,8 +488,8 @@ const stmts = {
 
   // ---- session_comment_reactions ----------------------------------------
   insertReaction: db.prepare(`
-    INSERT INTO session_comment_reactions (comment_id, person_id, device_id, emoji, created_at)
-    VALUES (@commentId, @personId, @deviceId, @emoji, @createdAt)
+    INSERT INTO session_comment_reactions (comment_id, person_id, device_id, author_name, emoji, created_at)
+    VALUES (@commentId, @personId, @deviceId, @authorName, @emoji, @createdAt)
   `),
   deleteReaction: db.prepare(`
     DELETE FROM session_comment_reactions 
@@ -492,7 +499,7 @@ const stmts = {
        AND (device_id = @deviceId OR (@deviceId IS NULL AND device_id IS NULL))
   `),
   listReactionsForSession: db.prepare(`
-    SELECT r.comment_id AS commentId, r.emoji, r.person_id AS personId, r.device_id AS deviceId
+    SELECT r.comment_id AS commentId, r.emoji, r.person_id AS personId, r.device_id AS deviceId, r.author_name AS authorName
       FROM session_comment_reactions r
       JOIN session_comments c ON c.id = r.comment_id
      WHERE c.session_id = ?
@@ -961,11 +968,11 @@ function removeComment(sessionId, commentId) {
   return true;
 }
 
-function toggleReaction(sessionId, commentId, { personId, deviceId, emoji }) {
+function toggleReaction(sessionId, commentId, { personId, deviceId, authorName, emoji }) {
   const comment = stmts.getComment.get(commentId);
   if (!comment || comment.sessionId !== sessionId) return false;
 
-  const params = { commentId, personId: personId || null, deviceId: deviceId || null, emoji };
+  const params = { commentId, personId: personId || null, deviceId: deviceId || null, authorName: authorName || null, emoji };
   
   // Try to delete first. If 0 changes, then insert.
   const delInfo = stmts.deleteReaction.run(params);
