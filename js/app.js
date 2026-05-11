@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=49';
+import { $, $$, escapeHtml, vibe } from './util.js?v=48';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=49';
+} from './state.js?v=48';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,12 +18,12 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal, hydrateCommentForm, submitMainComment, updateCommentTextarea,
-} from './ui.js?v=49';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=49';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=49';
-import { ML_PER_OZ } from './calc.js?v=49';
+} from './ui.js?v=48';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=48';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=48';
+import { ML_PER_OZ } from './calc.js?v=48';
 
-console.log('Beer Converter build v49 (activity log, comments pane, editable drink types)');
+console.log('Beer Converter build v48 (edit drink types from menu)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
