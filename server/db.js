@@ -1005,6 +1005,67 @@ function readJsonl(file) {
   return out;
 }
 
+
+function ensureBackupDir() {
+  const dir = process.env.BACKUP_DIR || path.join(DATA_DIR, 'backups');
+  fs.mkdirSync(dir, { recursive: true });
+  return dir;
+}
+
+function backupLabel(s) {
+  if (typeof s !== 'string') return '';
+  return s.trim().toLowerCase()
+    .replace(/[^a-z0-9._-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 40);
+}
+
+function backupName(label = '') {
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+  const suffix = backupLabel(label);
+  return `data-${stamp}${suffix ? '-' + suffix : ''}.db`;
+}
+
+async function createBackup({ label = '' } = {}) {
+  const dir = ensureBackupDir();
+  const filename = backupName(label);
+  const file = path.join(dir, filename);
+  await db.backup(file);
+  const st = fs.statSync(file);
+  return {
+    filename,
+    size: st.size,
+    createdAt: st.birthtime.toISOString(),
+    updatedAt: st.mtime.toISOString(),
+  };
+}
+
+function listBackups() {
+  const dir = ensureBackupDir();
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter(d => d.isFile() && /^data-.*\.db$/.test(d.name))
+    .map(d => {
+      const file = path.join(dir, d.name);
+      const st = fs.statSync(file);
+      return {
+        filename: d.name,
+        size: st.size,
+        createdAt: st.birthtime.toISOString(),
+        updatedAt: st.mtime.toISOString(),
+      };
+    })
+    .sort((a, b) => b.filename.localeCompare(a.filename));
+}
+
+function backupPath(filename) {
+  if (typeof filename !== 'string' || !/^data-[A-Za-z0-9._-]+\.db$/.test(filename)) return null;
+  const dir = ensureBackupDir();
+  const file = path.join(dir, filename);
+  const rel = path.relative(dir, file);
+  if (rel.startsWith('..') || path.isAbsolute(rel)) return null;
+  return file;
+}
+
 function migrateFromJsonIfNeeded() {
   if (stmts.productsCount.get().n > 0) return;   // already populated, nothing to do
 
@@ -1111,6 +1172,9 @@ module.exports = {
   upsertPreset, updatePresetCascade, touchPreset, removePreset,
   addDrink, updateDrink, removeDrink,
   addComment, updateComment, removeComment, toggleReaction,
+
+  // backups
+  createBackup, listBackups, backupPath,
 
   // bootstrap
   migrateFromJsonIfNeeded,

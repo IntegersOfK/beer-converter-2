@@ -37,6 +37,9 @@
 //        POST ${ADMIN_PATH}/api/curated       — LEGACY adapter (writes new model)
 //        DEL  ${ADMIN_PATH}/api/curated/:upc  — LEGACY adapter
 //        POST ${ADMIN_PATH}/api/reject        — mark a UPC as rejected
+//        GET  ${ADMIN_PATH}/api/backups      — list database backup versions
+//        POST ${ADMIN_PATH}/api/backups      — create a database backup version
+//        GET  ${ADMIN_PATH}/api/backups/:f   — download a database backup
 //        POST ${ADMIN_PATH}/api/deploy        — git pull, data files preserved
 //
 // Run:
@@ -789,6 +792,51 @@ const server = http.createServer(async (req, res) => {
         res.writeHead(500, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'queue build failed' }));
       }
+      return;
+    }
+
+    if (req.method === 'GET' && apiPath === 'backups') {
+      try {
+        res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ backups: db.listBackups() }));
+      } catch (e) {
+        console.error('backup list failed', e);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'backup list failed' }));
+      }
+      return;
+    }
+
+    if (req.method === 'POST' && apiPath === 'backups') {
+      let body;
+      try { body = await readBody(req); }
+      catch (e) { res.writeHead(e.status || 400); res.end(e.message || 'bad request'); return; }
+      let parsed = {};
+      if (body) {
+        try { parsed = JSON.parse(body); } catch { res.writeHead(400); res.end('invalid JSON'); return; }
+      }
+      try {
+        const backup = await db.createBackup({ label: parsed.label });
+        res.writeHead(201, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+        res.end(JSON.stringify({ ok: true, backup, backups: db.listBackups() }));
+      } catch (e) {
+        console.error('backup create failed', e);
+        res.writeHead(500, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ error: 'backup create failed' }));
+      }
+      return;
+    }
+
+    if (req.method === 'GET' && apiPath.startsWith('backups/')) {
+      const filename = decodeURIComponent(apiPath.slice('backups/'.length));
+      const file = db.backupPath(filename);
+      if (!file || !fs.existsSync(file)) { res.writeHead(404); res.end('backup not found'); return; }
+      res.writeHead(200, {
+        'Content-Type': 'application/vnd.sqlite3',
+        'Content-Disposition': `attachment; filename="${path.basename(file)}"`,
+        'Cache-Control': 'no-store',
+      });
+      fs.createReadStream(file).pipe(res);
       return;
     }
 

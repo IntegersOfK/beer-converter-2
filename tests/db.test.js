@@ -1,5 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
 
 // Force in-memory DB for tests
 process.env.DB_PATH = ':memory:';
@@ -63,6 +66,22 @@ test('Session lifecycle', async (t) => {
     assert.strictEqual(full.events.length, 2);
     assert.deepStrictEqual(full.events.map(e => e.type), ['drink_added', 'drink_removed']);
     assert.strictEqual(full.events[1].data.drinkName, 'Pint');
+  });
+
+
+  await t.test('create and list database backups', async () => {
+    const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beer-converter-backups-'));
+    process.env.BACKUP_DIR = backupDir;
+
+    const backup = await dbLayer.createBackup({ label: 'Before Pull!' });
+    const backups = dbLayer.listBackups();
+
+    assert.match(backup.filename, /^data-.*-before-pull\.db$/);
+    assert.ok(backup.size > 0);
+    assert.strictEqual(backups.length, 1);
+    assert.strictEqual(backups[0].filename, backup.filename);
+    assert.strictEqual(dbLayer.backupPath(backup.filename), path.join(backupDir, backup.filename));
+    assert.strictEqual(dbLayer.backupPath('../data.db'), null);
   });
 
   await t.test('create session with selected imported drink types', () => {
