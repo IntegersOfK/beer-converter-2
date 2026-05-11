@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=46';
+import { api, ApiError } from './api.js?v=48';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -107,6 +107,7 @@ export const state = {
   benchmarkPresetId: null,
   presets: [],
   people: [],
+  events: [],
   comments: [],
   reactions: [],
 };
@@ -152,6 +153,14 @@ function hydrate(serverPayload) {
     name:   p.name,
     drinks: drinksByPerson.get(p.id) || [],
   }));
+  state.events = (s.events || []).map(e => ({
+    id:        e.id,
+    type:      e.type,
+    personId:  e.personId || null,
+    drinkId:   e.drinkId || null,
+    data:      e.data || {},
+    t:         e.t,
+  }));
   state.comments = (s.comments || []).map(c => ({
     id:         c.id,
     personId:   c.personId || null,
@@ -171,6 +180,24 @@ function hydrate(serverPayload) {
     publicId: state.publicId,
     peopleNames: state.people.map(p => p.name),
     drinkCount:  state.people.reduce((n, p) => n + p.drinks.length, 0),
+  });
+}
+
+
+function optimisticDrinkEvent(type, person, drink) {
+  state.events.push({
+    id: -Date.now() - Math.floor(Math.random() * 1000),
+    type,
+    personId: person?.id || null,
+    drinkId: drink?.id || null,
+    data: {
+      personName: person?.name || '',
+      drinkName: drink?.name || '',
+      flavour: drink?.flavour || null,
+      volumeMl: drink?.volumeMl,
+      abv: drink?.abv,
+    },
+    t: Date.now(),
   });
 }
 
@@ -493,6 +520,7 @@ export async function addDrink(personIdx, drink) {
   };
   if (flavour) optimistic.flavour = flavour;
   person.drinks.push(optimistic);
+  optimisticDrinkEvent('drink_added', person, optimistic);
   if (optimistic.presetId) {
     const p = state.presets.find(x => x.id === optimistic.presetId);
     if (p) p.lastUsedAt = Date.now();
@@ -515,6 +543,7 @@ export async function addDrink(personIdx, drink) {
   } catch (e) {
     console.error('addDrink failed', e); alert('Add drink failed');
     person.drinks = person.drinks.filter(d => d !== optimistic);
+    state.events = state.events.filter(e => !(e.drinkId === optimistic.id && e.type === 'drink_added'));
   } finally { inFlight--; }
 }
 
@@ -524,11 +553,13 @@ export async function removeDrink(personIdx, drinkIdx) {
   if (!person) return;
   const removed = person.drinks.splice(drinkIdx, 1)[0];
   if (!removed) return;
+  optimisticDrinkEvent('drink_removed', person, removed);
   inFlight++;
   try {
     await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/drinks/${removed.id}`);
   } catch (e) {
     console.error('removeDrink failed', e); alert('Remove drink failed');
+    state.events = state.events.filter(ev => !(ev.drinkId === removed.id && ev.type === 'drink_removed'));
     person.drinks.splice(drinkIdx, 0, removed);
   } finally { inFlight--; }
 }
