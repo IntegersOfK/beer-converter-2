@@ -194,6 +194,27 @@
   .deploy-out.ok    { border-color: #3b6d3f; color: var(--good); }
   .deploy-out.error { border-color: var(--danger); color: var(--danger); }
 
+  .sessions-list {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    overflow: hidden; margin-bottom: 22px;
+  }
+  .session-row {
+    display: grid; grid-template-columns: 1.4fr 90px 90px 125px 125px auto;
+    gap: 10px; padding: 10px 14px; align-items: center; font-size: 13px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .session-row:last-child { border-bottom: none; }
+  .session-name { min-width: 0; }
+  .session-name strong { display: block; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .session-name span, .session-stat span { display: block; font-size: 10px; color: var(--ink-soft); margin-top: 2px; }
+  .session-stat { color: var(--ink-dim); }
+  .session-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
+  @media (max-width: 900px) {
+    .session-row { grid-template-columns: 1fr 1fr; }
+    .session-name, .session-actions { grid-column: 1 / -1; }
+    .session-actions { justify-content: flex-start; }
+  }
+
   .log-wrap {
     background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
     overflow: hidden;
@@ -231,6 +252,7 @@
   <span class="pill" id="pillPending">— pending</span>
   <span class="pill amber" id="pillProducts">— products</span>
   <span class="pill amber" id="pillUpcs">— upcs</span>
+  <span class="pill good" id="pillSessions">— sessions</span>
   <span class="pill danger" id="pillRejected">— rejected</span>
   <button class="btn ghost" id="btnRefresh">Refresh</button>
 </div>
@@ -245,6 +267,13 @@
   </div>
   <pre class="deploy-out" id="deployOut"></pre>
 </div>
+
+<h2>Sessions</h2>
+<div class="toolbar">
+  <input type="text" id="sessionsFilter" placeholder="Filter by session name or id…" />
+  <span class="pill" id="sessionsShowing">—</span>
+</div>
+<div id="sessionsList"><div class="empty">Loading…</div></div>
 
 <h2>Pending submissions</h2>
 <div id="pendingList"><div class="empty">Loading…</div></div>
@@ -308,10 +337,11 @@
   const ADMIN_BASE = location.pathname.replace(/\/+$/, '');
   const API = ADMIN_BASE + '/api';
 
-  // Two state buckets: queue is the pending submissions inbox; products is
-  // the canonical catalogue. Loaded in parallel; reloaded after any mutation.
+  // Queue is the pending submissions inbox; products are the canonical
+  // catalogue; sessions are active shared tallies. Reload after mutations.
   let queueState    = { pending: [], rejectedCount: 0 };
   let productsState = { products: [] };
+  let sessionsState = { sessions: [] };
 
   function $(s, ctx = document) { return ctx.querySelector(s); }
   function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
@@ -343,9 +373,10 @@
 
   async function loadAll() {
     try {
-      const [q, p] = await Promise.all([api('/queue'), api('/products')]);
+      const [q, p, s] = await Promise.all([api('/queue'), api('/products'), api('/sessions')]);
       queueState    = q;
       productsState = p;
+      sessionsState = s;
       render();
     } catch (e) {
       toast('Load failed: ' + e.message, 'danger');
@@ -357,11 +388,74 @@
     const totalUpcs = products.reduce((n, p) => n + p.upcs.length, 0);
     $('#pillPending').textContent  = `${queueState.pending.length} pending`;
     $('#pillProducts').textContent = `${products.length} product${products.length === 1 ? '' : 's'}`;
+    const sessions = sessionsState.sessions || [];
     $('#pillUpcs').textContent     = `${totalUpcs} upc${totalUpcs === 1 ? '' : 's'}`;
+    $('#pillSessions').textContent = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
     $('#pillRejected').textContent = `${queueState.rejectedCount} rejected`;
+    renderSessions();
     renderPending();
     renderProducts();
     refreshExistingProductDropdowns();
+  }
+
+
+  // ===== SESSIONS OVERVIEW ====================================================
+
+  function renderSessions() {
+    const filter = ($('#sessionsFilter').value || '').trim().toLowerCase();
+    const all = sessionsState.sessions || [];
+    const rows = filter
+      ? all.filter(s =>
+          (s.name || '').toLowerCase().includes(filter) ||
+          (s.id || '').toLowerCase().includes(filter) ||
+          (s.publicId || '').toLowerCase().includes(filter))
+      : all;
+
+    $('#sessionsShowing').textContent = filter
+      ? `${rows.length} / ${all.length} sessions`
+      : `${all.length} session${all.length === 1 ? '' : 's'}`;
+
+    const wrap = $('#sessionsList');
+    if (!all.length) {
+      wrap.innerHTML = `<div class="empty">No shared sessions yet.</div>`;
+      return;
+    }
+    if (!rows.length) {
+      wrap.innerHTML = `<div class="empty">No sessions match the filter.</div>`;
+      return;
+    }
+
+    wrap.innerHTML = `<div class="sessions-list">${rows.map(renderSessionRow).join('')}</div>`;
+  }
+
+  function renderSessionRow(s) {
+    const people = Number(s.peopleCount) || 0;
+    const drinks = Number(s.drinkCount) || 0;
+    const last = s.lastDrinkAt ? new Date(Number(s.lastDrinkAt)).toISOString() : s.updatedAt;
+    const reportHref = s.publicId
+      ? `../../report/?r=${encodeURIComponent(s.publicId)}`
+      : `../../report/?s=${encodeURIComponent(s.id)}`;
+    return `
+      <div class="session-row">
+        <div class="session-name">
+          <strong title="${escape(s.name || '')}">${escape(s.name || 'Untitled session')}</strong>
+          <span class="mono" title="${escape(s.id)}">${escape(shortId(s.id))}</span>
+        </div>
+        <div class="session-stat">${people}<span>people</span></div>
+        <div class="session-stat">${drinks}<span>drinks</span></div>
+        <div class="session-stat">${formatTime(s.createdAt)}<span>created</span></div>
+        <div class="session-stat">${formatTime(last)}<span>last activity</span></div>
+        <div class="session-actions">
+          <a class="btn" href="../../?s=${encodeURIComponent(s.id)}" target="_blank" rel="noopener noreferrer">Open</a>
+          <a class="btn ghost" href="${reportHref}" target="_blank" rel="noopener noreferrer">Report</a>
+        </div>
+      </div>
+    `;
+  }
+
+  function shortId(id) {
+    const s = String(id || '');
+    return s.length > 12 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
   }
 
   // ===== PENDING SUBMISSIONS QUEUE ============================================
@@ -798,6 +892,7 @@
   // ===== TOP-LEVEL WIRING =====================================================
 
   $('#btnRefresh').addEventListener('click', loadAll);
+  $('#sessionsFilter').addEventListener('input', renderSessions);
   $('#productsFilter').addEventListener('input', renderProducts);
 
   $('#btnDeploy').addEventListener('click', async () => {
