@@ -310,7 +310,16 @@ const AUTHOR_KEY = 'beerConverter.authorName';
 const DEVICE_KEY = 'beerConverter.deviceId';
 const COMMENT_REACTIONS = ['🍻', '🥃', '🧊', '🤮', '🍕'];
 
-function ethanolOf(d) { return d.v * d.a / 100; }
+function ethanolOf(d) {
+  if (d.k === 'cocktail' && Array.isArray(d.c) && d.c.length) {
+    return d.c.reduce((sum, c) => sum + ((+c.v || 0) * (+c.a || 0)) / 100, 0);
+  }
+  return d.v * d.a / 100;
+}
+function componentLine(d) {
+  if (d.k !== 'cocktail' || !Array.isArray(d.c) || !d.c.length) return '';
+  return d.c.map(c => `${esc(c.n || 'Component')}: ${fmt(c.v, 0)} ml @ ${fmt(c.a, 1)}%${c.u ? ` · UPC ${esc(c.u)}` : ''}`).join(' + ');
+}
 function stdOf(e)      { return e / STD_DRINK_ML; }
 function fmt(n, dp)    { return isFinite(n) ? n.toFixed(dp) : '—'; }
 function esc(s) {
@@ -367,6 +376,8 @@ function fromServer(s) {
       n: d.name,
       v: +d.volumeMl.toFixed(1),
       a: +d.abv.toFixed(2),
+      k: d.inputKind || 'whole',
+      c: Array.isArray(d.components) ? d.components.map(c => ({ n: c.name, v: +Number(c.volumeMl || 0).toFixed(1), a: +Number(c.abv || 0).toFixed(2), u: c.upc || null })) : [],
       ...(d.flavour ? { f: d.flavour } : {}),
     });
   }
@@ -651,8 +662,8 @@ function render(data) {
       ? `<div class="drink-row"><div class="dn" style="font-style:italic;color:var(--ink-soft)">No drinks logged</div></div>`
       : p.d.map(d => `
           <div class="drink-row">
-            <div class="dn">${esc(d.n)}${d.f ? ` <span style="color:var(--amber);font-style:italic;">· ${esc(d.f)}</span>` : ''}</div>
-            <div class="dm">${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%</div>
+            <div class="dn">${esc(d.n)}${d.f ? ` <span style="color:var(--amber);font-style:italic;">· ${esc(d.f)}</span>` : ''}${componentLine(d) ? `<div style="font-size:10px;color:var(--ink-soft);font-family:'IBM Plex Mono',monospace;margin-top:2px;">${componentLine(d)}</div>` : ''}</div>
+            <div class="dm">${d.k === 'cocktail' ? `${d.c.length} comp · ${fmt(d.v, 0)} ml alc` : `${fmt(d.v, 0)} ml · ${fmt(d.a, 1)}%`}</div>
             <div class="ds">+${fmt(stdOf(ethanolOf(d)), 2)}</div>
           </div>`).join('');
     const bmLine = bm && p.bmEquiv != null
