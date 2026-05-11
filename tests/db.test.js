@@ -39,6 +39,37 @@ test('Session lifecycle', async (t) => {
     assert.strictEqual(dbLayer.getSessionFull(sid).comments.length, 0);
   });
 
+  await t.test('comment reactions preserve optional author names', () => {
+    const sid = dbLayer.genSessionId();
+    dbLayer.createSession({ id: sid, name: 'Reaction Test' });
+    const comment = dbLayer.addComment(sid, {
+      authorName: 'Alice',
+      text: 'Cheers',
+    });
+
+    assert.strictEqual(dbLayer.toggleReaction(sid, comment.id, {
+      deviceId: 'dev_named',
+      authorName: 'Bob',
+      emoji: '🍻',
+    }), true);
+    assert.strictEqual(dbLayer.toggleReaction(sid, comment.id, {
+      deviceId: 'dev_anon',
+      emoji: '🍻',
+    }), true);
+
+    const reactions = dbLayer.getSessionFull(sid).reactions;
+    assert.strictEqual(reactions.length, 2);
+    assert.ok(reactions.some(r => r.authorName === 'Bob'));
+    assert.ok(reactions.some(r => r.authorName == null));
+
+    assert.strictEqual(dbLayer.toggleReaction(sid, comment.id, {
+      deviceId: 'dev_named',
+      authorName: 'Bob',
+      emoji: '🍻',
+    }), true);
+    assert.strictEqual(dbLayer.getSessionFull(sid).reactions.length, 1);
+  });
+
   await t.test('drink activity events capture add and remove', () => {
     const sid = dbLayer.genSessionId();
     const session = dbLayer.createSession({

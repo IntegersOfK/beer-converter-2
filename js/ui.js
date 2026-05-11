@@ -1,9 +1,9 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=49';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=49';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=50';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=50';
 import {
-  state, getBenchmark, getUnitPref,
+  state, getBenchmark, getUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
@@ -11,11 +11,11 @@ import {
   switchSession, renameSession,
   getRecentSessions, forgetSessionLocal,
   setDrinkFlavour,
-  addComment, updateComment, removeComment,
+  addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=49';
-import { submitProduct } from './submit.js?v=49';
-import { getFlavoursForName } from './products.js?v=49';
+} from './state.js?v=50';
+import { submitProduct } from './submit.js?v=50';
+import { getFlavoursForName } from './products.js?v=50';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -69,6 +69,7 @@ let newSessionSelectedPresetKeys = new Set();
 
 
 const AUTHOR_KEY = 'beerConverter.authorName';
+const COMMENT_REACTIONS = ['🍻', '🥃', '🧊', '🤮', '🍕'];
 
 function actorNameFromEvent(e) {
   const person = state.people.find(p => p.id === e.personId);
@@ -79,6 +80,51 @@ function commentAuthor(c) {
   if (c.authorName) return c.authorName;
   const person = state.people.find(p => p.id === c.personId);
   return person?.name || 'Anonymous';
+}
+
+
+function currentCommentAuthorName() {
+  const author = $('#commentAuthor');
+  return author?.value.trim() || '';
+}
+
+function reactionActorName(r) {
+  if (r.authorName) return r.authorName;
+  const person = state.people.find(p => p.id === r.personId);
+  return person?.name || '';
+}
+
+function reactionsForComment(commentId) {
+  const grouped = new Map(COMMENT_REACTIONS.map(emoji => [emoji, { emoji, count: 0, names: [] }]));
+  for (const reaction of state.reactions.filter(r => r.commentId === commentId)) {
+    if (!grouped.has(reaction.emoji)) grouped.set(reaction.emoji, { emoji: reaction.emoji, count: 0, names: [] });
+    const group = grouped.get(reaction.emoji);
+    const name = reactionActorName(reaction);
+    group.count += 1;
+    if (name && !group.names.includes(name)) group.names.push(name);
+  }
+  return Array.from(grouped.values()).filter(group => COMMENT_REACTIONS.includes(group.emoji) || group.count > 0);
+}
+
+function reactionTitle(group) {
+  if (!group.names.length) return '';
+  return `${group.names.join(', ')} reacted with ${group.emoji}`;
+}
+
+function renderCommentReactions(c) {
+  const groups = reactionsForComment(c.id);
+  return `
+    <div class="comment-reactions" aria-label="Comment reactions">
+      ${groups.map(group => {
+        const title = reactionTitle(group);
+        const deviceId = getDeviceId();
+        const active = state.reactions.some(r => r.commentId === c.id && r.emoji === group.emoji && r.deviceId === deviceId);
+        return `<button class="comment-reaction${active ? ' is-active' : ''}" data-react-comment="${c.id}" data-reaction-emoji="${escapeHtml(group.emoji)}" type="button" aria-label="React with ${escapeHtml(group.emoji)}"${title ? ` title="${escapeHtml(title)}"` : ''}>
+          <span class="comment-reaction-emoji">${escapeHtml(group.emoji)}</span>${group.count ? `<span class="comment-reaction-count">${group.count}</span>` : ''}
+        </button>`;
+      }).join('')}
+    </div>
+  `;
 }
 
 function fmtLogTime(ts) {
@@ -147,6 +193,7 @@ export function renderComments() {
           <span class="comment-time">${escapeHtml(fmtLogTime(c.t))}</span>
         </div>
         <div class="comment-text">${escapeHtml(c.text)}</div>
+        ${renderCommentReactions(c)}
       </div>
       <div class="comment-actions">
         <button class="comment-action" data-edit-comment="${c.id}" type="button">Edit</button>
@@ -154,6 +201,22 @@ export function renderComments() {
       </div>
     </div>
   `).join('') : '<div class="comment-empty">No comments yet.</div>';
+
+  list.querySelectorAll('[data-react-comment]').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const id = Number(btn.dataset.reactComment);
+      const emoji = btn.dataset.reactionEmoji;
+      if (!Number.isInteger(id) || !emoji) return;
+      btn.disabled = true;
+      try {
+        const authorName = currentCommentAuthorName();
+        await toggleCommentReaction(id, emoji, null, authorName || null);
+        renderComments();
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  });
 
   list.querySelectorAll('[data-edit-comment]').forEach(btn => {
     btn.addEventListener('click', async () => {
