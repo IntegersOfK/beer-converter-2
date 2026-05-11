@@ -576,6 +576,7 @@ async function handleSessionRoute(req, res, url, origin) {
       const ok = db.toggleReaction(sid, commentId, {
         personId: body.personId != null ? Number(body.personId) : null,
         deviceId: body.deviceId ? String(body.deviceId).slice(0, 64) : null,
+        authorName: body.authorName ? String(body.authorName).trim().slice(0, 40) : null,
         emoji: String(body.emoji).slice(0, 10),
       });
       if (!ok) { send(res, 404, { error: 'comment not found' }, origin); return; }
@@ -639,6 +640,7 @@ async function handleReportRoute(req, res, url, origin, idIndex = 2) {
       const ok = db.toggleReaction(sid, commentId, {
         personId: body.personId != null ? Number(body.personId) : null,
         deviceId: body.deviceId ? String(body.deviceId).slice(0, 64) : null,
+        authorName: body.authorName ? String(body.authorName).trim().slice(0, 40) : null,
         emoji: String(body.emoji).slice(0, 10),
       });
       if (!ok) { send(res, 404, { error: 'comment not found' }, origin); return; }

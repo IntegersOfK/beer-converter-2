@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=49';
+import { api, ApiError } from './api.js?v=50';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -173,6 +173,7 @@ function hydrate(serverPayload) {
     emoji:     r.emoji,
     personId:  r.personId || null,
     deviceId:  r.deviceId || null,
+    authorName: r.authorName || null,
   }));
   // Snapshot people + drink count into the recents list so the session
   // switcher can show context without re-fetching every session.
@@ -683,7 +684,7 @@ export async function updateComment(commentId, text) {
   } finally { inFlight--; }
 }
 
-export async function toggleCommentReaction(commentId, emoji, personId = null) {
+export async function toggleCommentReaction(commentId, emoji, personId = null, authorName = null) {
   if (!state.sid) return;
   const deviceId = getDeviceId();
   
@@ -699,7 +700,7 @@ export async function toggleCommentReaction(commentId, emoji, personId = null) {
   if (existingIdx >= 0) {
     state.reactions.splice(existingIdx, 1);
   } else {
-    state.reactions.push({ commentId, emoji, personId, deviceId });
+    state.reactions.push({ commentId, emoji, personId, deviceId, authorName });
   }
 
   inFlight++;
@@ -708,6 +709,7 @@ export async function toggleCommentReaction(commentId, emoji, personId = null) {
       emoji,
       personId,
       deviceId,
+      authorName,
     });
   } catch (e) {
     console.error('toggleReaction failed', e);
