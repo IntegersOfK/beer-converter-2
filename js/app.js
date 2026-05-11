@@ -17,8 +17,9 @@ import {
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-  openNewSessionModal, hydrateCommentForm, submitMainComment, updateCommentTextarea,
+  openNewSessionModal,
 } from './ui.js?v=48';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=48';
 import { startScanner, barcodeScannerAvailable } from './scanner.js?v=48';
 import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=48';
 import { ML_PER_OZ } from './calc.js?v=48';
