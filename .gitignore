@@ -1,1 +1,9 @@
 node_modules/
+
+# Runtime SQLite data and admin-triggered database backup versions.
+server/data.db*
+server/backups/
+backups/
+*.db
+*.db-wal
+*.db-shm

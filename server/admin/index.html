@@ -194,6 +194,20 @@
   .deploy-out.ok    { border-color: #3b6d3f; color: var(--good); }
   .deploy-out.error { border-color: var(--danger); color: var(--danger); }
 
+  .backup-list {
+    margin-top: 12px; border: 1px solid var(--line-soft); border-radius: 10px;
+    overflow: hidden; background: var(--bg-input);
+  }
+  .backup-row {
+    display: grid; grid-template-columns: 1fr 110px 145px auto;
+    gap: 10px; padding: 9px 12px; align-items: center; font-size: 12px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+  .backup-row:last-child { border-bottom: none; }
+  .backup-file { font-family: ui-monospace, monospace; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .backup-meta { color: var(--ink-soft); font-family: ui-monospace, monospace; font-size: 11px; }
+  @media (max-width: 720px) { .backup-row { grid-template-columns: 1fr; } }
+
   .sessions-list {
     background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
     overflow: hidden; margin-bottom: 22px;
@@ -266,6 +280,18 @@
     <button class="btn primary" id="btnDeploy">Pull latest</button>
   </div>
   <pre class="deploy-out" id="deployOut"></pre>
+</div>
+
+<div class="card" style="margin-bottom:20px;">
+  <div class="card-head" style="margin-bottom:6px;">
+    <span style="color:var(--ink); font-weight:600;">Database backups</span>
+    <span class="meta" style="color:var(--ink-soft);">Manual SQLite versions stored outside git tracking.</span>
+  </div>
+  <div class="actions">
+    <button class="btn primary" id="btnCreateBackup">Make backup</button>
+    <button class="btn ghost" id="btnBackupsRefresh">Refresh backups</button>
+  </div>
+  <div id="backupsList"><div class="empty" style="margin-top:12px;">Loading…</div></div>
 </div>
 
 <h2>Sessions</h2>
@@ -342,6 +368,7 @@
   let queueState    = { pending: [], rejectedCount: 0 };
   let productsState = { products: [] };
   let sessionsState = { sessions: [] };
+  let backupsState  = { backups: [] };
 
   function $(s, ctx = document) { return ctx.querySelector(s); }
   function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
@@ -373,10 +400,11 @@
 
   async function loadAll() {
     try {
-      const [q, p, s] = await Promise.all([api('/queue'), api('/products'), api('/sessions')]);
+      const [q, p, s, b] = await Promise.all([api('/queue'), api('/products'), api('/sessions'), api('/backups')]);
       queueState    = q;
       productsState = p;
       sessionsState = s;
+      backupsState  = b;
       render();
     } catch (e) {
       toast('Load failed: ' + e.message, 'danger');
@@ -392,10 +420,57 @@
     $('#pillUpcs').textContent     = `${totalUpcs} upc${totalUpcs === 1 ? '' : 's'}`;
     $('#pillSessions').textContent = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
     $('#pillRejected').textContent = `${queueState.rejectedCount} rejected`;
+    renderBackups();
     renderSessions();
     renderPending();
     renderProducts();
     refreshExistingProductDropdowns();
+  }
+
+
+  // ===== DATABASE BACKUPS =====================================================
+
+  function renderBackups() {
+    const backups = backupsState.backups || [];
+    const wrap = $('#backupsList');
+    if (!backups.length) {
+      wrap.innerHTML = `<div class="empty" style="margin-top:12px;">No backups yet.</div>`;
+      return;
+    }
+    wrap.innerHTML = `<div class="backup-list">${backups.map(b => `
+      <div class="backup-row">
+        <div class="backup-file" title="${escape(b.filename)}">${escape(b.filename)}</div>
+        <div class="backup-meta">${formatBytes(b.size)}</div>
+        <div class="backup-meta">${formatTime(b.updatedAt || b.createdAt)}</div>
+        <div class="actions"><a class="btn ghost" href="${API}/backups/${encodeURIComponent(b.filename)}">Download</a></div>
+      </div>
+    `).join('')}</div>`;
+  }
+
+  async function refreshBackups() {
+    try {
+      backupsState = await api('/backups');
+      renderBackups();
+    } catch (e) {
+      toast('Backup list failed: ' + e.message, 'danger');
+    }
+  }
+
+  async function createBackup() {
+    const btn = $('#btnCreateBackup');
+    btn.disabled = true;
+    btn.textContent = 'Backing up…';
+    try {
+      const result = await api('/backups', { method: 'POST', body: '{}' });
+      backupsState = { backups: result.backups || (result.backup ? [result.backup] : []) };
+      renderBackups();
+      toast('Backup created');
+    } catch (e) {
+      toast('Backup failed: ' + e.message, 'danger');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Make backup';
+    }
   }
 
 
@@ -877,6 +952,13 @@
     return '';
   }
 
+  function formatBytes(bytes) {
+    const n = Number(bytes) || 0;
+    if (n < 1024) return `${n} B`;
+    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
+    return `${(n / 1024 / 1024).toFixed(1)} MB`;
+  }
+
   function formatTime(iso) {
     if (!iso) return '—';
     const d = new Date(iso);
@@ -892,6 +974,8 @@
   // ===== TOP-LEVEL WIRING =====================================================
 
   $('#btnRefresh').addEventListener('click', loadAll);
+  $('#btnCreateBackup').addEventListener('click', createBackup);
+  $('#btnBackupsRefresh').addEventListener('click', refreshBackups);
   $('#sessionsFilter').addEventListener('input', renderSessions);
   $('#productsFilter').addEventListener('input', renderProducts);
 
