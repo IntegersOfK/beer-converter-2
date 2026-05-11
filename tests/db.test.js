@@ -100,6 +100,39 @@ test('Session lifecycle', async (t) => {
   });
 
 
+  await t.test('cocktail drinks persist component UPCs and effective ABV', () => {
+    const sid = dbLayer.genSessionId();
+    const session = dbLayer.createSession({
+      id: sid,
+      name: 'Cocktail Test',
+      people: [{ name: 'Alice' }],
+    });
+
+    const drink = dbLayer.addDrink(sid, {
+      personId: session.people[0].id,
+      name: 'Martini',
+      inputKind: 'cocktail',
+      components: [
+        { name: 'Gin', volumeMl: 60, abv: 40, upc: '123456789012' },
+        { name: 'Vermouth', volumeMl: 15, abv: 16, upc: '999888777666' },
+      ],
+      t: 456,
+    });
+
+    assert.strictEqual(drink.inputKind, 'cocktail');
+    assert.strictEqual(drink.volumeMl, 75);
+    assert.strictEqual(drink.abv, 35.2);
+    assert.strictEqual(drink.components.length, 2);
+    assert.strictEqual(drink.components[0].upc, '123456789012');
+
+    const full = dbLayer.getSessionFull(sid);
+    assert.strictEqual(full.drinks[0].inputKind, 'cocktail');
+    assert.deepStrictEqual(full.drinks[0].components.map(c => c.name), ['Gin', 'Vermouth']);
+    assert.strictEqual(full.events[0].data.inputKind, 'cocktail');
+    assert.strictEqual(full.events[0].data.components[1].upc, '999888777666');
+  });
+
+
   await t.test('create and list database backups', async () => {
     const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beer-converter-backups-'));
     process.env.BACKUP_DIR = backupDir;

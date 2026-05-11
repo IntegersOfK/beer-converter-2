@@ -5,26 +5,26 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=50';
+import { $, $$, escapeHtml, vibe } from './util.js?v=52';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=50';
+} from './state.js?v=52';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-  openNewSessionModal,
-} from './ui.js?v=50';
-import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=50';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=50';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=50';
-import { ML_PER_OZ } from './calc.js?v=50';
+  openNewSessionModal, setCustomInputMode, addCocktailComponent, addEditCocktailComponent,
+} from './ui.js?v=52';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=52';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=52';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=52';
+import { ML_PER_OZ } from './calc.js?v=52';
 
-console.log('Beer Converter build v50 (edit drink types from menu)');
+console.log('Beer Converter build v52 (cocktail component editing)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
@@ -171,6 +171,11 @@ $('#btnAddCustom').addEventListener('click', submitCustomDrink);
 $('#customName').addEventListener('input', updateSaveAsPresetCopy);
 $('#customUpc').addEventListener('input', updateSaveAsPresetCopy);
 $('#saveAsPreset').addEventListener('change', updateSaveAsPresetCopy);
+$$('input[name="customInputMode"]').forEach(input => {
+  input.addEventListener('change', e => setCustomInputMode(e.target.value));
+});
+$('#btnAddCocktailComponent').addEventListener('click', () => addCocktailComponent());
+$('#btnScanCocktailComponent').addEventListener('click', () => openScanner(handleCocktailComponentUpcFound, 'Point the camera at a component bottle UPC/EAN barcode…'));
 
 // --- Edit drink modal -----------------------------------------------------
 $('#editVolume').addEventListener('input', updateEditEthanolPreview);
@@ -178,6 +183,7 @@ $('#editAbv').addEventListener('input', updateEditEthanolPreview);
 $('#editUnit').addEventListener('change', e => { setUnitPref(e.target.value); applyUnit(e.target.value); convertVolumeField('#editVolume', e.target.value); updateEditEthanolPreview(); });
 $('#btnSaveEditDrink').addEventListener('click', submitEditDrink);
 $('#btnSaveEditFlavour').addEventListener('click', saveEditFlavourOnly);
+$('#btnAddEditCocktailComponent').addEventListener('click', () => addEditCocktailComponent());
 
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);
@@ -250,6 +256,36 @@ $('#btnManualLookup').addEventListener('click', () => {
 // (The preset-modal "scan barcode into popover" path was removed in Phase 2
 // along with the per-device UPC cache — barcodes now flow through the
 // shared catalogue via /submit when a drink is logged.)
+
+
+async function handleCocktailComponentUpcFound(upc) {
+  vibe(25);
+  stopActiveScanner();
+  setScannerStatus(`Found ${upc}. Looking up component…`, 'working');
+
+  if (!productsLoaded()) {
+    try { await loadProducts(); } catch { /* fall through; lookup will miss */ }
+  }
+  const info = lookupBcLiquor(upc);
+  if (info) {
+    const cat = (info.category || '').toLowerCase();
+    const pourHint = cat === 'wine' ? 142 : 44;
+    addCocktailComponent({
+      name: info.name || '',
+      volumeMl: pourHint,
+      abv: info.abv,
+      upc,
+    });
+    const flavStr = info.flavour ? ` · ${info.flavour}` : '';
+    setScannerStatus(`Added component: ${info.name}${flavStr} · ${(+info.abv).toFixed(1)}% · adjust amount if needed`, 'ok');
+    setTimeout(closeScannerOnly, 900);
+    return;
+  }
+
+  addCocktailComponent({ upc });
+  setScannerStatus('Bottle not in the catalogue. Added a blank component with that UPC — fill in name, amount, and ABV.', 'err');
+  setTimeout(closeScannerOnly, 1400);
+}
 
 async function handleUpcFound(upc) {
   vibe(25);

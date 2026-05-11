@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=50';
+import { api, ApiError } from './api.js?v=52';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -145,6 +145,8 @@ function hydrate(serverPayload) {
       volumeMl:  d.volumeMl,
       abv:       d.abv,
       presetId:  d.presetKey || null,
+      inputKind: d.inputKind || 'whole',
+      components: Array.isArray(d.components) ? d.components : [],
       t:         d.t,
     });
   }
@@ -197,6 +199,8 @@ function optimisticDrinkEvent(type, person, drink) {
       flavour: drink?.flavour || null,
       volumeMl: drink?.volumeMl,
       abv: drink?.abv,
+      inputKind: drink?.inputKind || 'whole',
+      components: Array.isArray(drink?.components) ? drink.components : [],
     },
     t: Date.now(),
   });
@@ -517,6 +521,8 @@ export async function addDrink(personIdx, drink) {
     volumeMl:  +drink.volumeMl,
     abv:       +drink.abv,
     presetId:  drink.presetId || null,
+    inputKind: drink.inputKind === 'cocktail' ? 'cocktail' : 'whole',
+    components: Array.isArray(drink.components) ? drink.components.map(c => ({ ...c })) : [],
     t:         Date.now(),
   };
   if (flavour) optimistic.flavour = flavour;
@@ -535,11 +541,17 @@ export async function addDrink(personIdx, drink) {
       flavour:   flavour || undefined,
       volumeMl:  optimistic.volumeMl,
       abv:       optimistic.abv,
+      inputKind: optimistic.inputKind,
+      components: optimistic.components,
       t:         optimistic.t,
     });
     if (saved) {
       optimistic.id = saved.id;
       optimistic.t  = saved.t;
+      optimistic.volumeMl = saved.volumeMl;
+      optimistic.abv = saved.abv;
+      optimistic.inputKind = saved.inputKind || optimistic.inputKind;
+      optimistic.components = Array.isArray(saved.components) ? saved.components : optimistic.components;
     }
   } catch (e) {
     console.error('addDrink failed', e); alert('Add drink failed');
@@ -589,7 +601,7 @@ export async function setDrinkFlavour(personIdx, drinkIdx, flavour) {
 // Edit a single drink's name/volume/abv (and optionally flavour). Unlinks
 // from its preset, matching the existing UI semantics where "edit just this
 // one" diverges from the saved type.
-export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour }) {
+export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, flavour, inputKind = 'whole', components = [] }) {
   if (!state.sid) return;
   const person = state.people[personIdx];
   const d = person?.drinks[drinkIdx];
@@ -599,6 +611,8 @@ export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, fl
   d.volumeMl = +volumeMl;
   d.abv = +abv;
   d.presetId = null;
+  d.inputKind = inputKind === 'cocktail' ? 'cocktail' : 'whole';
+  d.components = Array.isArray(components) ? components.map(c => ({ ...c })) : [];
   if (flavour !== undefined) {
     const trimmed = typeof flavour === 'string' ? flavour.trim() : '';
     if (trimmed) d.flavour = trimmed; else delete d.flavour;
@@ -610,6 +624,8 @@ export async function updateDrink(personIdx, drinkIdx, { name, volumeMl, abv, fl
       {
         name: d.name, volumeMl: d.volumeMl, abv: d.abv,
         flavour: d.flavour || '',
+        inputKind: d.inputKind,
+        components: d.components,
         unlinkPreset: true,
       }
     );

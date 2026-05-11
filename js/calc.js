@@ -9,8 +9,15 @@ export const STD_DRINK_ML = 17.05;
 // https://ised-isde.canada.ca/site/measurement-canada/en/buying-and-selling-measured-goods/units-measurement-used-sell-draft-beer
 export const ML_PER_OZ = 28.4131;
 
-// Pure ethanol (in ml) contained in a single drink of { volumeMl, abv }.
-export const ethanolOf = (d) => (d.volumeMl * d.abv) / 100;
+// Pure ethanol (in ml) contained in a drink. Cocktails can carry alcoholic
+// components; their ethanol is the sum of those components, with mixers ignored.
+export function ethanolOf(d) {
+  if (d?.inputKind === 'cocktail' && Array.isArray(d.components) && d.components.length) {
+    return d.components.reduce((sum, c) => sum + ((+c.volumeMl || 0) * (+c.abv || 0)) / 100, 0);
+  }
+  return (d.volumeMl * d.abv) / 100;
+}
+
 
 // Aggregate per-person stats.
 export function personStats(person) {

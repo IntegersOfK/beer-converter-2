@@ -16,7 +16,7 @@
 
 const CSV_PATH = 'bc_liquor_store_product_price_list_december_2025.csv';
 
-import { API_BASE } from './api.js?v=50';
+import { API_BASE } from './api.js?v=52';
 
 const CATALOG_URL = API_BASE + '/catalog.json';
 
