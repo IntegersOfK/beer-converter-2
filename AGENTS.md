@@ -1,6 +1,6 @@
 # Beer Converter — Agent Instructions
 
-A standard-drink tracker for BC Liquor products. Users log drinks by volume + ABV or by scanning a barcode against the bundled BC Liquor CSV.
+A standard-drink tracker for BC Liquor products. Users log drinks by volume + ABV or by scanning a barcode against the server-side product catalogue (originally seeded from the BC Liquor price-list CSV).
 
 Primary data (people, drinks, presets) lives in **server-side shared sessions** backed by SQLite. The app always operates on a session identified by `?s=<sid>`, allowing multiple people to contribute to a live tally via a shared link.
 
@@ -34,12 +34,12 @@ Plain ES modules, no framework, no bundler. State is hydrated from the server.
 | `js/api.js` | Thin `fetch` wrapper for the sessions API |
 | `js/ui.js` | All rendering + modal logic + comment log rendering |
 | `js/calc.js` | Pure ethanol math — `ethanolOf`, `personStats`, `STD_DRINK_ML = 17.05` |
-| `js/products.js` | Loads BC Liquor CSV + fetches `/catalog.json`; merges into UPC index |
+| `js/products.js` | Fetches `/catalog.json` and indexes by UPC |
 | `js/scanner.js` | `BarcodeDetector` API wrapper + volume string parser |
 | `js/submit.js` | Fire-and-forget POST to `/submit` for crowdsourcing the catalogue |
 | `js/util.js` | `$`, `$$`, `fmt(n, digits)`, `escapeHtml`, `vibe` |
 
-**Cache busting:** every internal `import` carries `?v=37`. Bump this version number across all files when deploying changes.
+**Cache busting:** every internal `import` carries `?v=54`. Bump this version number across all files when deploying changes.
 
 `localStorage` keys (preferences only):
 - `beerConverter.recentSessions` — `[{ sid, name, lastSeen }]` for the session picker
@@ -59,7 +59,7 @@ Node HTTP server backed by SQLite via `better-sqlite3`.
 | `server/admin/` | Single-file admin SPA for catalogue curation |
 | `server/data.db` | SQLite file (gitignored). Holds catalogue and session data. WAL mode. |
 
-**On first boot**, `server/db.js` imports legacy JSON/JSONL files (`products.json`, etc.) if found, then renames them to `*.migrated`.
+**On first boot**, `server/db.js` imports legacy JSON/JSONL files (`products.json`, etc.) if found, then renames them to `*.migrated`. It also seeds the catalogue from `bc_liquor_store_product_price_list_december_2025.csv` (in the repo root) if present — idempotent, skips UPCs that already exist or are in `rejected_upcs`. Once the live DB has been seeded, the CSV asset can be deleted from the repo.
 
 Admin path defaults to `/_admin_8f3k9qz4/` — override with `ADMIN_PATH` env var.
 Data directory defaults to `server/` — override with `DATA_DIR` env var.
@@ -72,9 +72,9 @@ Data directory defaults to `server/` — override with `DATA_DIR` env var.
 
 ## BC Liquor catalogue
 
-Source: `bc_liquor_store_product_price_list_december_2025.csv`
+The catalogue lives in SQLite (`products` + `upcs` tables) and is served at `/catalog.json`. Each row carries `name`, `abv`, `volumeMl`, `category`, `flavour`, and a `curated` flag (1 = hand-curated, 0 = imported from the BC Liquor CSV).
 
-To update: replace the CSV and update `CSV_PATH` in `js/products.js`. Curated entries from the database override CSV entries.
+To seed/refresh from a new BC Liquor price list: drop the CSV in the repo root with the filename `bc_liquor_store_product_price_list_december_2025.csv` (or update `BC_CSV_NAMES` in `server/db.js`) and restart the server. The importer is idempotent — only previously-unseen UPCs are added, and any UPC in `rejected_upcs` stays rejected. Curated entries are never overwritten by an import.
 
 ## Coding conventions
 
