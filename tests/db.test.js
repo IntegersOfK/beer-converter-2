@@ -130,6 +130,21 @@ test('Session lifecycle', async (t) => {
     assert.deepStrictEqual(full.drinks[0].components.map(c => c.name), ['Gin', 'Vermouth']);
     assert.strictEqual(full.events[0].data.inputKind, 'cocktail');
     assert.strictEqual(full.events[0].data.components[1].upc, '999888777666');
+
+    const updated = dbLayer.updateDrink(sid, drink.id, {
+      name: 'Bigger Martini',
+      inputKind: 'cocktail',
+      components: [
+        { name: 'Gin', volumeMl: 75, abv: 40, upc: '123456789012' },
+        { name: 'Vermouth', volumeMl: 15, abv: 16, upc: '999888777666' },
+      ],
+      unlinkPreset: true,
+    });
+
+    assert.strictEqual(updated.name, 'Bigger Martini');
+    assert.strictEqual(updated.volumeMl, 90);
+    assert.strictEqual(updated.abv, 36);
+    assert.deepStrictEqual(updated.components.map(c => c.volumeMl), [75, 15]);
   });
 
 
