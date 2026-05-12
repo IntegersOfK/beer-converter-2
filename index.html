@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=52">
+<link rel="stylesheet" href="styles.css?v=53">
 </head>
 <body>
 
@@ -286,13 +286,6 @@
           <input class="input mono" id="customUpc" type="text" inputmode="numeric"
                  placeholder="leave blank if none" autocomplete="off" title="Barcode from the product — scan or type to remember it for next time" />
         </div>
-        <label class="toggle-row" id="saveAsPresetRow">
-          <input type="checkbox" id="saveAsPreset" />
-          <span id="saveAsPresetLabel">Save this as a drink type</span>
-        </label>
-        <p class="toggle-hint" id="saveAsPresetHint" style="display:none;">
-          Required to remember this barcode — needs a name above.
-        </p>
       </div>
       <div class="cocktail-fields" id="cocktailFields" style="display:none;">
         <p class="toggle-hint cocktail-help">
@@ -304,6 +297,13 @@
           <button class="btn btn-scan" id="btnScanCocktailComponent" type="button">Scan component bottle</button>
         </div>
       </div>
+      <label class="toggle-row" id="saveAsPresetRow">
+        <input type="checkbox" id="saveAsPreset" />
+        <span id="saveAsPresetLabel">Save this as a drink type</span>
+      </label>
+      <p class="toggle-hint" id="saveAsPresetHint" style="display:none;">
+        Required to remember this barcode — needs a name above.
+      </p>
       <div class="ethanol-preview" title="Pure ethanol = volume × (ABV ÷ 100) · 1 standard drink = 17.05 ml">
         <span>Pure ethanol</span>
         <span class="val" id="ethanolPreviewVal">—</span>
@@ -514,6 +514,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=52"></script>
+<script type="module" src="js/app.js?v=53"></script>
 </body>
 </html>

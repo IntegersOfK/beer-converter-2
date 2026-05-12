@@ -6,7 +6,7 @@
 // Fail-quiet: if the backend is unconfigured, unreachable, or returns an
 // error, we just console.warn — never block the user's flow.
 
-import { API_BASE } from './api.js?v=52';
+import { API_BASE } from './api.js?v=53';
 const SUBMIT_URL = API_BASE + '/submit';
 
 // Dedup set for UPC-tagged submissions only — avoids re-submitting the same

@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=52';
+import { api, ApiError } from './api.js?v=53';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -131,6 +131,8 @@ function hydrate(serverPayload) {
     abv:          p.abv,
     kcalPer100ml: p.kcalPer100ml,
     lastUsedAt:   p.lastUsedAt,
+    inputKind:    p.inputKind || 'whole',
+    components:   Array.isArray(p.components) ? p.components : [],
   }));
   // Sort presets by their original creation order (insertion order is preserved
   // by SQLite default; presetKey 'pstd', 'p1'..'p7', 'u<ts>' sorts naturally
@@ -239,6 +241,8 @@ export async function createSession({
           volumeMl:     p.volumeMl,
           abv:          p.abv,
           kcalPer100ml: p.kcalPer100ml,
+          inputKind:    p.inputKind || 'whole',
+          components:   Array.isArray(p.components) ? p.components.map(c => ({ ...c })) : [],
         })));
       }
     } catch (e) { console.warn('preset import failed; using defaults', e); }
@@ -350,16 +354,35 @@ export async function setBenchmark(presetId) {
 
 // ---- presets ------------------------------------------------------------
 
-export function presetSignature({ name, volumeMl, abv } = {}) {
+function componentSignature(components) {
+  if (!Array.isArray(components) || !components.length) return '';
+  // Order matters: two cocktails with the same bottles in different ratios are
+  // different presets, so we don't sort. Name+vol+abv per row is enough.
+  return components.map(c => {
+    const name = String(c?.name || '').trim().toLowerCase();
+    const vol = Number(c?.volumeMl);
+    const abv = Number(c?.abv);
+    return `${name}@${Number.isFinite(vol) ? vol.toFixed(2) : '?'}/${Number.isFinite(abv) ? abv.toFixed(2) : '?'}`;
+  }).join('+');
+}
+
+export function presetSignature({ name, volumeMl, abv, inputKind, components } = {}) {
   const cleanName = String(name || '').trim().replace(/\s+/g, ' ').toLowerCase();
   const vol = Number(volumeMl);
   const alc = Number(abv);
   if (!cleanName || !Number.isFinite(vol) || !Number.isFinite(alc)) return '';
-  return `${cleanName}|${vol.toFixed(2)}|${alc.toFixed(2)}`;
+  const base = `${cleanName}|${vol.toFixed(2)}|${alc.toFixed(2)}`;
+  // Cocktail presets fold the component list in so two cocktails that happen
+  // to share name/volume/ABV (e.g. two takes on a 75 ml 35% Martini) don't
+  // collapse into one preset.
+  if (inputKind === 'cocktail') {
+    return `cocktail:${base}|${componentSignature(components)}`;
+  }
+  return base;
 }
 
-export function findMatchingPreset({ name, volumeMl, abv } = {}) {
-  const sig = presetSignature({ name, volumeMl, abv });
+export function findMatchingPreset({ name, volumeMl, abv, inputKind, components } = {}) {
+  const sig = presetSignature({ name, volumeMl, abv, inputKind, components });
   if (!sig) return null;
   return state.presets.find(p => presetSignature(p) === sig) || null;
 }
@@ -367,20 +390,33 @@ export function findMatchingPreset({ name, volumeMl, abv } = {}) {
 // Returns synchronously so call sites can immediately reference the new
 // preset's id. The server save runs in the background; failure rolls the
 // optimistic add back and alerts.
-export function addPreset({ name, volumeMl, abv, kcalPer100ml = null } = {}) {
+export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind = 'whole', components = null } = {}) {
   if (!state.sid) return null;
-  const existing = findMatchingPreset({ name, volumeMl, abv });
+  const isCocktail = inputKind === 'cocktail' && Array.isArray(components) && components.length > 0;
+  const componentsCopy = isCocktail ? components.map(c => ({ ...c })) : [];
+  const existing = findMatchingPreset({ name, volumeMl, abv, inputKind: isCocktail ? 'cocktail' : 'whole', components: componentsCopy });
   if (existing) {
     existing.lastUsedAt = Date.now();
     touchPreset(existing.id).catch(() => {});
     return existing;
   }
   const presetKey = 'u' + Date.now();
-  const local = { id: presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: Date.now() };
+  const local = {
+    id: presetKey,
+    name,
+    volumeMl,
+    abv,
+    kcalPer100ml,
+    lastUsedAt: Date.now(),
+    inputKind: isCocktail ? 'cocktail' : 'whole',
+    components: componentsCopy,
+  };
   state.presets.push(local);
   inFlight++;
   api.post(`/api/sessions/${encodeURIComponent(state.sid)}/presets`, {
     presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: local.lastUsedAt,
+    inputKind: local.inputKind,
+    components: local.components,
   }).catch(e => {
     console.error('addPreset failed', e); alert('Save type failed');
     state.presets = state.presets.filter(p => p !== local);
@@ -416,27 +452,47 @@ export async function removePreset(id) {
 }
 
 // "Edit type and all its drinks" — server cascades the volume/abv/name
-// onto every drink linked to this preset in one transaction.
-export async function updatePresetAndDrinks(id, { name, volumeMl, abv }) {
+// (and components, for cocktail presets) onto every drink linked to this
+// preset in one transaction.
+export async function updatePresetAndDrinks(id, { name, volumeMl, abv, inputKind, components }) {
   if (!state.sid) return;
   const preset = state.presets.find(p => p.id === id);
   if (!preset) return;
-  const prev = { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv };
+  const prev = {
+    name: preset.name,
+    volumeMl: preset.volumeMl,
+    abv: preset.abv,
+    inputKind: preset.inputKind,
+    components: Array.isArray(preset.components) ? preset.components.map(c => ({ ...c })) : [],
+  };
   if (name) preset.name = name;
   preset.volumeMl = +volumeMl;
   preset.abv = +abv;
+  const nextKind = inputKind === 'cocktail' ? 'cocktail' : 'whole';
+  preset.inputKind = nextKind;
+  preset.components = nextKind === 'cocktail' && Array.isArray(components)
+    ? components.map(c => ({ ...c }))
+    : [];
   // Apply to local drinks too so the UI updates instantly.
   state.people.forEach(person => person.drinks.forEach(d => {
     if (d.presetId !== id) return;
     d.name = preset.name;
     d.volumeMl = preset.volumeMl;
     d.abv = preset.abv;
+    d.inputKind = preset.inputKind;
+    d.components = preset.components.map(c => ({ ...c }));
   }));
   inFlight++;
   try {
     await api.patch(
       `/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(id)}`,
-      { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv }
+      {
+        name: preset.name,
+        volumeMl: preset.volumeMl,
+        abv: preset.abv,
+        inputKind: preset.inputKind,
+        components: preset.components,
+      }
     );
   } catch (e) {
     console.error('updatePresetAndDrinks failed', e); alert('Save failed; refreshing.');

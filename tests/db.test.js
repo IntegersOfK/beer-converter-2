@@ -148,6 +148,67 @@ test('Session lifecycle', async (t) => {
   });
 
 
+  await t.test('cocktail presets persist components and re-link drinks on cascade', () => {
+    const sid = dbLayer.genSessionId();
+    const session = dbLayer.createSession({
+      id: sid,
+      name: 'Cocktail Preset Test',
+      people: [{ name: 'Alice' }],
+    });
+
+    const preset = dbLayer.upsertPreset(sid, {
+      presetKey: 'u_negroni',
+      name: 'Negroni',
+      inputKind: 'cocktail',
+      components: [
+        { name: 'Gin', volumeMl: 30, abv: 40, upc: '111111111111' },
+        { name: 'Campari', volumeMl: 30, abv: 24 },
+        { name: 'Vermouth', volumeMl: 30, abv: 16 },
+      ],
+    });
+
+    assert.strictEqual(preset.inputKind, 'cocktail');
+    assert.strictEqual(preset.components.length, 3);
+    assert.strictEqual(preset.volumeMl, 90);
+    assert.ok(Math.abs(preset.abv - 26.67) < 0.05, `expected ~26.67 ABV, got ${preset.abv}`);
+
+    const drink = dbLayer.addDrink(sid, {
+      personId: session.people[0].id,
+      presetKey: preset.presetKey,
+      name: preset.name,
+      inputKind: 'cocktail',
+      components: preset.components,
+      t: 1,
+    });
+
+    let full = dbLayer.getSessionFull(sid);
+    assert.strictEqual(full.presets.length, 1);
+    assert.strictEqual(full.presets[0].inputKind, 'cocktail');
+    assert.strictEqual(full.presets[0].components[0].upc, '111111111111');
+    assert.strictEqual(full.drinks[0].inputKind, 'cocktail');
+
+    // Cascade-edit the preset (bump the gin pour). Linked drink should follow.
+    const next = dbLayer.updatePresetCascade(sid, preset.presetKey, {
+      name: 'Negroni Forte',
+      inputKind: 'cocktail',
+      components: [
+        { name: 'Gin', volumeMl: 60, abv: 40, upc: '111111111111' },
+        { name: 'Campari', volumeMl: 30, abv: 24 },
+        { name: 'Vermouth', volumeMl: 30, abv: 16 },
+      ],
+    });
+    assert.strictEqual(next.name, 'Negroni Forte');
+    assert.strictEqual(next.volumeMl, 120);
+    assert.strictEqual(next.components[0].volumeMl, 60);
+
+    full = dbLayer.getSessionFull(sid);
+    const linked = full.drinks.find(d => d.id === drink.id);
+    assert.strictEqual(linked.name, 'Negroni Forte');
+    assert.strictEqual(linked.volumeMl, 120);
+    assert.strictEqual(linked.inputKind, 'cocktail');
+    assert.strictEqual(linked.components[0].volumeMl, 60);
+  });
+
   await t.test('create and list database backups', async () => {
     const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beer-converter-backups-'));
     process.env.BACKUP_DIR = backupDir;

@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=52';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=52';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=53';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=53';
 import {
   state, getBenchmark, getUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
@@ -13,9 +13,9 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=52';
-import { submitProduct } from './submit.js?v=52';
-import { getFlavoursForName } from './products.js?v=52';
+} from './state.js?v=53';
+import { submitProduct } from './submit.js?v=53';
+import { getFlavoursForName } from './products.js?v=53';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -569,7 +569,7 @@ function renderPeople() {
       const chip = document.createElement('button');
       chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
       chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
-      chip.title = `${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
+      chip.title = presetChipTitle(preset);
       chip.addEventListener('click', () => logDrink(idx, presetToDrink(preset)));
       tray.appendChild(chip);
     });
@@ -867,7 +867,23 @@ function renderCompareDetail(peopleStats) {
 }
 
 function presetToDrink(preset) {
-  return { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv, presetId: preset.id };
+  const base = { name: preset.name, volumeMl: preset.volumeMl, abv: preset.abv, presetId: preset.id };
+  if (preset.inputKind === 'cocktail' && Array.isArray(preset.components) && preset.components.length) {
+    return {
+      ...base,
+      inputKind: 'cocktail',
+      components: preset.components.map(c => ({ ...c })),
+    };
+  }
+  return base;
+}
+
+function presetChipTitle(preset) {
+  const summary = preset.inputKind === 'cocktail' && preset.components?.length
+    ? componentSummary(preset.components)
+    : '';
+  const head = `${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
+  return summary ? `${head}\n${summary}` : head;
 }
 
 export function logDrink(personIdx, drink, { upc } = {}) {
@@ -919,7 +935,7 @@ export function openAddModal(personIdx) {
     const chip = document.createElement('button');
     chip.className = 'preset-chip' + (preset.id === state.benchmarkPresetId ? ' benchmark' : '');
     chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
-    chip.title = `${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% ABV · ${fmt(ethanolOf(preset),1)} ml ethanol · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} std`;
+    chip.title = presetChipTitle(preset);
     chip.addEventListener('click', () => {
       logDrink(personIdx, presetToDrink(preset));
       closeModal();
@@ -948,8 +964,14 @@ function openPresetEditFlow(id) {
   $('#addPresetTray').innerHTML = '';
   $('#addPresetTray').style.display = 'none';
   resetCustomForm();
-  prefillCustomForm(preset);
-  $('#customUpc').value = '';
+  if (preset.inputKind === 'cocktail' && Array.isArray(preset.components) && preset.components.length) {
+    $('#customName').value = preset.name || '';
+    renderCocktailComponents(preset.components.map(c => ({ ...c })));
+    setCustomInputMode('cocktail');
+  } else {
+    prefillCustomForm(preset);
+    $('#customUpc').value = '';
+  }
   setSaveAsPresetVisible(false);
   $('#btnAddCustom').textContent = 'Save type';
   $('#addModal').classList.add('open');
@@ -1031,7 +1053,13 @@ export function updateSaveAsPresetCopy() {
   updateCustomFlavourVisibility();
 
   if (currentCustomInputMode() === 'cocktail') {
-    hint.style.display = 'none';
+    label.textContent = 'Save this cocktail as a drink type';
+    if (checked && !name) {
+      hint.textContent = 'Add a name above so this cocktail can be remembered.';
+      hint.style.display = '';
+    } else {
+      hint.style.display = 'none';
+    }
     return;
   }
 
@@ -1109,11 +1137,42 @@ export function submitCustomDrink() {
     const bad = components.find(c => !Number.isFinite(c.volumeMl) || c.volumeMl <= 0 || !Number.isFinite(c.abv) || c.abv < 0 || c.abv > 100);
     if (bad) { alert('Each cocktail component needs a valid amount and ABV (0–100%).'); return false; }
     const totals = effectiveCocktailFromComponents(components);
+    const drinkName = name || 'Cocktail';
+
+    if (addModalMode === 'preset-edit') {
+      if (!name) { alert('Enter a name so this cocktail type can be saved.'); return false; }
+      updatePresetAndDrinks(presetEditId, {
+        name,
+        volumeMl: totals.volumeMl,
+        abv: totals.abv,
+        inputKind: 'cocktail',
+        components,
+      });
+      addModalMode = 'drink';
+      presetEditId = null;
+      closeModal();
+      render();
+      return true;
+    }
+
+    let presetId = null;
+    if ($('#saveAsPreset').checked) {
+      if (!name) { alert('Enter a name above so this cocktail can be saved as a type.'); return false; }
+      const preset = addPreset({
+        name,
+        volumeMl: totals.volumeMl,
+        abv: totals.abv,
+        inputKind: 'cocktail',
+        components,
+      });
+      presetId = preset?.id || null;
+    }
+
     logDrink(addModalPersonIdx, {
-      name: name || 'Cocktail',
+      name: drinkName,
       volumeMl: totals.volumeMl,
       abv: totals.abv,
-      presetId: null,
+      presetId,
       flavour,
       inputKind: 'cocktail',
       components,
@@ -1209,11 +1268,15 @@ function renderPresetList() {
   state.presets.forEach(preset => {
     const row = document.createElement('div');
     row.className = 'preset-list-item' + (preset.id === state.benchmarkPresetId ? ' active' : '');
+    const cocktailParts = preset.inputKind === 'cocktail' && preset.components?.length
+      ? componentSummary(preset.components)
+      : '';
     row.innerHTML = `
       <div class="preset-row-main">
         <div class="info">
           <div class="name">${escapeHtml(preset.name)}</div>
           <div class="meta" title="Volume · ABV · pure ethanol per drink · ${fmt(ethanolOf(preset)/STD_DRINK_ML,2)} standard drinks">${fmtVol(preset.volumeMl)} · ${fmt(preset.abv,1)}% · ${fmt(ethanolOf(preset),1)} ml ethanol</div>
+          ${cocktailParts ? `<div class="meta" title="${escapeHtml(cocktailParts)}">${escapeHtml(cocktailParts)}</div>` : ''}
         </div>
         <button class="preset-edit-btn" title="Edit this drink type" data-edit-preset="${preset.id}" aria-label="Edit ${escapeHtml(preset.name)}">Edit</button>
         <button class="star-btn" title="Set as benchmark" data-star="${preset.id}" aria-label="Set as benchmark">★</button>
@@ -1613,6 +1676,8 @@ function importedSessionPayload(source, selectedTypes) {
       abv:          p.abv,
       kcalPer100ml: p.kcalPer100ml,
       lastUsedAt:   p.lastUsedAt,
+      inputKind:    p.inputKind || 'whole',
+      components:   Array.isArray(p.components) ? p.components.map(c => ({ ...c })) : [],
     })),
     benchmarkPresetKey,
   };

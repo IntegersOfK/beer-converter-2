@@ -455,11 +455,17 @@ async function handleSessionRoute(req, res, url, origin) {
   if (subType === 'presets') {
     if (req.method === 'POST' && parts.length === 4) {
       const body = await safeJsonBody(req, res, origin); if (body == null) return;
-      if (!body || !body.presetKey || !body.name || body.volumeMl == null || body.abv == null) {
+      const isCocktail = body?.inputKind === 'cocktail' && Array.isArray(body.components) && body.components.length > 0;
+      if (!body || !body.presetKey || !body.name || (!isCocktail && (body.volumeMl == null || body.abv == null))) {
         send(res, 400, { error: 'missing fields' }, origin); return;
       }
-      const preset = db.upsertPreset(sid, body);
-      send(res, 200, preset, origin);
+      try {
+        const preset = db.upsertPreset(sid, body);
+        send(res, 200, preset, origin);
+      } catch (e) {
+        const status = e.status || 500;
+        send(res, status, { error: e.message || 'save preset failed' }, origin);
+      }
       return;
     }
     const key = subId;

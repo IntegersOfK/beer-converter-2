@@ -96,6 +96,8 @@ db.exec(`
     abv             REAL NOT NULL,
     kcal_per_100ml  REAL,
     last_used_at    INTEGER,
+    input_kind      TEXT NOT NULL DEFAULT 'whole',
+    components_json TEXT,
     UNIQUE(session_id, preset_key)
   );
 
@@ -193,6 +195,16 @@ if (!drinkTableInfo.some(c => c.name === 'input_kind')) {
 if (!drinkTableInfo.some(c => c.name === 'components_json')) {
   console.log('Migration: adding components_json to session_drinks');
   db.exec("ALTER TABLE session_drinks ADD COLUMN components_json TEXT;");
+}
+
+const presetTableInfo = db.prepare("PRAGMA table_info(session_presets)").all();
+if (!presetTableInfo.some(c => c.name === 'input_kind')) {
+  console.log('Migration: adding input_kind to session_presets');
+  db.exec("ALTER TABLE session_presets ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';");
+}
+if (!presetTableInfo.some(c => c.name === 'components_json')) {
+  console.log('Migration: adding components_json to session_presets');
+  db.exec("ALTER TABLE session_presets ADD COLUMN components_json TEXT;");
 }
 
 // ---- prepared statements -------------------------------------------------
@@ -381,27 +393,31 @@ const stmts = {
   // ---- session_presets --------------------------------------------------
   insertPreset: db.prepare(`
     INSERT INTO session_presets
-      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at)
+      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at, input_kind, components_json)
     VALUES
-      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt)
+      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt, @inputKind, @componentsJson)
   `),
   upsertPreset: db.prepare(`
     INSERT INTO session_presets
-      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at)
+      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at, input_kind, components_json)
     VALUES
-      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt)
+      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt, @inputKind, @componentsJson)
     ON CONFLICT(session_id, preset_key) DO UPDATE SET
-      name           = excluded.name,
-      volume_ml      = excluded.volume_ml,
-      abv            = excluded.abv,
-      kcal_per_100ml = excluded.kcal_per_100ml,
-      last_used_at   = COALESCE(excluded.last_used_at, session_presets.last_used_at)
+      name            = excluded.name,
+      volume_ml       = excluded.volume_ml,
+      abv             = excluded.abv,
+      kcal_per_100ml  = excluded.kcal_per_100ml,
+      last_used_at    = COALESCE(excluded.last_used_at, session_presets.last_used_at),
+      input_kind      = excluded.input_kind,
+      components_json = excluded.components_json
   `),
   listPresets: db.prepare(`
     SELECT preset_key AS presetKey, name,
            volume_ml AS volumeMl, abv,
            kcal_per_100ml AS kcalPer100ml,
-           last_used_at AS lastUsedAt
+           last_used_at AS lastUsedAt,
+           input_kind AS inputKind,
+           components_json AS componentsJson
       FROM session_presets
      WHERE session_id = ?
   `),
@@ -409,13 +425,16 @@ const stmts = {
     SELECT preset_key AS presetKey, name,
            volume_ml AS volumeMl, abv,
            kcal_per_100ml AS kcalPer100ml,
-           last_used_at AS lastUsedAt
+           last_used_at AS lastUsedAt,
+           input_kind AS inputKind,
+           components_json AS componentsJson
       FROM session_presets
      WHERE session_id = ? AND preset_key = ?
   `),
   updatePresetCore: db.prepare(`
     UPDATE session_presets
-       SET name = @name, volume_ml = @volumeMl, abv = @abv
+       SET name = @name, volume_ml = @volumeMl, abv = @abv,
+           input_kind = @inputKind, components_json = @componentsJson
      WHERE session_id = @sessionId AND preset_key = @presetKey
   `),
   touchPresetStmt: db.prepare(`
@@ -462,7 +481,7 @@ const stmts = {
   updateDrinksByPresetStmt: db.prepare(`
     UPDATE session_drinks
        SET name = @name, volume_ml = @volumeMl, abv = @abv,
-           input_kind = 'whole', components_json = NULL
+           input_kind = @inputKind, components_json = @componentsJson
      WHERE session_id = @sessionId AND preset_key = @presetKey
   `),
   deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
@@ -674,18 +693,18 @@ const createSessionTx = db.transaction((payload) => {
   if (Array.isArray(payload.presets)) {
     for (const p of payload.presets) {
       if (!p || !p.presetKey || !p.name) continue;
-      const vol = Number(p.volumeMl);
-      const abv = Number(p.abv);
-      if (!Number.isFinite(vol) || vol <= 0) continue;
-      if (!Number.isFinite(abv) || abv < 0 || abv > 100) continue;
+      const presetShape = effectivePresetValues(p);
+      if (!presetShape) continue;
       stmts.upsertPreset.run({
-        sessionId:    id,
-        presetKey:    String(p.presetKey).slice(0, 60),
-        name:         String(p.name).slice(0, 40),
-        volumeMl:     +vol.toFixed(2),
-        abv:          +abv.toFixed(2),
-        kcalPer100ml: p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
-        lastUsedAt:   p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+        sessionId:      id,
+        presetKey:      String(p.presetKey).slice(0, 60),
+        name:           String(p.name).slice(0, 40),
+        volumeMl:       presetShape.volumeMl,
+        abv:            presetShape.abv,
+        kcalPer100ml:   p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
+        lastUsedAt:     p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+        inputKind:      presetShape.inputKind,
+        componentsJson: presetShape.componentsJson,
       });
     }
   }
@@ -702,7 +721,7 @@ function getSessionFull(id) {
   const s = stmts.getSession.get(id);
   if (!s) return null;
   s.people    = stmts.listPeople.all(id);
-  s.presets   = stmts.listPresets.all(id);
+  s.presets   = stmts.listPresets.all(id).map(rowWithPresetComponents);
   s.drinks    = stmts.listDrinks.all(id).map(rowWithComponents);
   s.events    = stmts.listEvents.all(id).map(e => ({
     ...e,
@@ -791,37 +810,58 @@ function removePerson(sessionId, personId) {
 }
 
 const upsertPresetTx = db.transaction((sessionId, p) => {
+  const shape = effectivePresetValues(p);
+  if (!shape) {
+    const err = new Error('preset volume and ABV must be valid numbers');
+    err.status = 400;
+    throw err;
+  }
   stmts.upsertPreset.run({
     sessionId,
-    presetKey:    String(p.presetKey).slice(0, 60),
-    name:         String(p.name).slice(0, 40),
-    volumeMl:     +Number(p.volumeMl).toFixed(2),
-    abv:          +Number(p.abv).toFixed(2),
-    kcalPer100ml: p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
-    lastUsedAt:   p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+    presetKey:      String(p.presetKey).slice(0, 60),
+    name:           String(p.name).slice(0, 40),
+    volumeMl:       shape.volumeMl,
+    abv:            shape.abv,
+    kcalPer100ml:   p.kcalPer100ml == null ? null : Number(p.kcalPer100ml),
+    lastUsedAt:     p.lastUsedAt == null ? null : Number(p.lastUsedAt),
+    inputKind:      shape.inputKind,
+    componentsJson: shape.componentsJson,
   });
   stmts.touchSession.run(nowIso(), sessionId);
 });
 function upsertPreset(sessionId, p) {
   upsertPresetTx(sessionId, p);
-  return stmts.getPreset.get(sessionId, p.presetKey);
+  return rowWithPresetComponents(stmts.getPreset.get(sessionId, p.presetKey));
 }
 
 // "Edit all of this type": mutates the preset row AND every drink linked to it.
+// Cocktail presets cascade their full component list onto every linked drink so
+// they stay editable as cocktails after the cascade.
 const updatePresetCascadeTx = db.transaction((sessionId, presetKey, fields) => {
-  const cur = stmts.getPreset.get(sessionId, presetKey);
+  const cur = rowWithPresetComponents(stmts.getPreset.get(sessionId, presetKey));
   if (!cur) return null;
+  const merged = {
+    name:       fields.name      != null ? fields.name : cur.name,
+    volumeMl:   fields.volumeMl  != null ? fields.volumeMl : cur.volumeMl,
+    abv:        fields.abv       != null ? fields.abv : cur.abv,
+    inputKind:  fields.inputKind != null ? fields.inputKind : cur.inputKind,
+    components: fields.components != null ? fields.components : cur.components,
+  };
+  const shape = effectivePresetValues(merged);
+  if (!shape) return cur;
   const next = {
     sessionId,
     presetKey,
-    name:     fields.name     != null ? String(fields.name).slice(0, 40) : cur.name,
-    volumeMl: fields.volumeMl != null ? +Number(fields.volumeMl).toFixed(2) : cur.volumeMl,
-    abv:      fields.abv      != null ? +Number(fields.abv).toFixed(2) : cur.abv,
+    name:           String(merged.name).slice(0, 40),
+    volumeMl:       shape.volumeMl,
+    abv:            shape.abv,
+    inputKind:      shape.inputKind,
+    componentsJson: shape.componentsJson,
   };
   stmts.updatePresetCore.run(next);
   stmts.updateDrinksByPresetStmt.run(next);
   stmts.touchSession.run(nowIso(), sessionId);
-  return stmts.getPreset.get(sessionId, presetKey);
+  return rowWithPresetComponents(stmts.getPreset.get(sessionId, presetKey));
 });
 function updatePresetCascade(sessionId, presetKey, fields) {
   return updatePresetCascadeTx(sessionId, presetKey, fields || {});
@@ -852,6 +892,45 @@ function rowWithComponents(row) {
   const components = parseDrinkComponents(row);
   const { componentsJson, ...rest } = row;
   return { ...rest, components };
+}
+
+function rowWithPresetComponents(row) {
+  if (!row) return row;
+  const components = parseDrinkComponents(row);
+  const { componentsJson, ...rest } = row;
+  return { ...rest, inputKind: rest.inputKind || 'whole', components };
+}
+
+// Mirror of effectiveDrinkValues for presets. Cocktail presets derive their
+// volume/ABV from components; whole presets use the supplied values.
+// Returns null when the values can't form a valid preset.
+function effectivePresetValues(preset) {
+  const inputKind = preset?.inputKind === 'cocktail' ? 'cocktail' : 'whole';
+  const components = inputKind === 'cocktail' ? normalizeComponents(preset?.components) : [];
+  if (inputKind === 'cocktail') {
+    if (!components.length) return null;
+    const volumeMl = components.reduce((sum, c) => sum + c.volumeMl, 0);
+    const ethanolMl = components.reduce((sum, c) => sum + c.volumeMl * c.abv / 100, 0);
+    if (!(volumeMl > 0)) return null;
+    return {
+      inputKind,
+      components,
+      volumeMl: +volumeMl.toFixed(2),
+      abv: +(ethanolMl / volumeMl * 100).toFixed(2),
+      componentsJson: JSON.stringify(components),
+    };
+  }
+  const vol = Number(preset?.volumeMl);
+  const abv = Number(preset?.abv);
+  if (!Number.isFinite(vol) || vol <= 0) return null;
+  if (!Number.isFinite(abv) || abv < 0 || abv > 100) return null;
+  return {
+    inputKind: 'whole',
+    components: [],
+    volumeMl: +vol.toFixed(2),
+    abv: +abv.toFixed(2),
+    componentsJson: null,
+  };
 }
 
 function normalizeComponents(raw) {
@@ -927,7 +1006,7 @@ const addDrinkTx = db.transaction((sessionId, drink) => {
   }
   const savedDrink = {
     personId:  drink.personId,
-    presetKey: effective.inputKind === 'cocktail' ? null : (drink.presetKey || null),
+    presetKey: drink.presetKey || null,
     name:      String(drink.name || '').slice(0, 60) || `${Math.round(effective.volumeMl)} ml · ${effective.abv}%`,
     flavour:   drink.flavour ? String(drink.flavour).slice(0, 60) : null,
     volumeMl:  effective.volumeMl,
@@ -977,7 +1056,7 @@ function updateDrink(sessionId, drinkId, fields) {
     componentsJson: effective.componentsJson,
     // Editing a single drink unlinks it from its preset (matches frontend
     // semantics: "all of this type" goes through updatePresetCascade).
-    presetKey: fields.unlinkPreset === true || effective.inputKind === 'cocktail' ? null : (cur.presetKey || null),
+    presetKey: fields.unlinkPreset === true ? null : (cur.presetKey || null),
   };
   stmts.updateDrinkStmt.run(next);
   stmts.touchSession.run(nowIso(), sessionId);
