@@ -5,26 +5,26 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=51';
+import { $, $$, escapeHtml, vibe } from './util.js?v=52';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=51';
+} from './state.js?v=52';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
   prefillCustomForm, logDrink, getAddModalPersonIdx,
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
-  openNewSessionModal, setCustomInputMode, addCocktailComponent,
-} from './ui.js?v=51';
-import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=51';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=51';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=51';
-import { ML_PER_OZ } from './calc.js?v=51';
+  openNewSessionModal, setCustomInputMode, addCocktailComponent, addEditCocktailComponent,
+} from './ui.js?v=52';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=52';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=52';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=52';
+import { ML_PER_OZ } from './calc.js?v=52';
 
-console.log('Beer Converter build v51 (cocktail components)');
+console.log('Beer Converter build v52 (cocktail components)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
@@ -183,6 +183,7 @@ $('#editAbv').addEventListener('input', updateEditEthanolPreview);
 $('#editUnit').addEventListener('change', e => { setUnitPref(e.target.value); applyUnit(e.target.value); convertVolumeField('#editVolume', e.target.value); updateEditEthanolPreview(); });
 $('#btnSaveEditDrink').addEventListener('click', submitEditDrink);
 $('#btnSaveEditFlavour').addEventListener('click', saveEditFlavourOnly);
+$('#btnAddEditCocktailComponent').addEventListener('click', () => addEditCocktailComponent());
 
 // --- Presets modal --------------------------------------------------------
 $('#btnAddPreset').addEventListener('click', submitNewPreset);

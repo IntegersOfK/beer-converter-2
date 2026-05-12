@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=51';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=51';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=52';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=52';
 import {
   state, getBenchmark, getUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
@@ -13,9 +13,9 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=51';
-import { submitProduct } from './submit.js?v=51';
-import { getFlavoursForName } from './products.js?v=51';
+} from './state.js?v=52';
+import { submitProduct } from './submit.js?v=52';
+import { getFlavoursForName } from './products.js?v=52';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -62,8 +62,8 @@ function currentCustomInputMode() {
   return document.querySelector('input[name="customInputMode"]:checked')?.value === 'cocktail' ? 'cocktail' : 'whole';
 }
 
-function cocktailRowsFromDom() {
-  return $$('.cocktail-component', $('#cocktailComponents')).map(row => {
+function componentRowsFromDom(list) {
+  return $$('.cocktail-component', list).map(row => {
     const unit = row.querySelector('[data-cocktail-unit]')?.value === 'oz' ? 'oz' : 'ml';
     const raw = parseFloat(row.querySelector('[data-cocktail-volume]')?.value);
     return {
@@ -75,8 +75,8 @@ function cocktailRowsFromDom() {
   });
 }
 
-function completeCocktailComponents() {
-  return cocktailRowsFromDom()
+function completeComponentsFromRows(rows) {
+  return rows
     .filter(c => c.name || c.upc || Number.isFinite(c.volumeMl) || Number.isFinite(c.abv))
     .map(c => ({
       name: c.name || 'Component',
@@ -84,6 +84,14 @@ function completeCocktailComponents() {
       abv: +c.abv,
       upc: c.upc || null,
     }));
+}
+
+function completeCocktailComponents() {
+  return completeComponentsFromRows(componentRowsFromDom($('#cocktailComponents')));
+}
+
+function completeEditCocktailComponents() {
+  return completeComponentsFromRows(componentRowsFromDom($('#editCocktailComponents')));
 }
 
 function effectiveCocktailFromComponents(components) {
@@ -96,10 +104,9 @@ function effectiveCocktailFromComponents(components) {
   };
 }
 
-function renderCocktailComponents(rows = null) {
-  const list = $('#cocktailComponents');
+function renderComponentRows(list, rows, onUpdate) {
   if (!list) return;
-  const data = rows || cocktailRowsFromDom();
+  const data = rows || componentRowsFromDom(list);
   if (!data.length) data.push({ name: '', volumeMl: NaN, abv: NaN, upc: null });
   const unitPref = getUnitPref();
   list.innerHTML = data.map((row, idx) => {
@@ -148,21 +155,49 @@ function renderCocktailComponents(rows = null) {
     `;
   }).join('');
   $$('input, select', list).forEach(el => {
-    el.addEventListener('input', updateEthanolPreview);
+    el.addEventListener('input', onUpdate);
     el.addEventListener('change', e => {
       if (e.currentTarget.matches('[data-cocktail-unit]')) setUnitPref(e.currentTarget.value);
-      updateEthanolPreview();
+      onUpdate();
     });
   });
   $$('[data-remove-cocktail-component]', list).forEach(btn => {
     btn.addEventListener('click', e => {
       const idx = Number(e.currentTarget.dataset.removeCocktailComponent);
-      const rows = cocktailRowsFromDom();
+      const rows = componentRowsFromDom(list);
       rows.splice(idx, 1);
-      renderCocktailComponents(rows.length ? rows : [{ name: '', volumeMl: NaN, abv: NaN, upc: null }]);
-      updateEthanolPreview();
+      renderComponentRows(list, rows.length ? rows : [{ name: '', volumeMl: NaN, abv: NaN, upc: null }], onUpdate);
+      onUpdate();
     });
   });
+}
+
+function renderCocktailComponents(rows = null) {
+  renderComponentRows($('#cocktailComponents'), rows, updateEthanolPreview);
+}
+
+function renderEditCocktailComponents(rows = null) {
+  renderComponentRows($('#editCocktailComponents'), rows, () => {
+    updateEditEthanolPreview();
+    updateEditModeVisibility();
+  });
+}
+
+function cocktailRowsFromDom() {
+  return componentRowsFromDom($('#cocktailComponents'));
+}
+
+function editCocktailRowsFromDom() {
+  return componentRowsFromDom($('#editCocktailComponents'));
+}
+
+function componentChangeKey(components = []) {
+  return JSON.stringify((components || []).map(c => ({
+    name: c.name || 'Component',
+    volumeMl: Number.isFinite(+c.volumeMl) ? +(+c.volumeMl).toFixed(2) : null,
+    abv: Number.isFinite(+c.abv) ? +(+c.abv).toFixed(2) : null,
+    upc: c.upc || null,
+  })));
 }
 
 export function setCustomInputMode(mode) {
@@ -1141,6 +1176,23 @@ export function submitCustomDrink() {
   return true;
 }
 
+
+export function addEditCocktailComponent(prefill = {}) {
+  let rows = editCocktailRowsFromDom();
+  const next = {
+    name: prefill.name || '',
+    volumeMl: prefill.volumeMl != null ? +prefill.volumeMl : NaN,
+    abv: prefill.abv != null ? +prefill.abv : NaN,
+    upc: prefill.upc || null,
+  };
+  const onlyBlank = rows.length === 1 && !rows[0].name && !rows[0].upc && !Number.isFinite(rows[0].volumeMl) && !Number.isFinite(rows[0].abv);
+  if (onlyBlank && (next.name || next.upc || Number.isFinite(next.volumeMl) || Number.isFinite(next.abv))) rows = [next];
+  else rows.push(next);
+  renderEditCocktailComponents(rows);
+  updateEditEthanolPreview();
+  updateEditModeVisibility();
+}
+
 // --- Presets modal ---------------------------------------------------------
 export function openPresetsModal() {
   renderPresetList();
@@ -1597,11 +1649,24 @@ export { updateEthanolPreview };
 
 // --- Edit logged drink modal -----------------------------------------------
 function updateEditEthanolPreview() {
+  const el = $('#editEthanolPreviewVal');
+  const drink = state.people[editPersonIdx]?.drinks[editDrinkIdx];
+  if (drink?.inputKind === 'cocktail') {
+    const components = completeEditCocktailComponents();
+    const invalid = components.some(c => !Number.isFinite(c.volumeMl) || c.volumeMl <= 0 || !Number.isFinite(c.abv) || c.abv < 0 || c.abv > 100);
+    if (!components.length || invalid) {
+      el.textContent = '—';
+      return;
+    }
+    const totals = effectiveCocktailFromComponents(components);
+    el.textContent = `${fmt(totals.ethanolMl,1)} ml  ·  ${fmt(totals.ethanolMl/STD_DRINK_ML, 2)} std  ·  ${components.length} component${components.length === 1 ? '' : 's'}`;
+    return;
+  }
+
   const raw = parseFloat($('#editVolume').value);
   const unit = $('#editUnit').value;
   const v = unit === 'oz' ? raw * ML_PER_OZ : raw;
   const a = parseFloat($('#editAbv').value);
-  const el = $('#editEthanolPreviewVal');
   if (!isFinite(v) || !isFinite(a) || v <= 0 || a < 0) {
     el.textContent = '—';
   } else {
@@ -1620,12 +1685,17 @@ export function openEditModal(personIdx, drinkIdx) {
   if (!drink) return;
 
   const u = getUnitPref();
+  const isCocktail = drink.inputKind === 'cocktail';
   $('#editName').value = drink.name || '';
   $('#editUnit').value = u;
   $('#editVolume').value = u === 'oz'
     ? +(drink.volumeMl / ML_PER_OZ).toFixed(2)
     : Math.round(drink.volumeMl);
   $('#editAbv').value = (+drink.abv).toFixed(1);
+  $('#editWholeDrinkFields').style.display = isCocktail ? 'none' : 'grid';
+  $('#editCocktailFields').style.display = isCocktail ? 'grid' : 'none';
+  if (isCocktail) renderEditCocktailComponents(Array.isArray(drink.components) && drink.components.length ? drink.components.map(c => ({ ...c })) : [{ name: '', volumeMl: NaN, abv: NaN, upc: null }]);
+  else renderEditCocktailComponents([]);
   const flavInput = $('#editFlavour');
   if (flavInput) flavInput.value = drink.flavour || '';
   const flavList = $('#editFlavourList');
@@ -1633,7 +1703,6 @@ export function openEditModal(personIdx, drinkIdx) {
     const opts = getFlavoursForName(drink.name || '');
     flavList.innerHTML = opts.map(f => `<option value="${escapeHtml(f)}">`).join('');
   }
-  updateEditEthanolPreview();
 
   // Linked-to label is always visible when the drink is linked. The scope
   // toggle inside (one vs all) only appears once n/v/a actually changes —
@@ -1655,7 +1724,10 @@ export function openEditModal(personIdx, drinkIdx) {
     volumeMl: +drink.volumeMl,
     abv: +drink.abv,
     flavour: drink.flavour || '',
+    inputKind: isCocktail ? 'cocktail' : 'whole',
+    componentsKey: isCocktail ? componentChangeKey(completeEditCocktailComponents()) : '',
   };
+  updateEditEthanolPreview();
   // Bind change listeners (idempotent — listener objects are recreated each
   // open but point to the same DOM nodes, so the prior listeners are still
   // attached. The visibility check is cheap, so duplicate firings are fine.)
@@ -1682,13 +1754,15 @@ function updateEditModeVisibility() {
   const curVol = $('#editUnit').value === 'oz' ? curVolRaw * ML_PER_OZ : curVolRaw;
   const curAbv = parseFloat($('#editAbv').value);
   const curFlav = ($('#editFlavour')?.value || '').trim();
+  const componentChanged = editOriginal.inputKind === 'cocktail' && componentChangeKey(completeEditCocktailComponents()) !== editOriginal.componentsKey;
 
   // 0.5 ml tolerance swallows the ~0.1 ml float drift from ml→oz→ml round-trip
   // (toFixed(2) on the oz display) while still catching a 1-ml typed change.
-  const nvaChanged =
-    curName !== editOriginal.name ||
-    (Number.isFinite(curVol) && Math.abs(curVol - editOriginal.volumeMl) > 0.5) ||
-    (Number.isFinite(curAbv) && Math.abs(curAbv - editOriginal.abv) > 0.001);
+  const nvaChanged = editOriginal.inputKind === 'cocktail'
+    ? curName !== editOriginal.name || componentChanged
+    : curName !== editOriginal.name ||
+      (Number.isFinite(curVol) && Math.abs(curVol - editOriginal.volumeMl) > 0.5) ||
+      (Number.isFinite(curAbv) && Math.abs(curAbv - editOriginal.abv) > 0.001);
   const flavourChanged = curFlav !== editOriginal.flavour;
 
   $('#btnSaveEditDrink').style.display = nvaChanged ? '' : 'none';
@@ -1713,16 +1787,35 @@ export function submitEditDrink() {
   const name = $('#editName').value.trim();
   const raw = parseFloat($('#editVolume').value);
   const unit = $('#editUnit').value;
-  const volumeMl = unit === 'oz' ? raw * ML_PER_OZ : raw;
-  const abv = parseFloat($('#editAbv').value);
+  let volumeMl = unit === 'oz' ? raw * ML_PER_OZ : raw;
+  let abv = parseFloat($('#editAbv').value);
   const flavour = ($('#editFlavour')?.value || '').trim();
+
+  const drink = state.people[editPersonIdx]?.drinks[editDrinkIdx];
+  if (!drink) { closeModal(); return; }
+
+  if (drink.inputKind === 'cocktail') {
+    const components = completeEditCocktailComponents();
+    if (!components.length) { alert('Add at least one alcoholic component.'); return; }
+    const bad = components.find(c => !Number.isFinite(c.volumeMl) || c.volumeMl <= 0 || !Number.isFinite(c.abv) || c.abv < 0 || c.abv > 100);
+    if (bad) { alert('Each cocktail component needs a valid amount and ABV (0–100%).'); return; }
+    const totals = effectiveCocktailFromComponents(components);
+    updateDrink(editPersonIdx, editDrinkIdx, {
+      name: name || 'Cocktail',
+      volumeMl: totals.volumeMl,
+      abv: totals.abv,
+      flavour,
+      inputKind: 'cocktail',
+      components,
+    });
+    closeModal();
+    render();
+    return;
+  }
 
   if (!isFinite(volumeMl) || !isFinite(abv) || volumeMl <= 0 || abv < 0 || abv > 100) {
     alert('Enter a valid volume and ABV (0–100%).'); return;
   }
-
-  const drink = state.people[editPersonIdx]?.drinks[editDrinkIdx];
-  if (!drink) { closeModal(); return; }
 
   if (drink.presetId && $('#editScopeAll').checked) {
     // "All drinks of this type" path — bulk-update the preset and every linked

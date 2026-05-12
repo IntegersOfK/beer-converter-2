@@ -14,7 +14,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght,SOFT@0,9..144,400,50;0,9..144,500,50;0,9..144,700,80;0,9..144,900,100;1,9..144,500,50&family=IBM+Plex+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="styles.css?v=51">
+<link rel="stylesheet" href="styles.css?v=52">
 </head>
 <body>
 
@@ -457,7 +457,7 @@
         </div>
         <datalist id="editFlavourList"></datalist>
       </div>
-      <div class="field-row">
+      <div class="field-row" id="editWholeDrinkFields">
         <div class="field">
           <label>Volume</label>
           <div class="input-wrap">
@@ -473,6 +473,15 @@
           <div class="input-wrap pct">
             <input class="input mono" id="editAbv" type="number" inputmode="decimal" step="0.1" placeholder="4.7" title="Alcohol by volume (0–100%)" />
           </div>
+        </div>
+      </div>
+      <div class="cocktail-fields" id="editCocktailFields" style="display:none;">
+        <p class="toggle-hint cocktail-help">
+          Edit the alcoholic components that make up this drink. The total volume and effective ABV are recalculated from these rows.
+        </p>
+        <div class="cocktail-components" id="editCocktailComponents"></div>
+        <div class="cocktail-actions">
+          <button class="btn btn-ghost" id="btnAddEditCocktailComponent" type="button">+ Add component</button>
         </div>
       </div>
       <div class="ethanol-preview">
@@ -505,6 +514,6 @@
   </div>
 </div>
 
-<script type="module" src="js/app.js?v=51"></script>
+<script type="module" src="js/app.js?v=52"></script>
 </body>
 </html>
