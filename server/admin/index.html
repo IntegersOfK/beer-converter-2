@@ -300,6 +300,91 @@
   .pending-detail .samples .sample-row { display: flex; gap: 10px; align-items: baseline; }
   .pending-detail .samples .count { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); min-width: 24px; text-align: right; }
 
+  /* ===== Merge modal ===================================================== */
+  .merge-overlay {
+    position: fixed; inset: 0; background: rgba(10, 7, 4, 0.72);
+    display: none; align-items: center; justify-content: center;
+    z-index: 200; padding: 24px;
+  }
+  .merge-overlay.open { display: flex; }
+  .merge-modal {
+    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
+    width: min(580px, 100%); max-height: 88vh; overflow-y: auto;
+    padding: 20px 24px;
+  }
+  .merge-modal h3 { margin: 0 0 14px; font-size: 16px; color: var(--ink); }
+  .merge-direction {
+    display: grid; grid-template-columns: 1fr auto 1fr;
+    align-items: center; gap: 10px; margin-bottom: 14px;
+  }
+  .merge-side {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 9px 11px; min-width: 0;
+  }
+  .merge-side-label {
+    font-family: ui-monospace, monospace; font-size: 9px; color: var(--ink-soft);
+    letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px;
+  }
+  .merge-side-name {
+    font-weight: 600; color: var(--ink); font-size: 13px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  }
+  .merge-side-meta {
+    font-size: 11px; color: var(--ink-soft); margin-top: 2px;
+    font-family: ui-monospace, monospace;
+  }
+  .merge-side.source { border-color: var(--danger); }
+  .merge-side.target { border-color: var(--amber-deep); }
+  .merge-swap {
+    background: var(--bg-card); border: 1px solid var(--line);
+    color: var(--amber); border-radius: 999px;
+    padding: 6px 10px; cursor: pointer; font-size: 13px;
+    font-family: inherit;
+  }
+  .merge-swap:hover { border-color: var(--amber); color: var(--amber-bright); }
+  .merge-swap:disabled { opacity: 0.4; cursor: not-allowed; }
+  .merge-target-picker { margin-bottom: 14px; }
+  .merge-target-picker label {
+    display: block; font-family: ui-monospace, monospace; font-size: 10px;
+    color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+  .merge-target-picker select {
+    width: 100%;
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 7px 10px; color: var(--ink); font: inherit; font-size: 13px;
+  }
+  .merge-target-picker select:focus { outline: none; border-color: var(--amber); }
+  .merge-preview-label {
+    font-family: ui-monospace, monospace; font-size: 10px;
+    color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .merge-preview {
+    border: 1px solid var(--line-soft); border-radius: 8px;
+    padding: 8px 12px; max-height: 240px; overflow-y: auto; margin-bottom: 14px;
+    background: var(--bg-input);
+  }
+  .merge-preview .empty {
+    border: none; padding: 6px 0; color: var(--ink-soft); font-style: italic;
+    text-align: left;
+  }
+  .merge-upc-row {
+    display: grid; grid-template-columns: 130px 1fr; gap: 8px;
+    align-items: center; padding: 5px 0; font-size: 12px;
+  }
+  .merge-upc-row + .merge-upc-row { border-top: 1px dashed var(--line-soft); }
+  .merge-upc-cell {
+    font-family: ui-monospace, monospace; color: var(--ink-soft); font-size: 11px;
+  }
+  .merge-upc-row input {
+    background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
+    padding: 4px 7px; color: var(--ink); font: inherit; font-size: 12px;
+    width: 100%; min-width: 0;
+  }
+  .merge-upc-row input:focus { outline: none; border-color: var(--amber); }
+  .merge-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
   .toast {
     position: fixed; bottom: 20px; right: 20px;
     background: var(--bg-elev); border: 1px solid var(--amber-deep); color: var(--amber);
@@ -416,6 +501,35 @@
   <button class="btn ghost" id="btnLogRefresh">Refresh</button>
 </div>
 <table class="data-table log-table" id="logList"></table>
+
+<div class="merge-overlay" id="mergeOverlay">
+  <div class="merge-modal">
+    <h3>Merge products</h3>
+    <div class="merge-direction">
+      <div class="merge-side source" id="mergeSourceSide">
+        <div class="merge-side-label">From (deleted)</div>
+        <div class="merge-side-name" id="mergeSourceName">—</div>
+        <div class="merge-side-meta" id="mergeSourceMeta">—</div>
+      </div>
+      <button class="merge-swap" id="mergeSwap" title="Swap direction">⇄</button>
+      <div class="merge-side target" id="mergeTargetSide">
+        <div class="merge-side-label">Into (kept)</div>
+        <div class="merge-side-name" id="mergeTargetName">—</div>
+        <div class="merge-side-meta" id="mergeTargetMeta">—</div>
+      </div>
+    </div>
+    <div class="merge-target-picker">
+      <label>Other product</label>
+      <select id="mergeOtherSelect"></select>
+    </div>
+    <div class="merge-preview-label">UPCs that will move</div>
+    <div class="merge-preview" id="mergePreview"></div>
+    <div class="merge-actions">
+      <button class="btn ghost" id="mergeCancel">Cancel</button>
+      <button class="btn primary" id="mergeConfirm" disabled>Merge</button>
+    </div>
+  </div>
+</div>
 
 <div class="toast" id="toast"></div>
 
@@ -880,6 +994,7 @@
           <td>${source}</td>
           <td class="cell-actions">
             <button class="row-btn primary save-product">Save</button>
+            <button class="row-btn merge-product" title="Merge into another product">⇄</button>
             <button class="row-btn danger del-product" title="Delete product">×</button>
           </td>
         </tr>
@@ -927,6 +1042,8 @@
         toast('Save failed: ' + e.message, 'danger');
       }
     });
+
+    card.querySelector('button.merge-product').addEventListener('click', () => openMergeModal(id));
 
     card.querySelector('button.del-product').addEventListener('click', async () => {
       const product = productsState.products.find(p => p.id === id);
@@ -990,6 +1107,147 @@
     [addUpcInput, addFlavInput].forEach(i =>
       i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAddUpc(); } }));
   }
+
+  // ===== MERGE PRODUCTS =======================================================
+  // Auto-orient by UPC count; ties broken by curated-wins. User can override
+  // via the swap button. The source product is deleted after its UPCs are
+  // moved to the target — each moved UPC keeps its own flavour if set, or
+  // gets one derived from the source product name with the target name
+  // stripped (e.g. "White Claw Mango" minus "White Claw" = "Mango").
+
+  let mergeState = { initialId: null, otherId: null, sourceId: null, targetId: null, busy: false };
+
+  function pickMergeOrientation(a, b) {
+    // Returns [source, target] following the auto rule.
+    if (a.upcs.length !== b.upcs.length) {
+      return a.upcs.length < b.upcs.length ? [a, b] : [b, a];
+    }
+    if (a.curated !== b.curated) {
+      return a.curated ? [b, a] : [a, b];
+    }
+    return [a, b]; // arbitrary stable fallback
+  }
+
+  function openMergeModal(initialId) {
+    mergeState = { initialId, otherId: null, sourceId: null, targetId: null, busy: false };
+
+    const sel = $('#mergeOtherSelect');
+    sel.innerHTML = '<option value="">— pick a product —</option>' +
+      productsState.products
+        .filter(p => p.id !== initialId)
+        .map(p => {
+          const tag = p.curated ? 'curated' : 'imported';
+          const upcN = p.upcs.length;
+          return `<option value="${escape(p.id)}">${escape(p.name)} · ${upcN} UPC${upcN === 1 ? '' : 's'} · ${tag}</option>`;
+        }).join('');
+
+    renderMergeModal();
+    $('#mergeOverlay').classList.add('open');
+  }
+
+  function closeMergeModal() {
+    $('#mergeOverlay').classList.remove('open');
+  }
+
+  function renderMergeModal() {
+    const initial = productsState.products.find(p => p.id === mergeState.initialId);
+    const other   = mergeState.otherId
+      ? productsState.products.find(p => p.id === mergeState.otherId)
+      : null;
+
+    if (!other) {
+      // No target picked yet. Show the initial as the source (placeholder) and
+      // target empty; user must pick.
+      $('#mergeSourceName').textContent = initial ? initial.name : '—';
+      $('#mergeSourceMeta').textContent = initial
+        ? `${initial.upcs.length} UPC${initial.upcs.length === 1 ? '' : 's'} · ${initial.curated ? 'curated' : 'imported'}`
+        : '—';
+      $('#mergeTargetName').textContent = '—';
+      $('#mergeTargetMeta').textContent = 'pick a product below';
+      $('#mergePreview').innerHTML = '<div class="empty">Pick another product to preview the merge.</div>';
+      $('#mergeConfirm').disabled = true;
+      $('#mergeSwap').disabled = true;
+      return;
+    }
+
+    // Auto-orient unless user overrode.
+    if (!mergeState.sourceId || !mergeState.targetId) {
+      const [src, tgt] = pickMergeOrientation(initial, other);
+      mergeState.sourceId = src.id;
+      mergeState.targetId = tgt.id;
+    }
+
+    const source = productsState.products.find(p => p.id === mergeState.sourceId);
+    const target = productsState.products.find(p => p.id === mergeState.targetId);
+
+    $('#mergeSourceName').textContent = source.name;
+    $('#mergeSourceMeta').textContent = `${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'} · ${source.curated ? 'curated' : 'imported'}`;
+    $('#mergeTargetName').textContent = target.name;
+    $('#mergeTargetMeta').textContent = `${target.upcs.length} UPC${target.upcs.length === 1 ? '' : 's'} · ${target.curated ? 'curated' : 'imported'}`;
+
+    const inferred = stripProductFromName(source.name, target.name) || source.name;
+    const previewWrap = $('#mergePreview');
+    if (!source.upcs.length) {
+      previewWrap.innerHTML = '<div class="empty">Source has no UPCs. The product will just be deleted.</div>';
+    } else {
+      previewWrap.innerHTML = source.upcs.map(u => `
+        <div class="merge-upc-row" data-upc="${escape(u.upc)}">
+          <div class="merge-upc-cell">${escape(u.upc)}</div>
+          <input name="flavour" value="${escape(u.flavour || inferred)}" placeholder="flavour" />
+        </div>
+      `).join('');
+    }
+
+    $('#mergeConfirm').disabled = false;
+    $('#mergeSwap').disabled = false;
+  }
+
+  async function performMerge() {
+    if (mergeState.busy) return;
+    const source = productsState.products.find(p => p.id === mergeState.sourceId);
+    const target = productsState.products.find(p => p.id === mergeState.targetId);
+    if (!source || !target) return;
+
+    // Read possibly-edited flavour values from the preview.
+    const upcEdits = $$('#mergePreview .merge-upc-row').map(row => ({
+      upc: row.dataset.upc,
+      flavour: row.querySelector('input[name=flavour]').value.trim() || undefined,
+    }));
+
+    if (!confirm(`Merge "${source.name}" (${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'}) into "${target.name}"? The source product will be deleted.`)) return;
+
+    mergeState.busy = true;
+    $('#mergeConfirm').disabled = true;
+    try {
+      for (const edit of upcEdits) {
+        await api('/upc', { method: 'POST', body: JSON.stringify({ upc: edit.upc, productId: target.id, flavour: edit.flavour }) });
+      }
+      await api('/product/' + encodeURIComponent(source.id), { method: 'DELETE' });
+      toast(`Merged into ${target.name}`);
+      closeMergeModal();
+      await loadAll();
+    } catch (e) {
+      toast('Merge failed: ' + e.message, 'danger');
+      $('#mergeConfirm').disabled = false;
+    } finally {
+      mergeState.busy = false;
+    }
+  }
+
+  $('#mergeOtherSelect').addEventListener('change', e => {
+    mergeState.otherId = e.target.value || null;
+    mergeState.sourceId = null; mergeState.targetId = null; // re-apply auto-orientation
+    renderMergeModal();
+  });
+  $('#mergeSwap').addEventListener('click', () => {
+    [mergeState.sourceId, mergeState.targetId] = [mergeState.targetId, mergeState.sourceId];
+    renderMergeModal();
+  });
+  $('#mergeCancel').addEventListener('click', closeMergeModal);
+  $('#mergeConfirm').addEventListener('click', performMerge);
+  $('#mergeOverlay').addEventListener('click', e => {
+    if (e.target.id === 'mergeOverlay') closeMergeModal();
+  });
 
   // ===== MANUAL ADD (top of products section) =================================
 
