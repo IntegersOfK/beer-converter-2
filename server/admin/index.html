@@ -1346,7 +1346,7 @@
     $('#mergeSourceMeta').textContent = `${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'} · ${source.curated ? 'curated' : 'imported'}`;
     $('#mergeTargetName').textContent = target.name;
     $('#mergeTargetMeta').textContent = `${target.upcs.length} UPC${target.upcs.length === 1 ? '' : 's'} · ${target.curated ? 'curated' : 'imported'}`;
-    const inferred = stripProductFromName(source.name, target.name) || source.name;
+    const stripped = stripProductFromName(source.name, target.name);
     const previewWrap = $('#mergePreview');
     if (!source.upcs.length) {
       previewWrap.innerHTML = '<div class="empty">Source has no UPCs. The product will just be deleted.</div>';
@@ -1354,7 +1354,7 @@
       previewWrap.innerHTML = source.upcs.map(u => `
         <div class="merge-upc-row" data-upc="${escape(u.upc)}">
           <div class="merge-upc-cell">${escape(u.upc)}</div>
-          <input name="flavour" value="${escape(u.flavour || inferred)}" placeholder="flavour" />
+          <input name="flavour" value="${escape(stripped || u.flavour || '')}" placeholder="flavour" />
         </div>`).join('');
     }
     $('#mergeConfirm').disabled = false;
