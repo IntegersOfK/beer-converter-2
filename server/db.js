@@ -783,14 +783,15 @@ function listSubmissionsPaginated({ q = '', page = 1, limit = 100 } = {}) {
       SELECT ${selectCols}
         FROM submissions s
         LEFT JOIN sessions sess ON sess.id = s.session_id
-       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ?
+       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ? OR sess.name LIKE ?
        ORDER BY s.received_at DESC
        LIMIT ? OFFSET ?
-    `).all(pat, pat, pat, pat, lim, off);
+    `).all(pat, pat, pat, pat, pat, lim, off);
     total = db.prepare(`
       SELECT COUNT(*) AS n FROM submissions s
-       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ?
-    `).get(pat, pat, pat, pat).n;
+        LEFT JOIN sessions sess ON sess.id = s.session_id
+       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ? OR sess.name LIKE ?
+    `).get(pat, pat, pat, pat, pat).n;
   } else {
     rows  = db.prepare(`
       SELECT ${selectCols}
