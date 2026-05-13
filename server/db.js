@@ -770,14 +770,14 @@ function listSubmissionsPaginated({ q = '', page = 1, limit = 100 } = {}) {
       SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
              from_name AS [from], people, user_agent AS ua, received_at AS receivedAt
         FROM submissions
-       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ?
+       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
        ORDER BY received_at DESC
        LIMIT ? OFFSET ?
-    `).all(pat, pat, pat, lim, off);
+    `).all(pat, pat, pat, pat, lim, off);
     total = db.prepare(`
       SELECT COUNT(*) AS n FROM submissions
-       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ?
-    `).get(pat, pat, pat).n;
+       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
+    `).get(pat, pat, pat, pat).n;
   } else {
     rows  = db.prepare(`
       SELECT upc, name, abv, volume_ml AS volumeMl, flavour,

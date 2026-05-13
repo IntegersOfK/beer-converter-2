@@ -874,9 +874,9 @@
       if (sessionSort.col === 'people')  { av = Number(a.peopleCount) || 0; bv = Number(b.peopleCount) || 0; }
       else if (sessionSort.col === 'drinks')  { av = Number(a.drinkCount) || 0; bv = Number(b.drinkCount) || 0; }
       else if (sessionSort.col === 'created') { av = a.createdAt || ''; bv = b.createdAt || ''; }
-      else { // last
-        av = a.lastDrinkAt ? String(a.lastDrinkAt) : (a.updatedAt || '');
-        bv = b.lastDrinkAt ? String(b.lastDrinkAt) : (b.updatedAt || '');
+      else { // last — normalize both sides to epoch ms for a comparable sort
+        av = a.lastDrinkAt ? Number(a.lastDrinkAt) : new Date(a.updatedAt || 0).getTime();
+        bv = b.lastDrinkAt ? Number(b.lastDrinkAt) : new Date(b.updatedAt || 0).getTime();
       }
       const cmp = typeof av === 'number' ? (av - bv) : av.localeCompare(bv);
       return sessionSort.dir === 'asc' ? cmp : -cmp;
