@@ -899,6 +899,7 @@ export function logDrink(personIdx, drink, { upc } = {}) {
         volumeMl: component.volumeMl,
         from: state.people[personIdx]?.name,
         people: state.people.map(p => p.name),
+        sessionId: state.sid,
       });
     });
   } else {
@@ -910,6 +911,7 @@ export function logDrink(personIdx, drink, { upc } = {}) {
       flavour: drink.flavour || undefined,
       from: state.people[personIdx]?.name,
       people: state.people.map(p => p.name),
+      sessionId: state.sid,
     });
   }
   render();
@@ -1200,6 +1202,7 @@ export function submitCustomDrink() {
         flavour: flavour || undefined,
         from: 'drink-type-menu',
         people: state.people.map(p => p.name),
+        sessionId: state.sid,
       });
     }
     addModalMode = 'drink';
