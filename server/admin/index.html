@@ -1356,7 +1356,7 @@
       previewWrap.innerHTML = source.upcs.map(u => `
         <div class="merge-upc-row" data-upc="${escape(u.upc)}">
           <div class="merge-upc-cell">${escape(u.upc)}</div>
-          <input name="flavour" value="${escape(stripped || u.flavour || '')}" placeholder="flavour" />
+          <input name="flavour" value="${escape(u.flavour || stripped || '')}" placeholder="flavour" />
         </div>`).join('');
     }
     $('#mergeConfirm').disabled = false;
@@ -1543,9 +1543,8 @@
   function stripProductFromName(submitted, productName) {
     if (!submitted || !productName) return '';
     const s = submitted.trim(), p = productName.trim();
-    if (!s.toLowerCase().includes(p.toLowerCase())) return '';
-    const re = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
-    return s.replace(re, '').replace(/^[\s\-—·,:]+|[\s\-—·,:]+$/g, '').trim();
+    if (!s.toLowerCase().startsWith(p.toLowerCase())) return '';
+    return s.slice(p.length);
   }
 
   function guessFlavour(submitted, suggestions) {
