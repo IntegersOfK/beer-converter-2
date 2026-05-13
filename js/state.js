@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=54';
+import { api, ApiError } from './api.js?v=55';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -133,6 +133,7 @@ function hydrate(serverPayload) {
     lastUsedAt:   p.lastUsedAt,
     inputKind:    p.inputKind || 'whole',
     components:   Array.isArray(p.components) ? p.components : [],
+    upc:          p.upc || null,
   }));
   // Sort presets by their original creation order (insertion order is preserved
   // by SQLite default; presetKey 'pstd', 'p1'..'p7', 'u<ts>' sorts naturally
@@ -390,14 +391,24 @@ export function findMatchingPreset({ name, volumeMl, abv, inputKind, components 
 // Returns synchronously so call sites can immediately reference the new
 // preset's id. The server save runs in the background; failure rolls the
 // optimistic add back and alerts.
-export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind = 'whole', components = null } = {}) {
+export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind = 'whole', components = null, upc = null } = {}) {
   if (!state.sid) return null;
   const isCocktail = inputKind === 'cocktail' && Array.isArray(components) && components.length > 0;
   const componentsCopy = isCocktail ? components.map(c => ({ ...c })) : [];
   const existing = findMatchingPreset({ name, volumeMl, abv, inputKind: isCocktail ? 'cocktail' : 'whole', components: componentsCopy });
   if (existing) {
     existing.lastUsedAt = Date.now();
-    touchPreset(existing.id).catch(() => {});
+    if (upc && !existing.upc) {
+      existing.upc = upc;
+      api.post(`/api/sessions/${encodeURIComponent(state.sid)}/presets`, {
+        presetKey: existing.id, name: existing.name, volumeMl: existing.volumeMl,
+        abv: existing.abv, kcalPer100ml: existing.kcalPer100ml,
+        lastUsedAt: existing.lastUsedAt, inputKind: existing.inputKind,
+        components: existing.components, upc,
+      }).catch(() => {});
+    } else {
+      touchPreset(existing.id).catch(() => {});
+    }
     return existing;
   }
   const presetKey = 'u' + Date.now();
@@ -410,6 +421,7 @@ export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind 
     lastUsedAt: Date.now(),
     inputKind: isCocktail ? 'cocktail' : 'whole',
     components: componentsCopy,
+    upc: upc || null,
   };
   state.presets.push(local);
   inFlight++;
@@ -417,6 +429,7 @@ export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind 
     presetKey, name, volumeMl, abv, kcalPer100ml, lastUsedAt: local.lastUsedAt,
     inputKind: local.inputKind,
     components: local.components,
+    upc: local.upc,
   }).catch(e => {
     console.error('addPreset failed', e); alert('Save type failed');
     state.presets = state.presets.filter(p => p !== local);

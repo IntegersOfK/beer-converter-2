@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=54';
+import { $, $$, escapeHtml, vibe } from './util.js?v=55';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=54';
+} from './state.js?v=55';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,13 +18,13 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal, setCustomInputMode, addCocktailComponent, addEditCocktailComponent,
-} from './ui.js?v=54';
-import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=54';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=54';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=54';
-import { ML_PER_OZ } from './calc.js?v=54';
+} from './ui.js?v=55';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=55';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=55';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=55';
+import { ML_PER_OZ } from './calc.js?v=55';
 
-console.log('Beer Converter build v54 (catalogue served from SQLite, no CSV asset)');
+console.log('Beer Converter build v55 (session UPC cache for uncatalogued products)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 
@@ -335,6 +335,20 @@ async function handleUpcFound(upc) {
       `Found: ${info.name}${flavStr} · ${abvStr}${volStr}${tail}`,
       'ok',
     );
+    setTimeout(closeScannerOnly, 800);
+    return;
+  }
+
+  // Check session presets: a previous contributor may have already named this UPC.
+  const sessionPreset = state.presets.find(p => p.upc === upc);
+  if (sessionPreset) {
+    prefillCustomForm({
+      name: sessionPreset.name,
+      volumeMl: sessionPreset.volumeMl,
+      abv: sessionPreset.abv,
+      upc,
+    });
+    setScannerStatus(`Remembered from this session: ${sessionPreset.name} · ${(+sessionPreset.abv).toFixed(1)}% · ${Math.round(sessionPreset.volumeMl)} ml`, 'ok');
     setTimeout(closeScannerOnly, 800);
     return;
   }

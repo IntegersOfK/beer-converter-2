@@ -13,7 +13,7 @@
 // forms so a scanner returning "087000007604" still matches a stored
 // "87000007604".
 
-import { API_BASE } from './api.js?v=54';
+import { API_BASE } from './api.js?v=55';
 
 const CATALOG_URL = API_BASE + '/catalog.json';
 

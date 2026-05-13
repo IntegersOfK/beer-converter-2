@@ -101,6 +101,7 @@ db.exec(`
     last_used_at    INTEGER,
     input_kind      TEXT NOT NULL DEFAULT 'whole',
     components_json TEXT,
+    upc             TEXT,
     UNIQUE(session_id, preset_key)
   );
 
@@ -240,6 +241,10 @@ if (!presetTableInfo.some(c => c.name === 'input_kind')) {
 if (!presetTableInfo.some(c => c.name === 'components_json')) {
   console.log('Migration: adding components_json to session_presets');
   db.exec("ALTER TABLE session_presets ADD COLUMN components_json TEXT;");
+}
+if (!presetTableInfo.some(c => c.name === 'upc')) {
+  console.log('Migration: adding upc to session_presets');
+  db.exec("ALTER TABLE session_presets ADD COLUMN upc TEXT;");
 }
 
 // ---- migration: add session_id to submissions --------------------------------
@@ -449,9 +454,9 @@ const stmts = {
   `),
   upsertPreset: db.prepare(`
     INSERT INTO session_presets
-      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at, input_kind, components_json)
+      (session_id, preset_key, name, volume_ml, abv, kcal_per_100ml, last_used_at, input_kind, components_json, upc)
     VALUES
-      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt, @inputKind, @componentsJson)
+      (@sessionId, @presetKey, @name, @volumeMl, @abv, @kcalPer100ml, @lastUsedAt, @inputKind, @componentsJson, @upc)
     ON CONFLICT(session_id, preset_key) DO UPDATE SET
       name            = excluded.name,
       volume_ml       = excluded.volume_ml,
@@ -459,7 +464,8 @@ const stmts = {
       kcal_per_100ml  = excluded.kcal_per_100ml,
       last_used_at    = COALESCE(excluded.last_used_at, session_presets.last_used_at),
       input_kind      = excluded.input_kind,
-      components_json = excluded.components_json
+      components_json = excluded.components_json,
+      upc             = COALESCE(excluded.upc, session_presets.upc)
   `),
   listPresets: db.prepare(`
     SELECT preset_key AS presetKey, name,
@@ -467,7 +473,8 @@ const stmts = {
            kcal_per_100ml AS kcalPer100ml,
            last_used_at AS lastUsedAt,
            input_kind AS inputKind,
-           components_json AS componentsJson
+           components_json AS componentsJson,
+           upc
       FROM session_presets
      WHERE session_id = ?
   `),
@@ -477,7 +484,8 @@ const stmts = {
            kcal_per_100ml AS kcalPer100ml,
            last_used_at AS lastUsedAt,
            input_kind AS inputKind,
-           components_json AS componentsJson
+           components_json AS componentsJson,
+           upc
       FROM session_presets
      WHERE session_id = ? AND preset_key = ?
   `),
@@ -878,6 +886,7 @@ const createSessionTx = db.transaction((payload) => {
         lastUsedAt:     p.lastUsedAt == null ? null : Number(p.lastUsedAt),
         inputKind:      presetShape.inputKind,
         componentsJson: presetShape.componentsJson,
+        upc:            p.upc ? String(p.upc).slice(0, 30) : null,
       });
     }
   }
@@ -999,6 +1008,7 @@ const upsertPresetTx = db.transaction((sessionId, p) => {
     lastUsedAt:     p.lastUsedAt == null ? null : Number(p.lastUsedAt),
     inputKind:      shape.inputKind,
     componentsJson: shape.componentsJson,
+    upc:            p.upc ? String(p.upc).slice(0, 30) : null,
   });
   stmts.touchSession.run(nowIso(), sessionId);
 });
