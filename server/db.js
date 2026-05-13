@@ -27,12 +27,15 @@ db.pragma('foreign_keys = ON');
 db.exec(`
   CREATE TABLE IF NOT EXISTS products (
     id          TEXT PRIMARY KEY,
-    name        TEXT NOT NULL UNIQUE COLLATE NOCASE,
+    name        TEXT NOT NULL COLLATE NOCASE,
     abv         REAL NOT NULL,
     volume_ml   REAL,
+    category    TEXT,
+    curated     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL,
     updated_at  TEXT NOT NULL
   );
+  CREATE INDEX IF NOT EXISTS products_name ON products(name COLLATE NOCASE);
 
   CREATE TABLE IF NOT EXISTS upcs (
     upc         TEXT PRIMARY KEY,
@@ -154,6 +157,38 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS session_comment_reactions_comment ON session_comment_reactions(comment_id);
 `);
 
+// ---- migration: products gets category + curated; drop UNIQUE(name) -------
+// SQLite has no DROP CONSTRAINT, so we rebuild the table. Foreign keys must
+// be disabled for the swap or the upcs rows would cascade-delete. Existing
+// rows are flagged curated=1 because they all came from the hand-curated
+// admin path; the CSV importer below inserts new rows with curated=0.
+const productsTableInfo = db.prepare("PRAGMA table_info(products)").all();
+if (!productsTableInfo.some(c => c.name === 'category') || !productsTableInfo.some(c => c.name === 'curated')) {
+  console.log('Migration: adding category + curated to products, dropping UNIQUE(name)');
+  db.pragma('foreign_keys = OFF');
+  try {
+    db.exec(`
+      CREATE TABLE products_new (
+        id          TEXT PRIMARY KEY,
+        name        TEXT NOT NULL COLLATE NOCASE,
+        abv         REAL NOT NULL,
+        volume_ml   REAL,
+        category    TEXT,
+        curated     INTEGER NOT NULL DEFAULT 1,
+        created_at  TEXT NOT NULL,
+        updated_at  TEXT NOT NULL
+      );
+      INSERT INTO products_new (id, name, abv, volume_ml, category, curated, created_at, updated_at)
+        SELECT id, name, abv, volume_ml, NULL, 1, created_at, updated_at FROM products;
+      DROP TABLE products;
+      ALTER TABLE products_new RENAME TO products;
+      CREATE INDEX IF NOT EXISTS products_name ON products(name COLLATE NOCASE);
+    `);
+  } finally {
+    db.pragma('foreign_keys = ON');
+  }
+}
+
 // ---- migration: add author_name to session_comments -----------------------
 const tableInfo = db.prepare("PRAGMA table_info(session_comments)").all();
 if (!tableInfo.some(c => c.name === 'author_name')) {
@@ -212,28 +247,33 @@ if (!presetTableInfo.some(c => c.name === 'components_json')) {
 const stmts = {
   // products
   listProducts: db.prepare(
-    `SELECT id, name, abv, volume_ml AS volumeMl,
+    `SELECT id, name, abv, volume_ml AS volumeMl, category, curated,
             created_at AS createdAt, updated_at AS updatedAt
        FROM products`
   ),
   getProductById: db.prepare(
-    `SELECT id, name, abv, volume_ml AS volumeMl,
+    `SELECT id, name, abv, volume_ml AS volumeMl, category, curated,
             created_at AS createdAt, updated_at AS updatedAt
        FROM products WHERE id = ?`
   ),
+  // Name lookup returns the curated row when one exists, otherwise the most
+  // recently-updated row. The hand-curated entry always wins so the legacy
+  // /api/curated adapter doesn't accidentally rewrite a CSV-imported product.
   getProductByName: db.prepare(
-    `SELECT id, name, abv, volume_ml AS volumeMl,
+    `SELECT id, name, abv, volume_ml AS volumeMl, category, curated,
             created_at AS createdAt, updated_at AS updatedAt
-       FROM products WHERE name = ? COLLATE NOCASE`
+       FROM products WHERE name = ? COLLATE NOCASE
+       ORDER BY curated DESC, updated_at DESC LIMIT 1`
   ),
   productsCount: db.prepare(`SELECT COUNT(*) AS n FROM products`),
   insertProduct: db.prepare(
-    `INSERT INTO products (id, name, abv, volume_ml, created_at, updated_at)
-     VALUES (@id, @name, @abv, @volumeMl, @createdAt, @updatedAt)`
+    `INSERT INTO products (id, name, abv, volume_ml, category, curated, created_at, updated_at)
+     VALUES (@id, @name, @abv, @volumeMl, @category, @curated, @createdAt, @updatedAt)`
   ),
   updateProduct: db.prepare(
     `UPDATE products
         SET name = @name, abv = @abv, volume_ml = @volumeMl,
+            category = @category, curated = @curated,
             updated_at = @updatedAt
       WHERE id = @id`
   ),
@@ -273,6 +313,8 @@ const stmts = {
            p.name,
            p.abv,
            p.volume_ml AS volumeMl,
+           p.category,
+           p.curated,
            u.flavour
       FROM upcs u
       JOIN products p ON p.id = u.product_id
@@ -588,12 +630,18 @@ function deleteUpc(upc) { return stmts.deleteUpc.run(upc).changes > 0; }
 const upsertCuratedTx = db.transaction((entry) => {
   const now = new Date().toISOString();
   let prod = stmts.getProductByName.get(entry.name);
+  // Only adopt the existing row when it is itself curated. Otherwise a curated
+  // edit could silently rewrite a CSV-imported entry; instead, branch a fresh
+  // curated product alongside it. Same name is fine — UNIQUE was dropped.
+  if (prod && !prod.curated) prod = null;
   if (!prod) {
     prod = {
       id: entry.makeProductId(),
       name: entry.name,
       abv: entry.abv,
       volumeMl: entry.volumeMl,
+      category: null,
+      curated: 1,
       createdAt: now,
       updatedAt: now,
     };
@@ -601,6 +649,7 @@ const upsertCuratedTx = db.transaction((entry) => {
   } else {
     prod.abv = entry.abv;
     if (entry.volumeMl != null) prod.volumeMl = entry.volumeMl;
+    prod.curated = 1;
     prod.updatedAt = now;
     stmts.updateProduct.run(prod);
   }
@@ -1229,6 +1278,182 @@ function backupPath(filename) {
   return file;
 }
 
+// ---- BC Liquor CSV import (one-shot bootstrap) ---------------------------
+//
+// Reads the monthly BC Liquor price-list CSV from the repo root and seeds
+// the products+upcs tables. Idempotent: skips rows whose UPC is already
+// present or rejected, so re-runs are cheap no-ops. Within one run, SKUs
+// that share (name, volume, abv, category) collapse onto the same product
+// so their UPCs hang off a single brand row.
+//
+// Once production has run this once, the CSV asset can be removed from the
+// repo entirely — the data lives in data.db from that point on.
+
+const BC_CSV_NAMES = [
+  'bc_liquor_store_product_price_list_december_2025.csv',
+];
+
+function findBcLiquorCsv() {
+  const searchDirs = [path.join(__dirname, '..'), DATA_DIR, __dirname];
+  for (const dir of searchDirs) {
+    for (const name of BC_CSV_NAMES) {
+      const full = path.join(dir, name);
+      if (fs.existsSync(full)) return full;
+    }
+  }
+  return null;
+}
+
+function parseBcCsv(text) {
+  const rows = [];
+  let row = [];
+  let field = '';
+  let i = 0;
+  let inQuotes = false;
+  const n = text.length;
+  while (i < n) {
+    const ch = text[i];
+    if (inQuotes) {
+      if (ch === '"') {
+        if (text[i + 1] === '"') { field += '"'; i += 2; continue; }
+        inQuotes = false; i++; continue;
+      }
+      field += ch; i++; continue;
+    }
+    if (ch === '"')  { inQuotes = true; i++; continue; }
+    if (ch === ',')  { row.push(field); field = ''; i++; continue; }
+    if (ch === '\r') { i++; continue; }
+    if (ch === '\n') {
+      row.push(field); field = '';
+      if (row.length > 1 || row[0] !== '') rows.push(row);
+      row = []; i++; continue;
+    }
+    field += ch; i++;
+  }
+  if (field.length > 0 || row.length > 0) {
+    row.push(field);
+    if (row.length > 1 || row[0] !== '') rows.push(row);
+  }
+  return rows;
+}
+
+// BC Liquor stores names ALL-CAPS; title-case for display.
+function tidyCsvName(s) {
+  const cleaned = (s || '').trim().replace(/\s+/g, ' ');
+  if (!cleaned) return '';
+  return cleaned.toLowerCase().replace(/\b([a-z])/g, c => c.toUpperCase());
+}
+
+function csvMakeProductId(name) {
+  const slug = String(name || '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24) || 'p';
+  // 8 hex chars (32 bits) — collision probability is negligible across the
+  // ~7k CSV rows in one batch.
+  const hex = crypto.randomBytes(4).toString('hex');
+  return `p_${slug}_${hex}`;
+}
+
+function importBcLiquorCsvIfPresent() {
+  const file = findBcLiquorCsv();
+  if (!file) return;
+
+  let text;
+  try { text = fs.readFileSync(file, 'utf8'); }
+  catch (e) { console.warn(`db: failed to read ${file}:`, e.message); return; }
+
+  const rows = parseBcCsv(text);
+  if (rows.length < 2) return;
+
+  const header = rows[0].map(h => h.trim());
+  const iName = header.indexOf('PRODUCT_LONG_NAME');
+  const iUpc  = header.indexOf('PRODUCT_BASE_UPC_NO');
+  const iLit  = header.indexOf('PRODUCT_LITRES_PER_CONTAINER');
+  const iAbv  = header.indexOf('PRODUCT_ALCOHOL_PERCENT');
+  const iCat  = header.indexOf('ITEM_CATEGORY_NAME');
+  if (iName < 0 || iUpc < 0 || iLit < 0 || iAbv < 0) {
+    console.warn('db: BC CSV header missing expected columns; skipping import');
+    return;
+  }
+
+  const existingUpcs = new Set(stmts.listUpcs.all().map(u => u.upc));
+  const rejectedUpcs = new Set(stmts.listRejected.all().map(r => r.upc));
+
+  // Dedupe inside one run by (name|vol|abv|category). Re-runs find these
+  // again via name lookup so we don't make stray duplicate products.
+  const byKey = new Map();
+  for (const p of stmts.listProducts.all()) {
+    if (p.curated) continue;
+    byKey.set(`${p.name.toLowerCase()}|${p.volumeMl}|${p.abv}|${(p.category || '').toLowerCase()}`, p);
+  }
+
+  let importedProducts = 0;
+  let importedUpcs = 0;
+  let skippedDupUpc = 0;
+  let skippedRejected = 0;
+  let skippedBadRow = 0;
+
+  const tx = db.transaction(() => {
+    const now = new Date().toISOString();
+    for (let r = 1; r < rows.length; r++) {
+      const row = rows[r];
+      const upc = (row[iUpc] || '').trim();
+      if (!upc || !/^\d{6,20}$/.test(upc)) { skippedBadRow++; continue; }
+      if (existingUpcs.has(upc)) { skippedDupUpc++; continue; }
+      if (rejectedUpcs.has(upc))  { skippedRejected++; continue; }
+      const litres = parseFloat(row[iLit]);
+      const abv    = parseFloat(row[iAbv]);
+      if (!isFinite(litres) || !isFinite(abv) || litres <= 0 || abv < 0 || abv > 100) {
+        skippedBadRow++; continue;
+      }
+      const name = tidyCsvName(row[iName] || '');
+      if (!name) { skippedBadRow++; continue; }
+      const volumeMl = +(litres * 1000).toFixed(2);
+      const abvNorm = +abv.toFixed(2);
+      const category = (row[iCat] || '').trim() || null;
+
+      const key = `${name.toLowerCase()}|${volumeMl}|${abvNorm}|${(category || '').toLowerCase()}`;
+      let prod = byKey.get(key);
+      if (!prod) {
+        prod = {
+          id: csvMakeProductId(name),
+          name,
+          abv: abvNorm,
+          volumeMl,
+          category,
+          curated: 0,
+          createdAt: now,
+          updatedAt: now,
+        };
+        stmts.insertProduct.run(prod);
+        byKey.set(key, prod);
+        importedProducts++;
+      }
+      stmts.upsertUpc.run({
+        upc,
+        productId: prod.id,
+        flavour: null,
+        addedAt: now,
+        updatedAt: null,
+      });
+      existingUpcs.add(upc);
+      importedUpcs++;
+    }
+  });
+
+  tx();
+
+  // Log only when there was actual work to do. Re-runs against an already-
+  // imported DB stay silent so the boot logs don't get noisy.
+  if (importedProducts || importedUpcs) {
+    console.log(
+      `db: BC CSV import — ${importedProducts} products, ${importedUpcs} UPCs ` +
+      `(skipped ${skippedDupUpc} already-known UPCs, ${skippedRejected} rejected, ${skippedBadRow} unusable rows)`
+    );
+  }
+}
+
 function migrateFromJsonIfNeeded() {
   if (stmts.productsCount.get().n > 0) return;   // already populated, nothing to do
 
@@ -1259,6 +1484,8 @@ function migrateFromJsonIfNeeded() {
         name:      p.name,
         abv:       p.abv,
         volumeMl:  p.volumeMl == null ? null : p.volumeMl,
+        category:  null,
+        curated:   1,
         createdAt: p.createdAt || new Date().toISOString(),
         updatedAt: p.updatedAt || p.createdAt || new Date().toISOString(),
       });
@@ -1341,4 +1568,5 @@ module.exports = {
 
   // bootstrap
   migrateFromJsonIfNeeded,
+  importBcLiquorCsvIfPresent,
 };

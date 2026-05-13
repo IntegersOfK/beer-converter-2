@@ -932,20 +932,24 @@ const server = http.createServer(async (req, res) => {
         if (typeof parsed.id === 'string' && parsed.id) {
           prod = db.getProductById(parsed.id);
           if (!prod) { res.writeHead(404); res.end('product not found'); return; }
+          // Collision check only against other curated rows — CSV-imported
+          // siblings are allowed to share a display name.
           const collision = db.getProductByName(name);
-          if (collision && collision.id !== prod.id) {
+          if (collision && collision.id !== prod.id && collision.curated) {
             res.writeHead(409); res.end('another product already uses that name'); return;
           }
           prod.name = name;
           prod.abv  = abv;
           prod.volumeMl = volumeMl;
+          prod.curated = 1;
           prod.updatedAt = now;
           db.updateProduct(prod);
         } else {
-          if (db.getProductByName(name)) {
+          const collision = db.getProductByName(name);
+          if (collision && collision.curated) {
             res.writeHead(409); res.end('product with that name already exists'); return;
           }
-          prod = { id: makeProductId(name), name, abv, volumeMl, createdAt: now, updatedAt: now };
+          prod = { id: makeProductId(name), name, abv, volumeMl, category: null, curated: 1, createdAt: now, updatedAt: now };
           db.insertProduct(prod);
         }
       } catch (e) {
@@ -1083,6 +1087,8 @@ try { migrateLegacyCuratedIfNeeded(); }
 catch (e) { console.error('legacy curated migration failed:', e); process.exit(1); }
 try { db.migrateFromJsonIfNeeded(); }
 catch (e) { console.error('SQLite migration failed:', e); process.exit(1); }
+try { db.importBcLiquorCsvIfPresent(); }
+catch (e) { console.error('BC Liquor CSV import failed:', e); process.exit(1); }
 
 server.listen(PORT, () => {
   console.log(`Beer Converter API listening on :${PORT}`);

@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=53';
+import { api, ApiError } from './api.js?v=54';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
