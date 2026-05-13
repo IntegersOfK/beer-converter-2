@@ -892,24 +892,37 @@ const server = http.createServer(async (req, res) => {
       return;
     }
 
-    // --- products list ----------------------------------------------------
+    // --- products list (paginated) -----------------------------------------
     if (req.method === 'GET' && apiPath === 'products') {
-      const products = db.listProducts();
-      const upcs     = db.listUpcs();
-      const upcsByProduct = new Map();
-      for (const u of upcs) {
-        if (!upcsByProduct.has(u.productId)) upcsByProduct.set(u.productId, []);
-        upcsByProduct.get(u.productId).push({
-          upc: u.upc, flavour: u.flavour || null,
-          addedAt: u.addedAt || null, updatedAt: u.updatedAt || null,
-        });
-      }
-      const out = products.map(p => ({
-        ...p,
-        upcs: (upcsByProduct.get(p.id) || []).sort((a, b) => a.upc.localeCompare(b.upc)),
-      })).sort((a, b) => a.name.localeCompare(b.name));
+      const q           = (qParams.get('q') || '').trim().slice(0, 120);
+      const page        = Math.max(1, Number(qParams.get('page'))  || 1);
+      const limit       = Math.min(Math.max(1, Number(qParams.get('limit')) || 50), 200);
+      const curatedOnly = qParams.get('curated') === '1';
+      const result = db.listProductsPaginated({ q, page, limit, curatedOnly });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ products: out }));
+      res.end(JSON.stringify(result));
+      return;
+    }
+
+    // --- product search (autocomplete) ------------------------------------
+    if (req.method === 'GET' && apiPath === 'products/search') {
+      const q           = (qParams.get('q') || '').trim().slice(0, 120);
+      const limit       = Math.min(Math.max(1, Number(qParams.get('limit')) || 20), 50);
+      const curatedOnly = qParams.get('curated') === '1';
+      const results = db.searchProductsSimple(q, { limit, curatedOnly });
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(results));
+      return;
+    }
+
+    // --- single product with UPCs -----------------------------------------
+    if (req.method === 'GET' && apiPath.startsWith('product/')) {
+      const id = decodeURIComponent(apiPath.slice('product/'.length));
+      if (!id) { res.writeHead(400); res.end('invalid id'); return; }
+      const prod = db.getProductWithUpcs(id);
+      if (!prod) { res.writeHead(404); res.end('not found'); return; }
+      res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
+      res.end(JSON.stringify(prod));
       return;
     }
 

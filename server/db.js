@@ -611,6 +611,79 @@ function getUpc(upc)          { return stmts.getUpc.get(upc) || null; }
 function getUpcsByProduct(id) { return stmts.getUpcsByProduct.all(id); }
 function joinedCatalogue()    { return stmts.joinedCatalogue.all(); }
 
+// Paginated admin products listing — includes expanded UPCs per product.
+function listProductsPaginated({ q = '', page = 1, limit = 50, curatedOnly = false } = {}) {
+  const whereParts = [];
+  const whereParams = [];
+  if (curatedOnly) { whereParts.push('curated = 1'); }
+  if (q) {
+    whereParts.push(
+      `(name LIKE ? COLLATE NOCASE OR id IN (SELECT product_id FROM upcs WHERE upc LIKE ?))`
+    );
+    whereParams.push(`%${q}%`, `%${q}%`);
+  }
+  const where = whereParts.length ? 'WHERE ' + whereParts.join(' AND ') : '';
+  const total = (db.prepare(`SELECT COUNT(*) AS n FROM products ${where}`).get(...whereParams) || {}).n || 0;
+  const rows = db.prepare(
+    `SELECT id, name, abv, volume_ml AS volumeMl, category, curated,
+            created_at AS createdAt, updated_at AS updatedAt
+       FROM products ${where}
+      ORDER BY name COLLATE NOCASE LIMIT ? OFFSET ?`
+  ).all(...whereParams, limit, (page - 1) * limit);
+  const ids = rows.map(r => r.id);
+  const upcRows = ids.length
+    ? db.prepare(
+        `SELECT upc, product_id AS productId, flavour, added_at AS addedAt, updated_at AS updatedAt
+           FROM upcs WHERE product_id IN (${ids.map(() => '?').join(',')})`
+      ).all(...ids)
+    : [];
+  const upcsByProduct = new Map();
+  for (const u of upcRows) {
+    if (!upcsByProduct.has(u.productId)) upcsByProduct.set(u.productId, []);
+    upcsByProduct.get(u.productId).push({
+      upc: u.upc, flavour: u.flavour || null,
+      addedAt: u.addedAt || null, updatedAt: u.updatedAt || null,
+    });
+  }
+  const products = rows.map(p => ({
+    ...p,
+    upcs: (upcsByProduct.get(p.id) || []).sort((a, b) => a.upc.localeCompare(b.upc)),
+  }));
+  return { products, total, page, limit, pages: Math.max(1, Math.ceil(total / limit)) };
+}
+
+// Lightweight product search for autocomplete pickers — no UPC expansion.
+function searchProductsSimple(q, { limit = 20, curatedOnly = false } = {}) {
+  const whereParts = [];
+  const whereParams = [];
+  if (curatedOnly) { whereParts.push('p.curated = 1'); }
+  if (q) {
+    whereParts.push(
+      `(p.name LIKE ? COLLATE NOCASE OR EXISTS (SELECT 1 FROM upcs u WHERE u.product_id = p.id AND u.upc LIKE ?))`
+    );
+    whereParams.push(`%${q}%`, `%${q}%`);
+  }
+  const where = whereParts.length ? 'WHERE ' + whereParts.join(' AND ') : '';
+  return db.prepare(
+    `SELECT p.id, p.name, p.abv, p.volume_ml AS volumeMl, p.curated,
+            (SELECT COUNT(*) FROM upcs u WHERE u.product_id = p.id) AS upcCount
+       FROM products p ${where}
+      ORDER BY p.curated DESC, p.name COLLATE NOCASE
+      LIMIT ?`
+  ).all(...whereParams, limit);
+}
+
+// Full details for a single product (including UPCs) for merge preview etc.
+function getProductWithUpcs(id) {
+  const prod = stmts.getProductById.get(id);
+  if (!prod) return null;
+  const upcs = stmts.getUpcsByProduct.all(id).map(u => ({
+    upc: u.upc, flavour: u.flavour || null,
+    addedAt: u.addedAt || null, updatedAt: u.updatedAt || null,
+  })).sort((a, b) => a.upc.localeCompare(b.upc));
+  return { ...prod, upcs };
+}
+
 function insertProduct(prod) { stmts.insertProduct.run(prod); }
 function updateProduct(prod) { stmts.updateProduct.run(prod); }
 
@@ -1535,6 +1608,7 @@ module.exports = {
 
   // products
   listProducts, getProductById, getProductByName,
+  listProductsPaginated, searchProductsSimple, getProductWithUpcs,
   insertProduct, updateProduct, deleteProduct,
 
   // upcs
