@@ -785,11 +785,12 @@ const server = http.createServer(async (req, res) => {
     }
 
     if (req.method === 'GET' && apiPath === 'log') {
-      const limit = Math.min(Math.max(1, Number(qParams.get('limit') || 200)), 1000);
-      const entries = db.listSubmissions({ limit });
-      const total   = db.countSubmissions();
+      const q     = (qParams.get('q') || '').trim().slice(0, 120);
+      const page  = Math.max(1, Number(qParams.get('page')) || 1);
+      const limit = Math.min(Math.max(1, Number(qParams.get('limit')) || 100), 500);
+      const result = db.listSubmissionsPaginated({ q, page, limit });
       res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-      res.end(JSON.stringify({ entries, total }));
+      res.end(JSON.stringify(result));
       return;
     }
 

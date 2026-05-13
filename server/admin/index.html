@@ -61,7 +61,6 @@
     display: flex; justify-content: space-between; align-items: baseline;
     gap: 12px; flex-wrap: wrap; margin-bottom: 8px;
   }
-  .card-head .upc { font-family: ui-monospace, monospace; font-size: 13px; color: var(--ink); letter-spacing: 0.04em; }
   .card-head .meta { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
 
   .samples { font-size: 12px; color: var(--ink-dim); display: grid; gap: 4px; margin: 6px 0 12px; }
@@ -78,8 +77,6 @@
   .suggestion:hover { background: rgba(224,163,74,0.15); }
   .suggestion .score { color: var(--ink-soft); margin-left: 6px; font-family: ui-monospace, monospace; font-size: 10px; }
 
-  /* Mode toggle: pill-style buttons that switch between "new product" and
-     "add to existing" inside a pending-queue card or the manual-add form. */
   .mode-toggle {
     display: inline-flex; border: 1px solid var(--line); border-radius: 999px;
     padding: 2px; background: var(--bg-input); margin-bottom: 10px;
@@ -89,9 +86,7 @@
     font: inherit; font-size: 11px; letter-spacing: 0.06em;
     padding: 5px 14px; border-radius: 999px; cursor: pointer;
   }
-  .mode-toggle button.active {
-    background: var(--amber); color: #1a140d; font-weight: 600;
-  }
+  .mode-toggle button.active { background: var(--amber); color: #1a140d; font-weight: 600; }
 
   .form-grid {
     display: grid; gap: 8px; grid-template-columns: 2.4fr 1fr 1fr;
@@ -119,6 +114,32 @@
   .btn.danger { color: var(--danger); }
   .btn.danger:hover { border-color: var(--danger); background: rgba(212,82,58,0.1); }
   .btn.ghost { background: transparent; color: var(--ink-soft); }
+  .btn.sm { padding: 5px 10px; font-size: 12px; }
+
+  /* ===== Tab navigation ================================================== */
+  .tab-bar {
+    display: flex; gap: 2px; margin: 0 0 24px;
+    border-bottom: 1px solid var(--line);
+  }
+  .tab-btn {
+    background: none; border: none; border-bottom: 2px solid transparent;
+    color: var(--ink-soft); font: inherit; font-size: 13px; font-weight: 500;
+    padding: 10px 16px 9px; cursor: pointer; margin-bottom: -1px;
+    display: flex; align-items: center; gap: 7px;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .tab-btn:hover { color: var(--ink); }
+  .tab-btn.active { color: var(--amber); border-bottom-color: var(--amber); }
+  .tab-badge {
+    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.06em;
+    background: var(--bg-card); border: 1px solid var(--line-soft);
+    border-radius: 999px; padding: 1px 6px; color: var(--ink-soft);
+  }
+  .tab-badge.danger { color: var(--danger); border-color: var(--danger); }
+  .tab-badge.good   { color: var(--good);   border-color: #3b6d3f; }
+  .tab-badge.amber  { color: var(--amber);  border-color: var(--amber-deep); }
+  .tab-panel { display: none; }
+  .tab-panel.active { display: block; }
 
   /* ===== Shared admin-table styling ====================================== */
   .data-table {
@@ -134,19 +155,24 @@
     border-bottom: 1px solid var(--line);
     white-space: nowrap;
   }
+  .data-table thead th.sortable { cursor: pointer; user-select: none; }
+  .data-table thead th.sortable:hover { color: var(--amber); }
+  .data-table thead th .sort-arrow { margin-left: 4px; opacity: 0.5; font-size: 9px; }
+  .data-table thead th.sort-asc .sort-arrow::after  { content: '▲'; opacity: 1; }
+  .data-table thead th.sort-desc .sort-arrow::after { content: '▼'; opacity: 1; }
+  .data-table thead th .sort-arrow::after { content: '⇅'; }
   .data-table tbody td {
     padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
     vertical-align: middle;
   }
   .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table tbody tr:hover td { background: rgba(255,255,255,0.015); }
   .data-table input, .data-table select {
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
     padding: 5px 8px; color: var(--ink); font: inherit; font-size: 13px;
     width: 100%; min-width: 0;
   }
-  .data-table input:focus, .data-table select:focus {
-    outline: none; border-color: var(--amber);
-  }
+  .data-table input:focus, .data-table select:focus { outline: none; border-color: var(--amber); }
   .data-table .row-btn {
     border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
     border-radius: 6px; padding: 4px 9px; cursor: pointer; font: inherit;
@@ -177,7 +203,23 @@
   }
   .source-badge.curated { color: var(--amber); border-color: var(--amber-deep); }
 
-  /* Products-specific column widths and UPC editor inside detail row. */
+  /* ===== Sessions table ================================================== */
+  .sessions-table col.col-name    { }
+  .sessions-table col.col-people  { width: 80px; }
+  .sessions-table col.col-drinks  { width: 80px; }
+  .sessions-table col.col-created { width: 130px; }
+  .sessions-table col.col-last    { width: 130px; }
+  .sessions-table col.col-actions { width: 145px; }
+  .sessions-table .cell-name strong {
+    display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    max-width: 280px;
+  }
+  .sessions-table .cell-name .sid {
+    display: block; font-family: ui-monospace, monospace; font-size: 11px;
+    color: var(--ink-soft); margin-top: 1px;
+  }
+
+  /* ===== Products-specific column widths ================================= */
   .products-table col.col-name    { }
   .products-table col.col-abv     { width: 80px; }
   .products-table col.col-vol     { width: 90px; }
@@ -188,8 +230,7 @@
 
   .upc-row {
     display: grid; grid-template-columns: 160px 1fr auto;
-    gap: 8px; align-items: center;
-    padding: 5px 0; font-size: 13px;
+    gap: 8px; align-items: center; padding: 5px 0; font-size: 13px;
   }
   .upc-row + .upc-row { border-top: 1px dashed var(--line-soft); }
   .upc-row .upc-cell { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
@@ -202,8 +243,7 @@
 
   .upc-add-row {
     display: grid; grid-template-columns: 160px 1fr auto;
-    gap: 8px; align-items: center;
-    padding: 8px 0 0; margin-top: 4px;
+    gap: 8px; align-items: center; padding: 8px 0 0; margin-top: 4px;
     border-top: 1px dashed var(--line-soft);
   }
   .upc-add-row input {
@@ -219,6 +259,37 @@
     .upc-row .upc-cell { grid-column: 1 / -1; }
     .upc-add-row .add-label { grid-column: 1 / -1; }
   }
+
+  /* ===== Pending submissions table ======================================= */
+  .pending-table col.col-upc       { width: 140px; }
+  .pending-table col.col-topname   { }
+  .pending-table col.col-subs      { width: 90px; }
+  .pending-table col.col-last      { width: 110px; }
+  .pending-table col.col-actions   { width: 110px; }
+  .pending-table tbody tr.main-row { cursor: pointer; }
+  .pending-table tbody tr.main-row:hover td { background: rgba(224,163,74,0.04); }
+  .pending-table tbody tr.main-row.expanded td { background: rgba(224,163,74,0.08); }
+  .pending-table .top-name { color: var(--ink); }
+  .pending-table .sub-count { color: var(--amber); font-family: ui-monospace, monospace; }
+  .pending-detail .samples { font-size: 12px; color: var(--ink-dim); display: grid; gap: 4px; margin: 0 0 10px; }
+  .pending-detail .samples b { color: var(--ink); font-weight: 600; }
+  .pending-detail .samples .sample-row { display: flex; gap: 10px; align-items: baseline; }
+  .pending-detail .samples .count { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); min-width: 24px; text-align: right; }
+
+  /* ===== Drink Log table ================================================= */
+  .log-table col.col-time    { width: 100px; }
+  .log-table col.col-people  { width: 130px; }
+  .log-table col.col-name    { }
+  .log-table col.col-abv     { width: 60px; }
+  .log-table col.col-vol     { width: 70px; }
+  .log-table col.col-upc     { width: 130px; }
+  .log-table tbody td { font-size: 12px; }
+  .log-table .log-time-cell { font-family: ui-monospace, monospace; color: var(--ink-soft); white-space: nowrap; }
+  .log-table .log-people-cell {
+    color: var(--ink-soft); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; max-width: 130px;
+  }
+  .log-table .log-name-cell { color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
   /* ===== Pagination controls ============================================= */
   .pagination {
@@ -254,12 +325,8 @@
   .product-picker .picker-item:hover { background: rgba(224,163,74,0.1); }
   .product-picker .picker-item-name { color: var(--ink); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .product-picker .picker-item-meta { color: var(--ink-soft); font-size: 11px; font-family: ui-monospace, monospace; white-space: nowrap; flex-shrink: 0; }
-  .product-picker .picker-empty { padding: 10px 12px; color: var(--ink-soft); font-style: italic; font-size: 12px; }
+  .product-picker .picker-empty   { padding: 10px 12px; color: var(--ink-soft); font-style: italic; font-size: 12px; }
   .product-picker .picker-loading { padding: 10px 12px; color: var(--ink-soft); font-size: 12px; }
-  /* Inline picker variant (inside data-table cells or form grids) */
-  .picker-inline .picker-input {
-    border-radius: 6px; font-size: 13px; padding: 5px 8px;
-  }
 
   .deploy-out {
     margin-top: 10px; padding: 10px 12px; border-radius: 8px;
@@ -285,62 +352,6 @@
   .backup-meta { color: var(--ink-soft); font-family: ui-monospace, monospace; font-size: 11px; }
   @media (max-width: 720px) { .backup-row { grid-template-columns: 1fr; } }
 
-  .sessions-list {
-    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-    overflow: hidden; margin-bottom: 22px;
-  }
-  .session-row {
-    display: grid; grid-template-columns: 1.4fr 90px 90px 125px 125px auto;
-    gap: 10px; padding: 10px 14px; align-items: center; font-size: 13px;
-    border-bottom: 1px solid var(--line-soft);
-  }
-  .session-row:last-child { border-bottom: none; }
-  .session-name { min-width: 0; }
-  .session-name strong { display: block; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .session-name span, .session-stat span { display: block; font-size: 10px; color: var(--ink-soft); margin-top: 2px; }
-  .session-stat { color: var(--ink-dim); }
-  .session-actions { display: flex; gap: 6px; justify-content: flex-end; flex-wrap: wrap; }
-  @media (max-width: 900px) {
-    .session-row { grid-template-columns: 1fr 1fr; }
-    .session-name, .session-actions { grid-column: 1 / -1; }
-    .session-actions { justify-content: flex-start; }
-  }
-
-  /* Drink Log table column widths. */
-  .log-table col.col-time    { width: 90px; }
-  .log-table col.col-from    { width: 110px; }
-  .log-table col.col-people  { width: 140px; }
-  .log-table col.col-name    { }
-  .log-table col.col-abv     { width: 60px; }
-  .log-table col.col-vol     { width: 70px; }
-  .log-table col.col-upc     { width: 130px; }
-  .log-table tbody td { font-size: 12px; }
-  .log-table .log-time-cell { font-family: ui-monospace, monospace; color: var(--ink-soft); white-space: nowrap; }
-  .log-table .log-people-cell {
-    color: var(--ink-soft); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis; max-width: 140px;
-  }
-  .log-table .log-name-cell {
-    color: var(--ink); white-space: nowrap;
-    overflow: hidden; text-overflow: ellipsis;
-  }
-
-  /* Pending submissions table. */
-  .pending-table col.col-upc       { width: 140px; }
-  .pending-table col.col-topname   { }
-  .pending-table col.col-subs      { width: 90px; }
-  .pending-table col.col-last      { width: 110px; }
-  .pending-table col.col-actions   { width: 110px; }
-  .pending-table tbody tr.main-row { cursor: pointer; }
-  .pending-table tbody tr.main-row:hover td { background: rgba(224,163,74,0.04); }
-  .pending-table tbody tr.main-row.expanded td { background: rgba(224,163,74,0.08); }
-  .pending-table .top-name { color: var(--ink); }
-  .pending-table .sub-count { color: var(--amber); font-family: ui-monospace, monospace; }
-  .pending-detail .samples { font-size: 12px; color: var(--ink-dim); display: grid; gap: 4px; margin: 0 0 10px; }
-  .pending-detail .samples b { color: var(--ink); font-weight: 600; }
-  .pending-detail .samples .sample-row { display: flex; gap: 10px; align-items: baseline; }
-  .pending-detail .samples .count { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); min-width: 24px; text-align: right; }
-
   /* ===== Merge modal ===================================================== */
   .merge-overlay {
     position: fixed; inset: 0; background: rgba(10, 7, 4, 0.72);
@@ -362,60 +373,35 @@
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
     padding: 9px 11px; min-width: 0;
   }
-  .merge-side-label {
-    font-family: ui-monospace, monospace; font-size: 9px; color: var(--ink-soft);
-    letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px;
-  }
-  .merge-side-name {
-    font-weight: 600; color: var(--ink); font-size: 13px;
-    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-  }
-  .merge-side-meta {
-    font-size: 11px; color: var(--ink-soft); margin-top: 2px;
-    font-family: ui-monospace, monospace;
-  }
+  .merge-side-label { font-family: ui-monospace, monospace; font-size: 9px; color: var(--ink-soft); letter-spacing: 0.18em; text-transform: uppercase; margin-bottom: 3px; }
+  .merge-side-name  { font-weight: 600; color: var(--ink); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .merge-side-meta  { font-size: 11px; color: var(--ink-soft); margin-top: 2px; font-family: ui-monospace, monospace; }
   .merge-side.source { border-color: var(--danger); }
   .merge-side.target { border-color: var(--amber-deep); }
   .merge-swap {
-    background: var(--bg-card); border: 1px solid var(--line);
-    color: var(--amber); border-radius: 999px;
-    padding: 6px 10px; cursor: pointer; font-size: 13px;
-    font-family: inherit;
+    background: var(--bg-card); border: 1px solid var(--line); color: var(--amber);
+    border-radius: 999px; padding: 6px 10px; cursor: pointer; font-size: 13px; font-family: inherit;
   }
-  .merge-swap:hover { border-color: var(--amber); color: var(--amber-bright); }
+  .merge-swap:hover    { border-color: var(--amber); color: var(--amber-bright); }
   .merge-swap:disabled { opacity: 0.4; cursor: not-allowed; }
   .merge-target-picker { margin-bottom: 14px; }
   .merge-target-picker label {
     display: block; font-family: ui-monospace, monospace; font-size: 10px;
-    color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
-    margin-bottom: 4px;
+    color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 4px;
   }
-  .merge-preview-label {
-    font-family: ui-monospace, monospace; font-size: 10px;
-    color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
-    margin-bottom: 6px;
-  }
+  .merge-preview-label { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase; margin-bottom: 6px; }
   .merge-preview {
     border: 1px solid var(--line-soft); border-radius: 8px;
     padding: 8px 12px; max-height: 240px; overflow-y: auto; margin-bottom: 14px;
     background: var(--bg-input);
   }
-  .merge-preview .empty {
-    border: none; padding: 6px 0; color: var(--ink-soft); font-style: italic;
-    text-align: left;
-  }
-  .merge-upc-row {
-    display: grid; grid-template-columns: 130px 1fr; gap: 8px;
-    align-items: center; padding: 5px 0; font-size: 12px;
-  }
+  .merge-preview .empty { border: none; padding: 6px 0; color: var(--ink-soft); font-style: italic; text-align: left; }
+  .merge-upc-row { display: grid; grid-template-columns: 130px 1fr; gap: 8px; align-items: center; padding: 5px 0; font-size: 12px; }
   .merge-upc-row + .merge-upc-row { border-top: 1px dashed var(--line-soft); }
-  .merge-upc-cell {
-    font-family: ui-monospace, monospace; color: var(--ink-soft); font-size: 11px;
-  }
+  .merge-upc-cell { font-family: ui-monospace, monospace; color: var(--ink-soft); font-size: 11px; }
   .merge-upc-row input {
     background: var(--bg); border: 1px solid var(--line); border-radius: 6px;
-    padding: 4px 7px; color: var(--ink); font: inherit; font-size: 12px;
-    width: 100%; min-width: 0;
+    padding: 4px 7px; color: var(--ink); font: inherit; font-size: 12px; width: 100%; min-width: 0;
   }
   .merge-upc-row input:focus { outline: none; border-color: var(--amber); }
   .merge-actions { display: flex; gap: 8px; justify-content: flex-end; }
@@ -433,126 +419,165 @@
 </head>
 <body>
 
-<h1>Curation · <span class="mono" style="color:var(--amber); font-weight:normal;">Beer Converter</span></h1>
-<div class="sub">Triage submissions, build the canonical product catalogue served at <span class="mono">/catalog.json</span>.</div>
+<h1>Admin · <span class="mono" style="color:var(--amber); font-weight:normal;">Beer Converter</span></h1>
+<div class="sub">Triage submissions, curate the catalogue, review sessions and drink log.</div>
 
-<div class="toolbar">
-  <span class="pill" id="pillPending">— pending</span>
-  <span class="pill amber" id="pillProducts">— products</span>
-  <span class="pill amber" id="pillUpcs">— upcs</span>
-  <span class="pill good" id="pillSessions">— sessions</span>
-  <span class="pill danger" id="pillRejected">— rejected</span>
-  <button class="btn ghost" id="btnRefresh">Refresh</button>
+<!-- Deploy + Backups always visible at top -->
+<div style="display:grid; grid-template-columns: 1fr 1fr; gap:12px; margin-bottom:20px;">
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-head" style="margin-bottom:6px;">
+      <span style="color:var(--ink); font-weight:600;">Deploy</span>
+      <span class="meta"><span class="mono">git pull --ff-only</span></span>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnDeploy">Pull latest</button>
+    </div>
+    <pre class="deploy-out" id="deployOut"></pre>
+  </div>
+  <div class="card" style="margin-bottom:0;">
+    <div class="card-head" style="margin-bottom:6px;">
+      <span style="color:var(--ink); font-weight:600;">Backups</span>
+      <span class="meta">SQLite snapshots, outside git</span>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnCreateBackup">Make backup</button>
+      <button class="btn ghost" id="btnBackupsRefresh">Refresh</button>
+    </div>
+    <div id="backupsList"><div class="empty" style="margin-top:12px;">Loading…</div></div>
+  </div>
 </div>
 
-<div class="card" style="margin-bottom:20px;">
-  <div class="card-head" style="margin-bottom:6px;">
-    <span style="color:var(--ink); font-weight:600;">Deploy</span>
-    <span class="meta" style="color:var(--ink-soft);"><span class="mono">git pull --ff-only</span> · data files preserved</span>
+<!-- Tab bar -->
+<nav class="tab-bar">
+  <button class="tab-btn active" data-tab="curation">
+    Curation
+    <span class="tab-badge danger" id="badgePending">—</span>
+    <span class="tab-badge amber" id="badgeProducts">—</span>
+  </button>
+  <button class="tab-btn" data-tab="sessions">
+    Sessions
+    <span class="tab-badge good" id="badgeSessions">—</span>
+  </button>
+  <button class="tab-btn" data-tab="log">
+    Drink Log
+    <span class="tab-badge" id="badgeLog">—</span>
+  </button>
+</nav>
+
+<!-- ===== TAB: CURATION ===== -->
+<div id="tabCuration" class="tab-panel active">
+
+  <h2>Pending submissions</h2>
+  <div class="toolbar">
+    <input type="text" id="pendingFilter" placeholder="Filter by UPC or submitted name…" />
+    <span class="pill" id="pendingShowing">—</span>
   </div>
-  <div class="actions">
-    <button class="btn primary" id="btnDeploy">Pull latest</button>
-  </div>
-  <pre class="deploy-out" id="deployOut"></pre>
-</div>
+  <table class="data-table pending-table" id="pendingList"></table>
 
-<div class="card" style="margin-bottom:20px;">
-  <div class="card-head" style="margin-bottom:6px;">
-    <span style="color:var(--ink); font-weight:600;">Database backups</span>
-    <span class="meta" style="color:var(--ink-soft);">Manual SQLite versions stored outside git tracking.</span>
-  </div>
-  <div class="actions">
-    <button class="btn primary" id="btnCreateBackup">Make backup</button>
-    <button class="btn ghost" id="btnBackupsRefresh">Refresh backups</button>
-  </div>
-  <div id="backupsList"><div class="empty" style="margin-top:12px;">Loading…</div></div>
-</div>
+  <h2>Products</h2>
 
-<h2>Sessions</h2>
-<div class="toolbar">
-  <input type="text" id="sessionsFilter" placeholder="Filter by session name or id…" />
-  <span class="pill" id="sessionsShowing">—</span>
-</div>
-<div id="sessionsList"><div class="empty">Loading…</div></div>
-
-<h2>Pending submissions</h2>
-<div class="toolbar">
-  <input type="text" id="pendingFilter" placeholder="Filter by UPC or submitted name…" />
-  <span class="pill" id="pendingShowing">—</span>
-</div>
-<table class="data-table pending-table" id="pendingList"></table>
-
-<h2>Products</h2>
-
-<!-- Manual add: two modes -->
-<div class="card" id="manualAddCard">
-  <div class="card-head" style="margin-bottom:8px;">
-    <span style="color:var(--ink); font-weight:600;">Add manually</span>
-    <span class="meta" style="color:var(--ink-soft);">Bypasses the queue.</span>
-  </div>
-
-  <div class="mode-toggle" id="manualModeToggle">
-    <button data-mode="new"      class="active">New product</button>
-    <button data-mode="existing">Add UPC to existing</button>
-  </div>
-
-  <!-- New-product form -->
-  <div class="form-grid" id="manualNewForm" style="grid-template-columns: 2.4fr 80px 90px;">
-    <div class="field"><label>Name</label><input id="manualName" type="text" placeholder="e.g. White Claw" /></div>
-    <div class="field"><label>ABV %</label><input id="manualAbv" type="number" step="0.1" min="0" max="100" placeholder="5.0" /></div>
-    <div class="field"><label>Vol. (ml)</label><input id="manualVol" type="number" step="1" min="0" placeholder="optional" /></div>
-    <div class="field full" style="display:grid; grid-template-columns: 200px 1fr; gap:8px;">
-      <div><label>UPC (first one)</label><input id="manualUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
-      <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualFlavour" type="text" placeholder="e.g. Mango" /></div>
+  <div class="card" id="manualAddCard">
+    <div class="card-head" style="margin-bottom:8px;">
+      <span style="color:var(--ink); font-weight:600;">Add manually</span>
+      <span class="meta">Bypasses the queue.</span>
+    </div>
+    <div class="mode-toggle" id="manualModeToggle">
+      <button data-mode="new"      class="active">New product</button>
+      <button data-mode="existing">Add UPC to existing</button>
+    </div>
+    <div class="form-grid" id="manualNewForm" style="grid-template-columns: 2.4fr 80px 90px;">
+      <div class="field"><label>Name</label><input id="manualName" type="text" placeholder="e.g. White Claw" /></div>
+      <div class="field"><label>ABV %</label><input id="manualAbv" type="number" step="0.1" min="0" max="100" placeholder="5.0" /></div>
+      <div class="field"><label>Vol. (ml)</label><input id="manualVol" type="number" step="1" min="0" placeholder="optional" /></div>
+      <div class="field full" style="display:grid; grid-template-columns: 200px 1fr; gap:8px;">
+        <div><label>UPC (first one)</label><input id="manualUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+        <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualFlavour" type="text" placeholder="e.g. Mango" /></div>
+      </div>
+    </div>
+    <div class="form-grid" id="manualExistingForm" style="grid-template-columns: 2.4fr 200px 1fr; display:none;">
+      <div class="field">
+        <label>Product</label>
+        <div id="manualExistingPickerWrap" class="product-picker"></div>
+      </div>
+      <div class="field"><label>UPC</label><input id="manualExistingUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
+      <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualExistingFlavour" type="text" placeholder="e.g. Mango" /></div>
+    </div>
+    <div class="actions">
+      <button class="btn primary" id="btnManualAdd">Add</button>
+      <button class="btn ghost" id="btnManualClear">Clear</button>
     </div>
   </div>
 
-  <!-- Existing-product form -->
-  <div class="form-grid" id="manualExistingForm" style="grid-template-columns: 2.4fr 200px 1fr; display:none;">
-    <div class="field">
-      <label>Product</label>
-      <div id="manualExistingPickerWrap" class="product-picker"></div>
-    </div>
-    <div class="field"><label>UPC</label><input id="manualExistingUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
-    <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualExistingFlavour" type="text" placeholder="e.g. Mango" /></div>
+  <div class="toolbar">
+    <input type="text" id="productsFilter" placeholder="Search by name, UPC, or flavour…" />
+    <span class="pill" id="productsShowing">—</span>
+    <label style="display:inline-flex; gap:6px; align-items:center; color:var(--ink-soft); font-size:12px;">
+      <input type="checkbox" id="productsCuratedOnly" /> curated only
+    </label>
+    <button class="btn ghost" id="btnProductsRefresh" style="margin-left:auto;">Refresh</button>
   </div>
+  <table class="data-table products-table" id="productsList"></table>
+  <div class="pagination" id="productsPagination"></div>
 
-  <div class="actions">
-    <button class="btn primary" id="btnManualAdd">Add</button>
-    <button class="btn ghost" id="btnManualClear">Clear</button>
+</div><!-- end #tabCuration -->
+
+<!-- ===== TAB: SESSIONS ===== -->
+<div id="tabSessions" class="tab-panel">
+
+  <div class="toolbar" style="margin-top:4px;">
+    <input type="text" id="sessionsFilter" placeholder="Filter by name or session ID…" />
+    <span class="pill" id="sessionsShowing">—</span>
+    <button class="btn ghost" id="btnSessionsRefresh" style="margin-left:auto;">Refresh</button>
   </div>
-</div>
+  <table class="data-table sessions-table" id="sessionsList">
+    <colgroup>
+      <col class="col-name">
+      <col class="col-people">
+      <col class="col-drinks">
+      <col class="col-created">
+      <col class="col-last">
+      <col class="col-actions">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Session</th>
+        <th class="sortable" data-sort="people">People <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="drinks">Drinks <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="created">Created <span class="sort-arrow"></span></th>
+        <th class="sortable" data-sort="last">Last activity <span class="sort-arrow"></span></th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody id="sessionsBody"><tr><td colspan="6" class="empty">Loading…</td></tr></tbody>
+  </table>
 
-<div class="toolbar">
-  <input type="text" id="productsFilter" placeholder="Search by name, UPC, or flavour…" />
-  <span class="pill" id="productsShowing">—</span>
-  <label style="display:inline-flex; gap:6px; align-items:center; color:var(--ink-soft); font-size:12px;">
-    <input type="checkbox" id="productsCuratedOnly" /> curated only
-  </label>
-  <button class="btn ghost" id="btnProductsRefresh" style="margin-left:auto;">Refresh</button>
-</div>
-<table class="data-table products-table" id="productsList"></table>
-<div class="pagination" id="productsPagination"></div>
+</div><!-- end #tabSessions -->
 
-<h2>Drink Log</h2>
-<div class="toolbar">
-  <input type="text" id="logFilter" placeholder="Filter by name, person, UPC…" />
-  <span class="pill" id="logShowing">—</span>
-  <button class="btn ghost" id="btnLogRefresh">Refresh</button>
-</div>
-<table class="data-table log-table" id="logList"></table>
+<!-- ===== TAB: DRINK LOG ===== -->
+<div id="tabLog" class="tab-panel">
 
+  <div class="toolbar" style="margin-top:4px;">
+    <input type="text" id="logFilter" placeholder="Search by drink, person, UPC, or session…" />
+    <span class="pill" id="logShowing">—</span>
+    <button class="btn ghost" id="btnLogRefresh" style="margin-left:auto;">Refresh</button>
+  </div>
+  <table class="data-table log-table" id="logList"></table>
+  <div class="pagination" id="logPagination"></div>
+
+</div><!-- end #tabLog -->
+
+<!-- ===== MERGE MODAL (shared, used from curation tab) ===== -->
 <div class="merge-overlay" id="mergeOverlay">
   <div class="merge-modal">
     <h3>Merge products</h3>
     <div class="merge-direction">
-      <div class="merge-side source" id="mergeSourceSide">
+      <div class="merge-side source">
         <div class="merge-side-label">From (deleted)</div>
         <div class="merge-side-name" id="mergeSourceName">—</div>
         <div class="merge-side-meta" id="mergeSourceMeta">—</div>
       </div>
       <button class="merge-swap" id="mergeSwap" title="Swap direction">⇄</button>
-      <div class="merge-side target" id="mergeTargetSide">
+      <div class="merge-side target">
         <div class="merge-side-label">Into (kept)</div>
         <div class="merge-side-name" id="mergeTargetName">—</div>
         <div class="merge-side-meta" id="mergeTargetMeta">—</div>
@@ -574,17 +599,19 @@
 <div class="toast" id="toast"></div>
 
 <script>
-  // ---- API base: same path as this page, minus the trailing '/'
   const ADMIN_BASE = location.pathname.replace(/\/+$/, '');
   const API = ADMIN_BASE + '/api';
 
   let queueState    = { pending: [], rejectedCount: 0 };
   let productsState = { products: [], total: 0, page: 1, limit: 50, pages: 1 };
-  let sessionsState = { sessions: [] };
-  let backupsState  = { backups: [] };
+  let sessionsState = { sessions: [], loaded: false };
+  let logState      = { entries: [], total: 0, page: 1, limit: 100, pages: 1, loaded: false };
 
-  // Debounce timer for products search
   let productsSearchTimer = null;
+  let logSearchTimer      = null;
+
+  // Sort state for sessions table
+  let sessionSort = { col: 'last', dir: 'desc' };
 
   function $(s, ctx = document) { return ctx.querySelector(s); }
   function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
@@ -614,34 +641,50 @@
     return ct.includes('json') ? res.json() : res.text();
   }
 
+
+  // ===== TABS =================================================================
+
+  let activeTab = 'curation';
+
+  function switchTab(name) {
+    activeTab = name;
+    $$('.tab-btn').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+    $$('.tab-panel').forEach(p => p.classList.toggle('active', p.id === 'tab' + name[0].toUpperCase() + name.slice(1)));
+    // Lazy-load on first visit
+    if (name === 'sessions' && !sessionsState.loaded) loadSessions();
+    if (name === 'log'      && !logState.loaded)      loadLog(1);
+    // Persist in URL hash
+    history.replaceState(null, '', '#' + name);
+  }
+
+  $$('.tab-btn').forEach(btn =>
+    btn.addEventListener('click', () => switchTab(btn.dataset.tab)));
+
+  // Restore from hash on load
+  const hashTab = location.hash.slice(1);
+  if (['curation', 'sessions', 'log'].includes(hashTab)) switchTab(hashTab);
+
+
   // ===== PRODUCT PICKER WIDGET ================================================
-  // Search-as-you-type product picker. Replaces unwieldy <select> dropdowns.
 
   class ProductPicker {
-    constructor(container, { placeholder = '— type to search products —', onSelect = null, inlineStyle = false } = {}) {
+    constructor(container, { placeholder = '— type to search products —', onSelect = null } = {}) {
       this._onSelect = onSelect;
       this._selectedId = '';
       this._selectedName = '';
       this._debounceTimer = null;
-
       container.innerHTML = `
         <input type="text" autocomplete="off" spellcheck="false"
-               class="picker-input${inlineStyle ? '' : ''}"
-               placeholder="${escape(placeholder)}" />
+               class="picker-input" placeholder="${escape(placeholder)}" />
         <div class="picker-dropdown hidden"></div>
       `;
-      if (inlineStyle) container.querySelector('.picker-input').style.cssText =
-        'border-radius:6px;font-size:13px;padding:5px 8px;';
-
       this._container = container;
       this._input     = container.querySelector('.picker-input');
       this._dropdown  = container.querySelector('.picker-dropdown');
-
       this._input.addEventListener('input', () => this._onInput());
       this._input.addEventListener('focus', () => {
         const q = this._input.value.trim();
-        if (q) this._search(q);
-        else   this._searchEmpty();
+        if (q) this._search(q); else this._searchEmpty();
       });
       this._input.addEventListener('keydown', e => {
         if (e.key === 'Escape') { this._hideDropdown(); this._input.blur(); }
@@ -650,36 +693,24 @@
         if (!container.contains(e.target)) this._hideDropdown();
       });
     }
-
     get selectedId()   { return this._selectedId; }
     get selectedName() { return this._selectedName; }
-
     _onInput() {
-      this._selectedId   = '';
-      this._selectedName = '';
+      this._selectedId = ''; this._selectedName = '';
       clearTimeout(this._debounceTimer);
       const q = this._input.value.trim();
       if (!q) { this._searchEmpty(); return; }
       this._debounceTimer = setTimeout(() => this._search(q), 180);
     }
-
-    // Show top results with no query (most recently curated)
     async _searchEmpty() {
-      try {
-        const results = await api(`/products/search?limit=12`);
-        this._showDropdown(results);
-      } catch {}
+      try { this._showDropdown(await api(`/products/search?limit=12`)); } catch {}
     }
-
     async _search(q) {
       this._dropdown.innerHTML = '<div class="picker-loading">Searching…</div>';
       this._dropdown.classList.remove('hidden');
-      try {
-        const results = await api(`/products/search?q=${encodeURIComponent(q)}&limit=20`);
-        this._showDropdown(results);
-      } catch { this._hideDropdown(); }
+      try { this._showDropdown(await api(`/products/search?q=${encodeURIComponent(q)}&limit=20`)); }
+      catch { this._hideDropdown(); }
     }
-
     _showDropdown(items) {
       if (!items.length) {
         this._dropdown.innerHTML = '<div class="picker-empty">No matches</div>';
@@ -688,60 +719,44 @@
           <div class="picker-item" data-id="${escape(p.id)}" data-name="${escape(p.name)}">
             <span class="picker-item-name">${escape(p.name)}</span>
             <span class="picker-item-meta">${Number(p.abv).toFixed(1)}%${p.volumeMl ? ` · ${p.volumeMl}ml` : ''} · ${p.upcCount} UPC${p.upcCount === 1 ? '' : 's'}${p.curated ? ' · ✓' : ''}</span>
-          </div>
-        `).join('');
+          </div>`).join('');
         this._dropdown.querySelectorAll('.picker-item').forEach(el => {
           el.addEventListener('mousedown', e => {
-            e.preventDefault(); // Don't lose focus before click registers
+            e.preventDefault();
             this._select(el.dataset.id, el.dataset.name);
           });
         });
       }
       this._dropdown.classList.remove('hidden');
     }
-
     _hideDropdown() { this._dropdown.classList.add('hidden'); }
-
     _select(id, name) {
-      this._selectedId   = id;
-      this._selectedName = name;
-      this._input.value  = name;
+      this._selectedId = id; this._selectedName = name;
+      this._input.value = name;
       this._hideDropdown();
       if (this._onSelect) this._onSelect(id, name);
     }
-
-    reset() {
-      this._selectedId   = '';
-      this._selectedName = '';
-      this._input.value  = '';
-      this._hideDropdown();
-    }
-
-    setSelected(id, name) {
-      this._selectedId   = id;
-      this._selectedName = name;
-      this._input.value  = name;
-    }
+    reset() { this._selectedId = ''; this._selectedName = ''; this._input.value = ''; this._hideDropdown(); }
+    setSelected(id, name) { this._selectedId = id; this._selectedName = name; this._input.value = name; }
   }
 
 
   // ===== LOAD FUNCTIONS =======================================================
 
-  // Load queue, sessions, backups together. Products load separately (paginated).
   async function loadAll() {
     try {
-      const [q, s, b] = await Promise.all([api('/queue'), api('/sessions'), api('/backups')]);
-      queueState    = q;
-      sessionsState = s;
-      backupsState  = b;
-      renderStats();
+      const [q, b] = await Promise.all([api('/queue'), api('/backups')]);
+      queueState   = q;
+      backupsState = b;
+      renderBadges();
       renderBackups();
-      renderSessions();
       renderPending();
     } catch (e) {
       toast('Load failed: ' + e.message, 'danger');
     }
   }
+
+  let backupsState = { backups: [] };
 
   async function loadProducts(page = 1) {
     const q           = ($('#productsFilter').value || '').trim();
@@ -752,22 +767,53 @@
     try {
       productsState = await api('/products?' + params);
       renderProducts();
-      renderPagination();
-      // Update the pill counts from what the server returned
-      renderStats();
+      renderProductsPagination();
+      renderBadges();
     } catch (e) {
       toast('Products load failed: ' + e.message, 'danger');
     }
   }
 
-  function renderStats() {
-    const sessions = sessionsState.sessions || [];
+  async function loadSessions() {
+    try {
+      const data = await api('/sessions');
+      sessionsState = { sessions: data.sessions || [], loaded: true };
+      renderSessions();
+      renderBadges();
+    } catch (e) {
+      toast('Sessions load failed: ' + e.message, 'danger');
+    }
+  }
+
+  async function loadLog(page = 1) {
+    const q      = ($('#logFilter').value || '').trim();
+    const params = new URLSearchParams({ page, limit: logState.limit });
+    if (q) params.set('q', q);
+    try {
+      const data = await api('/log?' + params);
+      logState = {
+        entries: data.entries || [],
+        total:   data.total  || 0,
+        page:    data.page   || page,
+        limit:   data.limit  || logState.limit,
+        pages:   data.pages  || 1,
+        loaded:  true,
+      };
+      renderLog();
+      renderLogPagination();
+      renderBadges();
+    } catch (e) {
+      toast('Log load failed: ' + e.message, 'danger');
+    }
+  }
+
+  function renderBadges() {
     const pending  = queueState.pending || [];
-    $('#pillPending').textContent  = `${pending.length} pending`;
-    $('#pillProducts').textContent = `${productsState.total} product${productsState.total === 1 ? '' : 's'}`;
-    $('#pillUpcs').textContent     = `${productsState.total || 0} products loaded`;
-    $('#pillSessions').textContent = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
-    $('#pillRejected').textContent = `${queueState.rejectedCount} rejected`;
+    const sessions = sessionsState.sessions || [];
+    $('#badgePending').textContent  = `${pending.length} pending`;
+    $('#badgeProducts').textContent = `${productsState.total} products`;
+    $('#badgeSessions').textContent = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
+    $('#badgeLog').textContent      = logState.loaded ? `${logState.total} entries` : '—';
   }
 
 
@@ -776,135 +822,140 @@
   function renderBackups() {
     const backups = backupsState.backups || [];
     const wrap = $('#backupsList');
-    if (!backups.length) {
-      wrap.innerHTML = `<div class="empty" style="margin-top:12px;">No backups yet.</div>`;
-      return;
-    }
+    if (!backups.length) { wrap.innerHTML = `<div class="empty" style="margin-top:12px;">No backups yet.</div>`; return; }
     wrap.innerHTML = `<div class="backup-list">${backups.map(b => `
       <div class="backup-row">
         <div class="backup-file" title="${escape(b.filename)}">${escape(b.filename)}</div>
         <div class="backup-meta">${formatBytes(b.size)}</div>
         <div class="backup-meta">${formatTime(b.updatedAt || b.createdAt)}</div>
         <div class="actions"><a class="btn ghost" href="${API}/backups/${encodeURIComponent(b.filename)}">Download</a></div>
-      </div>
-    `).join('')}</div>`;
+      </div>`).join('')}</div>`;
   }
 
   async function refreshBackups() {
-    try {
-      backupsState = await api('/backups');
-      renderBackups();
-    } catch (e) {
-      toast('Backup list failed: ' + e.message, 'danger');
-    }
+    try { backupsState = await api('/backups'); renderBackups(); }
+    catch (e) { toast('Backup list failed: ' + e.message, 'danger'); }
   }
 
   async function createBackup() {
     const btn = $('#btnCreateBackup');
-    btn.disabled = true;
-    btn.textContent = 'Backing up…';
+    btn.disabled = true; btn.textContent = 'Backing up…';
     try {
       const result = await api('/backups', { method: 'POST', body: '{}' });
       backupsState = { backups: result.backups || (result.backup ? [result.backup] : []) };
-      renderBackups();
-      toast('Backup created');
-    } catch (e) {
-      toast('Backup failed: ' + e.message, 'danger');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Make backup';
-    }
+      renderBackups(); toast('Backup created');
+    } catch (e) { toast('Backup failed: ' + e.message, 'danger'); }
+    finally { btn.disabled = false; btn.textContent = 'Make backup'; }
   }
 
 
-  // ===== SESSIONS OVERVIEW ====================================================
+  // ===== SESSIONS TABLE =======================================================
+
+  const SESSIONS_COLS = 6;
 
   function renderSessions() {
     const filter = ($('#sessionsFilter').value || '').trim().toLowerCase();
-    const all = sessionsState.sessions || [];
-    const rows = filter
+    const all    = sessionsState.sessions || [];
+    let rows = filter
       ? all.filter(s =>
           (s.name || '').toLowerCase().includes(filter) ||
-          (s.id || '').toLowerCase().includes(filter) ||
+          (s.id   || '').toLowerCase().includes(filter) ||
           (s.publicId || '').toLowerCase().includes(filter))
-      : all;
+      : all.slice();
+
+    // Sort
+    rows.sort((a, b) => {
+      let av, bv;
+      if (sessionSort.col === 'people')  { av = Number(a.peopleCount) || 0; bv = Number(b.peopleCount) || 0; }
+      else if (sessionSort.col === 'drinks')  { av = Number(a.drinkCount) || 0; bv = Number(b.drinkCount) || 0; }
+      else if (sessionSort.col === 'created') { av = a.createdAt || ''; bv = b.createdAt || ''; }
+      else { // last — normalize both sides to epoch ms for a comparable sort
+        av = a.lastDrinkAt ? Number(a.lastDrinkAt) : new Date(a.updatedAt || 0).getTime();
+        bv = b.lastDrinkAt ? Number(b.lastDrinkAt) : new Date(b.updatedAt || 0).getTime();
+      }
+      const cmp = typeof av === 'number' ? (av - bv) : av.localeCompare(bv);
+      return sessionSort.dir === 'asc' ? cmp : -cmp;
+    });
 
     $('#sessionsShowing').textContent = filter
       ? `${rows.length} / ${all.length} sessions`
       : `${all.length} session${all.length === 1 ? '' : 's'}`;
 
-    const wrap = $('#sessionsList');
+    // Update sort arrows
+    $$('#sessionsList thead th.sortable').forEach(th => {
+      th.classList.toggle('sort-asc',  th.dataset.sort === sessionSort.col && sessionSort.dir === 'asc');
+      th.classList.toggle('sort-desc', th.dataset.sort === sessionSort.col && sessionSort.dir === 'desc');
+    });
+
+    const tbody = $('#sessionsBody');
     if (!all.length) {
-      wrap.innerHTML = `<div class="empty">No shared sessions yet.</div>`;
+      tbody.innerHTML = `<tr><td colspan="${SESSIONS_COLS}" class="empty">No shared sessions yet.</td></tr>`;
       return;
     }
     if (!rows.length) {
-      wrap.innerHTML = `<div class="empty">No sessions match the filter.</div>`;
+      tbody.innerHTML = `<tr><td colspan="${SESSIONS_COLS}" class="empty">No sessions match the filter.</td></tr>`;
       return;
     }
-
-    wrap.innerHTML = `<div class="sessions-list">${rows.map(renderSessionRow).join('')}</div>`;
+    tbody.innerHTML = rows.map(s => {
+      const people = Number(s.peopleCount) || 0;
+      const drinks = Number(s.drinkCount)  || 0;
+      const last   = s.lastDrinkAt
+        ? new Date(Number(s.lastDrinkAt)).toISOString()
+        : (s.updatedAt || s.createdAt);
+      const reportHref = s.publicId
+        ? `../../report/?r=${encodeURIComponent(s.publicId)}`
+        : `../../report/?s=${encodeURIComponent(s.id)}`;
+      return `
+        <tr>
+          <td class="cell-name">
+            <strong title="${escape(s.name || '')}">${escape(s.name || 'Untitled session')}</strong>
+            <span class="sid mono" title="${escape(s.id)}">${escape(shortId(s.id))}</span>
+          </td>
+          <td class="num">${people}</td>
+          <td class="num">${drinks}</td>
+          <td class="mono" style="font-size:11px; color:var(--ink-soft);">${formatTime(s.createdAt)}</td>
+          <td class="mono" style="font-size:11px; color:var(--ink-dim);">${formatTime(last)}</td>
+          <td class="cell-actions">
+            <a class="row-btn" href="../../?s=${encodeURIComponent(s.id)}" target="_blank" rel="noopener noreferrer">Open</a>
+            <a class="row-btn" href="${reportHref}" target="_blank" rel="noopener noreferrer">Report</a>
+          </td>
+        </tr>`;
+    }).join('');
   }
 
-  function renderSessionRow(s) {
-    const people = Number(s.peopleCount) || 0;
-    const drinks = Number(s.drinkCount) || 0;
-    const last = s.lastDrinkAt ? new Date(Number(s.lastDrinkAt)).toISOString() : s.updatedAt;
-    const reportHref = s.publicId
-      ? `../../report/?r=${encodeURIComponent(s.publicId)}`
-      : `../../report/?s=${encodeURIComponent(s.id)}`;
-    return `
-      <div class="session-row">
-        <div class="session-name">
-          <strong title="${escape(s.name || '')}">${escape(s.name || 'Untitled session')}</strong>
-          <span class="mono" title="${escape(s.id)}">${escape(shortId(s.id))}</span>
-        </div>
-        <div class="session-stat">${people}<span>people</span></div>
-        <div class="session-stat">${drinks}<span>drinks</span></div>
-        <div class="session-stat">${formatTime(s.createdAt)}<span>created</span></div>
-        <div class="session-stat">${formatTime(last)}<span>last activity</span></div>
-        <div class="session-actions">
-          <a class="btn" href="../../?s=${encodeURIComponent(s.id)}" target="_blank" rel="noopener noreferrer">Open</a>
-          <a class="btn ghost" href="${reportHref}" target="_blank" rel="noopener noreferrer">Report</a>
-        </div>
-      </div>
-    `;
-  }
+  // Sort header clicks
+  $('#sessionsList').addEventListener('click', e => {
+    const th = e.target.closest('th.sortable');
+    if (!th) return;
+    const col = th.dataset.sort;
+    if (sessionSort.col === col) {
+      sessionSort.dir = sessionSort.dir === 'asc' ? 'desc' : 'asc';
+    } else {
+      sessionSort = { col, dir: col === 'last' || col === 'created' ? 'desc' : 'desc' };
+    }
+    renderSessions();
+  });
 
-  function shortId(id) {
-    const s = String(id || '');
-    return s.length > 12 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
-  }
 
   // ===== PENDING SUBMISSIONS QUEUE ============================================
 
   const PENDING_COLUMNS = 5;
   const PENDING_HEAD = `
     <colgroup>
-      <col class="col-upc">
-      <col class="col-topname">
-      <col class="col-subs">
-      <col class="col-last">
-      <col class="col-actions">
+      <col class="col-upc"><col class="col-topname">
+      <col class="col-subs"><col class="col-last"><col class="col-actions">
     </colgroup>
-    <thead>
-      <tr>
-        <th>UPC</th>
-        <th>Top submission</th>
-        <th>Subs</th>
-        <th>Last seen</th>
-        <th></th>
-      </tr>
-    </thead>`;
+    <thead><tr>
+      <th>UPC</th><th>Top submission</th>
+      <th>Subs</th><th>Last seen</th><th></th>
+    </tr></thead>`;
 
   function renderPending() {
-    const wrap = $('#pendingList');
-    const all = queueState.pending || [];
+    const wrap   = $('#pendingList');
+    const all    = queueState.pending || [];
     const filter = ($('#pendingFilter')?.value || '').trim().toLowerCase();
-    const items = filter
-      ? all.filter(it =>
-          it.upc.includes(filter) ||
-          it.names.some(n => n.name.toLowerCase().includes(filter)))
+    const items  = filter
+      ? all.filter(it => it.upc.includes(filter) || it.names.some(n => n.name.toLowerCase().includes(filter)))
       : all;
 
     const showingEl = $('#pendingShowing');
@@ -936,11 +987,8 @@
         `<span class="pill">${v.volumeMl} ml <span style="color:var(--ink-soft); margin-left:4px;">(${v.n})</span></span>`)),
     ].join(' ');
     const suggestions = (item.suggestions || []).map(s =>
-      `<button class="suggestion" data-suggest-name="${escape(s.name)}">
-        ${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span>
-      </button>`
+      `<button class="suggestion" data-suggest-name="${escape(s.name)}">${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span></button>`
     ).join('');
-
     const inferredFlavour = guessFlavour(topName, item.suggestions || []);
 
     return `
@@ -950,9 +998,7 @@
           <td class="top-name">${escape(topName) || '—'}</td>
           <td class="num"><span class="sub-count">${item.count}</span></td>
           <td class="mono">${formatTime(item.lastSeen)}</td>
-          <td class="cell-actions">
-            <button class="row-btn primary triage-btn">Triage ▾</button>
-          </td>
+          <td class="cell-actions"><button class="row-btn primary triage-btn">Triage ▾</button></td>
         </tr>
         <tr class="detail-row hidden pending-detail">
           <td colspan="${PENDING_COLUMNS}">
@@ -960,45 +1006,34 @@
               ${sampleNames}
               <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${samplePills}</div>
             </div>
-            ${suggestions ? `<div class="suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">${suggestions}</div>` : ''}
-
+            ${suggestions ? `<div class="suggestions">${suggestions}</div>` : ''}
             <div class="mode-toggle">
-              <button data-mode="new"      class="active">New product</button>
+              <button data-mode="new" class="active">New product</button>
               <button data-mode="existing">Add to existing</button>
             </div>
-
             <div class="form-grid mode-new">
               <div class="field"><label>Name</label><input name="newName" value="${escape(topName)}" placeholder="Product name" /></div>
               <div class="field"><label>ABV %</label><input name="newAbv" type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
               <div class="field"><label>Vol. (ml)</label><input name="newVol" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
               <div class="field full"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="newFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
             </div>
-
             <div class="form-grid mode-existing" style="display:none; grid-template-columns: 2.4fr 1fr;">
-              <div class="field">
-                <label>Product</label>
-                <div class="product-picker" data-role="existingPicker"></div>
-              </div>
+              <div class="field"><label>Product</label><div class="product-picker" data-role="existingPicker"></div></div>
               <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
             </div>
-
             <div class="actions">
               <button class="row-btn primary save">Save</button>
               <button class="row-btn danger reject">Reject</button>
             </div>
           </td>
         </tr>
-      </tbody>
-    `;
+      </tbody>`;
   }
 
-  // Map from upc → ProductPicker instance for each pending card
   const pendingPickers = new Map();
 
   function bindPendingCard(card) {
     const upc = card.dataset.upc;
-
-    // Create the product picker for "add to existing" mode
     const pickerWrap = card.querySelector('[data-role=existingPicker]');
     const picker = new ProductPicker(pickerWrap, { placeholder: '— type to search —' });
     pendingPickers.set(upc, picker);
@@ -1017,31 +1052,26 @@
       toggleDetail();
     });
 
-    // Mode toggle.
     const newGrid = card.querySelector('.mode-new');
     const exGrid  = card.querySelector('.mode-existing');
     card.querySelectorAll('.mode-toggle button').forEach(btn => {
       btn.addEventListener('click', () => {
         const mode = btn.dataset.mode;
         card.querySelectorAll('.mode-toggle button').forEach(b => b.classList.toggle('active', b === btn));
-        newGrid.style.display = mode === 'new' ? '' : 'none';
+        newGrid.style.display = mode === 'new'      ? '' : 'none';
         exGrid.style.display  = mode === 'existing' ? '' : 'none';
       });
     });
 
-    // Suggestion click → switch to "existing" mode, pre-fill picker.
     card.querySelectorAll('button.suggestion').forEach(b => {
       b.addEventListener('click', async () => {
         const name = b.dataset.suggestName;
-        const matchBtn = card.querySelector('.mode-toggle button[data-mode="existing"]');
-        if (matchBtn) matchBtn.click();
-        // Search for the product by exact name and select it
+        card.querySelector('.mode-toggle button[data-mode="existing"]')?.click();
         try {
           const results = await api(`/products/search?q=${encodeURIComponent(name)}&limit=5`);
           const match = results.find(r => r.name === name) || results[0];
           if (match) {
             picker.setSelected(match.id, match.name);
-            // Re-infer flavour
             const submitted = card.querySelector('input[name=newName]')?.value || '';
             const flav = stripProductFromName(submitted, match.name);
             const flavInput = card.querySelector('input[name=existingFlavour]');
@@ -1051,7 +1081,7 @@
       });
     });
 
-    card.querySelector('button.save').addEventListener('click', () => savePending(card, upc));
+    card.querySelector('button.save').addEventListener('click',   () => savePending(card, upc));
     card.querySelector('button.reject').addEventListener('click', () => rejectPending(upc));
   }
 
@@ -1070,8 +1100,8 @@
         toast(`Curated ${name}`);
       } else {
         const picker    = pendingPickers.get(upc);
-        const productId = picker ? picker.selectedId : '';
-        const prodName  = picker ? picker.selectedName : productId;
+        const productId = picker?.selectedId || '';
+        const prodName  = picker?.selectedName || productId;
         const flavour   = card.querySelector('input[name=existingFlavour]').value.trim() || undefined;
         if (!productId) return toast('Pick a product', 'danger');
         await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId, flavour }) });
@@ -1080,9 +1110,7 @@
       pendingPickers.delete(upc);
       await loadAll();
       await loadProducts(productsState.page);
-    } catch (e) {
-      toast('Save failed: ' + e.message, 'danger');
-    }
+    } catch (e) { toast('Save failed: ' + e.message, 'danger'); }
   }
 
   async function rejectPending(upc) {
@@ -1092,47 +1120,35 @@
       await api('/reject', { method: 'POST', body: JSON.stringify({ upc, reason }) });
       toast('Rejected');
       await loadAll();
-    } catch (e) {
-      toast('Reject failed: ' + e.message, 'danger');
-    }
+    } catch (e) { toast('Reject failed: ' + e.message, 'danger'); }
   }
+
 
   // ===== PRODUCTS LIST ========================================================
 
   const PRODUCTS_COLUMNS = 6;
   const PRODUCTS_HEAD = `
     <colgroup>
-      <col class="col-name">
-      <col class="col-abv">
-      <col class="col-vol">
-      <col class="col-upcs">
-      <col class="col-source">
-      <col class="col-actions">
+      <col class="col-name"><col class="col-abv"><col class="col-vol">
+      <col class="col-upcs"><col class="col-source"><col class="col-actions">
     </colgroup>
-    <thead>
-      <tr>
-        <th>Name</th>
-        <th>ABV %</th>
-        <th>Vol (ml)</th>
-        <th>UPCs</th>
-        <th>Source</th>
-        <th></th>
-      </tr>
-    </thead>`;
+    <thead><tr>
+      <th>Name</th><th>ABV %</th><th>Vol (ml)</th>
+      <th>UPCs</th><th>Source</th><th></th>
+    </tr></thead>`;
 
   function renderProducts() {
-    const { products, total, page, limit, pages } = productsState;
-    const q = ($('#productsFilter').value || '').trim();
+    const { products, total, page, pages } = productsState;
+    const q           = ($('#productsFilter').value || '').trim();
     const curatedOnly = $('#productsCuratedOnly').checked;
-
-    const showing = q || curatedOnly
-      ? `${products.length} of ${total} products (page ${page}/${pages})`
+    const showing = (q || curatedOnly)
+      ? `${products.length} of ${total} · page ${page}/${pages}`
       : `${total} products · page ${page}/${pages}`;
     $('#productsShowing').textContent = showing;
 
     const wrap = $('#productsList');
     if (!total && !q && !curatedOnly) {
-      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products yet. Save one from the queue or add manually.</td></tr></tbody>`;
+      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products yet.</td></tr></tbody>`;
       return;
     }
     if (!products.length) {
@@ -1143,35 +1159,8 @@
     $$('tbody.product-card').forEach(card => bindProductCard(card));
   }
 
-  function renderPagination() {
-    const { page, pages } = productsState;
-    const wrap = $('#productsPagination');
-    if (pages <= 1) { wrap.innerHTML = ''; return; }
-
-    const prevDisabled = page <= 1 ? 'disabled' : '';
-    const nextDisabled = page >= pages ? 'disabled' : '';
-
-    // Show up to 7 page buttons centred on current page
-    const range = [];
-    const delta = 3;
-    for (let i = Math.max(1, page - delta); i <= Math.min(pages, page + delta); i++) range.push(i);
-
-    const pageButtons = range.map(p =>
-      `<button class="page-btn${p === page ? ' active' : ''}" data-page="${p}">${p}</button>`
-    ).join('');
-
-    wrap.innerHTML = `
-      <button class="page-btn" data-page="${page - 1}" ${prevDisabled}>‹ Prev</button>
-      ${range[0] > 1 ? `<button class="page-btn" data-page="1">1</button>${range[0] > 2 ? '<span class="page-info">…</span>' : ''}` : ''}
-      ${pageButtons}
-      ${range[range.length - 1] < pages ? `${range[range.length - 1] < pages - 1 ? '<span class="page-info">…</span>' : ''}<button class="page-btn" data-page="${pages}">${pages}</button>` : ''}
-      <button class="page-btn" data-page="${page + 1}" ${nextDisabled}>Next ›</button>
-      <span class="page-info">${productsState.total} total</span>
-    `;
-    wrap.querySelectorAll('button[data-page]').forEach(btn => {
-      if (btn.disabled) return;
-      btn.addEventListener('click', () => loadProducts(Number(btn.dataset.page)));
-    });
+  function renderProductsPagination() {
+    renderPaginationInto('#productsPagination', productsState, p => loadProducts(p));
   }
 
   function renderProductCard(p) {
@@ -1180,18 +1169,15 @@
         <div class="upc-cell">${escape(u.upc)}</div>
         <input name="flavour" value="${escape(u.flavour || '')}" placeholder="flavour (optional)" />
         <div class="row-actions">
-          <button class="row-btn save-upc" title="Save flavour">Save</button>
-          <button class="row-btn danger del-upc" title="Detach UPC">×</button>
+          <button class="row-btn save-upc">Save</button>
+          <button class="row-btn danger del-upc">×</button>
         </div>
-      </div>
-    `).join('') : `<div class="empty" style="margin-bottom:6px;">No UPCs linked yet.</div>`;
-
-    const upcCount  = p.upcs.length;
-    const upcLabel  = `${upcCount} UPC${upcCount === 1 ? '' : 's'}`;
-    const source    = p.curated
+      </div>`).join('') : `<div class="empty" style="margin-bottom:6px;">No UPCs linked yet.</div>`;
+    const upcCount = p.upcs.length;
+    const upcLabel = `${upcCount} UPC${upcCount === 1 ? '' : 's'}`;
+    const source   = p.curated
       ? '<span class="source-badge curated">curated</span>'
       : '<span class="source-badge">imported</span>';
-
     return `
       <tbody class="product-card" data-product-id="${escape(p.id)}">
         <tr class="main-row">
@@ -1203,16 +1189,16 @@
           <td class="cell-actions">
             <button class="row-btn primary save-product">Save</button>
             <button class="row-btn merge-product" title="Merge into another product">⇄</button>
-            <button class="row-btn danger del-product" title="Delete product">×</button>
+            <button class="row-btn danger del-product">×</button>
           </td>
         </tr>
         <tr class="detail-row hidden">
           <td colspan="${PRODUCTS_COLUMNS}">
-            <div style="font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); margin-bottom: 8px;">${escape(p.id)} · ${upcLabel}</div>
+            <div style="font-family:ui-monospace,monospace; font-size:10px; color:var(--ink-soft); margin-bottom:8px;">${escape(p.id)} · ${upcLabel}</div>
             ${upcRows}
             <div class="upc-add-row">
               <span class="add-label">+ Add UPC</span>
-              <div style="display:grid; grid-template-columns: 200px 1fr; gap:8px; min-width:0;">
+              <div style="display:grid; grid-template-columns:200px 1fr; gap:8px; min-width:0;">
                 <input name="newUpc" type="text" inputmode="numeric" placeholder="012345678905" />
                 <input name="newFlavour" type="text" placeholder="flavour (optional)" />
               </div>
@@ -1220,18 +1206,15 @@
             </div>
           </td>
         </tr>
-      </tbody>
-    `;
+      </tbody>`;
   }
 
   function bindProductCard(card) {
     const id = card.dataset.productId;
-
     const detailRow = card.querySelector('tr.detail-row');
     const expandBtn = card.querySelector('button[data-toggle-detail]');
     expandBtn.addEventListener('click', () => {
       const open = detailRow.classList.toggle('hidden') === false;
-      card.querySelector('tr.main-row').classList.toggle('expanded', open);
       expandBtn.textContent = expandBtn.textContent.replace(/[▾▴]/, open ? '▴' : '▾');
     });
 
@@ -1246,9 +1229,7 @@
         await api('/product', { method: 'POST', body: JSON.stringify({ id, name, abv, volumeMl }) });
         toast(`Updated ${name}`);
         await loadProducts(productsState.page);
-      } catch (e) {
-        toast('Save failed: ' + e.message, 'danger');
-      }
+      } catch (e) { toast('Save failed: ' + e.message, 'danger'); }
     });
 
     card.querySelector('button.merge-product').addEventListener('click', () => {
@@ -1257,7 +1238,7 @@
     });
 
     card.querySelector('button.del-product').addEventListener('click', async () => {
-      const product = productsState.products.find(p => p.id === id);
+      const product  = productsState.products.find(p => p.id === id);
       const upcCount = product ? product.upcs.length : 0;
       const msg = upcCount > 0
         ? `Delete "${product.name}" and detach its ${upcCount} UPC${upcCount === 1 ? '' : 's'}?`
@@ -1267,23 +1248,18 @@
         await api('/product/' + encodeURIComponent(id), { method: 'DELETE' });
         toast('Deleted');
         await loadProducts(productsState.page);
-      } catch (e) {
-        toast('Delete failed: ' + e.message, 'danger');
-      }
+      } catch (e) { toast('Delete failed: ' + e.message, 'danger'); }
     });
 
-    // Per-UPC save (flavour edit) and delete.
     card.querySelectorAll('.upc-row').forEach(row => {
       const upc = row.dataset.upc;
       row.querySelector('button.save-upc').addEventListener('click', async () => {
         const flavour = row.querySelector('input[name=flavour]').value.trim() || undefined;
         try {
           await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId: id, flavour }) });
-          toast(`Saved`);
+          toast('Saved');
           await loadProducts(productsState.page);
-        } catch (e) {
-          toast('Save failed: ' + e.message, 'danger');
-        }
+        } catch (e) { toast('Save failed: ' + e.message, 'danger'); }
       });
       row.querySelector('button.del-upc').addEventListener('click', async () => {
         if (!confirm(`Detach UPC ${upc} from this product?`)) return;
@@ -1291,14 +1267,11 @@
           await api('/upc/' + encodeURIComponent(upc), { method: 'DELETE' });
           toast('Detached');
           await loadProducts(productsState.page);
-        } catch (e) {
-          toast('Delete failed: ' + e.message, 'danger');
-        }
+        } catch (e) { toast('Delete failed: ' + e.message, 'danger'); }
       });
     });
 
-    // + Add UPC inline.
-    const addBtn = card.querySelector('button.add-upc');
+    const addBtn      = card.querySelector('button.add-upc');
     const addUpcInput = card.querySelector('input[name=newUpc]');
     const addFlavInput = card.querySelector('input[name=newFlavour]');
     const submitAddUpc = async () => {
@@ -1310,14 +1283,13 @@
         toast('Linked');
         addUpcInput.value = ''; addFlavInput.value = '';
         await loadProducts(productsState.page);
-      } catch (e) {
-        toast('Add failed: ' + e.message, 'danger');
-      }
+      } catch (e) { toast('Add failed: ' + e.message, 'danger'); }
     };
     addBtn.addEventListener('click', submitAddUpc);
     [addUpcInput, addFlavInput].forEach(i =>
       i.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitAddUpc(); } }));
   }
+
 
   // ===== MERGE PRODUCTS =======================================================
 
@@ -1325,55 +1297,38 @@
   let mergeOtherPicker = null;
 
   function pickMergeOrientation(a, b) {
-    if (a.upcs.length !== b.upcs.length) {
-      return a.upcs.length < b.upcs.length ? [a, b] : [b, a];
-    }
-    if (a.curated !== b.curated) {
-      return a.curated ? [b, a] : [a, b];
-    }
+    if (a.upcs.length !== b.upcs.length) return a.upcs.length < b.upcs.length ? [a, b] : [b, a];
+    if (a.curated !== b.curated) return a.curated ? [b, a] : [a, b];
     return [a, b];
   }
 
   function openMergeModal(initialProduct) {
     mergeState = { initialProduct, otherProduct: null, sourceId: null, targetId: null, busy: false };
-
-    // Set up the picker
     const wrap = $('#mergeOtherPickerWrap');
-    // Destroy previous picker by clearing the container
     wrap.innerHTML = '';
     mergeOtherPicker = new ProductPicker(wrap, {
       placeholder: '— type to search products —',
-      onSelect: async (id, name) => {
-        // Fetch full product details (with UPCs) for merge preview
+      onSelect: async (id) => {
         try {
           const prod = await api('/product/' + encodeURIComponent(id));
           mergeState.otherProduct = prod;
-          mergeState.sourceId = null;
-          mergeState.targetId = null;
+          mergeState.sourceId = null; mergeState.targetId = null;
           renderMergeModal();
-        } catch (e) {
-          toast('Failed to load product: ' + e.message, 'danger');
-        }
+        } catch (e) { toast('Failed to load product: ' + e.message, 'danger'); }
       },
     });
-
     renderMergeModal();
     $('#mergeOverlay').classList.add('open');
   }
 
-  function closeMergeModal() {
-    $('#mergeOverlay').classList.remove('open');
-  }
+  function closeMergeModal() { $('#mergeOverlay').classList.remove('open'); }
 
   function renderMergeModal() {
     const initial = mergeState.initialProduct;
     const other   = mergeState.otherProduct;
-
     if (!other) {
-      $('#mergeSourceName').textContent = initial ? initial.name : '—';
-      $('#mergeSourceMeta').textContent = initial
-        ? `${initial.upcs.length} UPC${initial.upcs.length === 1 ? '' : 's'} · ${initial.curated ? 'curated' : 'imported'}`
-        : '—';
+      $('#mergeSourceName').textContent = initial?.name || '—';
+      $('#mergeSourceMeta').textContent = initial ? `${initial.upcs.length} UPC${initial.upcs.length === 1 ? '' : 's'} · ${initial.curated ? 'curated' : 'imported'}` : '—';
       $('#mergeTargetName').textContent = '—';
       $('#mergeTargetMeta').textContent = 'search for a product above';
       $('#mergePreview').innerHTML = '<div class="empty">Search for another product to preview the merge.</div>';
@@ -1381,21 +1336,16 @@
       $('#mergeSwap').disabled = true;
       return;
     }
-
     if (!mergeState.sourceId || !mergeState.targetId) {
       const [src, tgt] = pickMergeOrientation(initial, other);
-      mergeState.sourceId = src.id;
-      mergeState.targetId = tgt.id;
+      mergeState.sourceId = src.id; mergeState.targetId = tgt.id;
     }
-
     const source = mergeState.sourceId === initial.id ? initial : other;
     const target = mergeState.targetId === initial.id ? initial : other;
-
     $('#mergeSourceName').textContent = source.name;
     $('#mergeSourceMeta').textContent = `${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'} · ${source.curated ? 'curated' : 'imported'}`;
     $('#mergeTargetName').textContent = target.name;
     $('#mergeTargetMeta').textContent = `${target.upcs.length} UPC${target.upcs.length === 1 ? '' : 's'} · ${target.curated ? 'curated' : 'imported'}`;
-
     const inferred = stripProductFromName(source.name, target.name) || source.name;
     const previewWrap = $('#mergePreview');
     if (!source.upcs.length) {
@@ -1405,10 +1355,8 @@
         <div class="merge-upc-row" data-upc="${escape(u.upc)}">
           <div class="merge-upc-cell">${escape(u.upc)}</div>
           <input name="flavour" value="${escape(u.flavour || inferred)}" placeholder="flavour" />
-        </div>
-      `).join('');
+        </div>`).join('');
     }
-
     $('#mergeConfirm').disabled = false;
     $('#mergeSwap').disabled = false;
   }
@@ -1418,17 +1366,13 @@
     const initial = mergeState.initialProduct;
     const other   = mergeState.otherProduct;
     if (!initial || !other || !mergeState.sourceId || !mergeState.targetId) return;
-
     const source = mergeState.sourceId === initial.id ? initial : other;
     const target = mergeState.targetId === initial.id ? initial : other;
-
     const upcEdits = $$('#mergePreview .merge-upc-row').map(row => ({
       upc: row.dataset.upc,
       flavour: row.querySelector('input[name=flavour]').value.trim() || undefined,
     }));
-
     if (!confirm(`Merge "${source.name}" (${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'}) into "${target.name}"? The source product will be deleted.`)) return;
-
     mergeState.busy = true;
     $('#mergeConfirm').disabled = true;
     try {
@@ -1442,9 +1386,7 @@
     } catch (e) {
       toast('Merge failed: ' + e.message, 'danger');
       $('#mergeConfirm').disabled = false;
-    } finally {
-      mergeState.busy = false;
-    }
+    } finally { mergeState.busy = false; }
   }
 
   $('#mergeSwap').addEventListener('click', () => {
@@ -1453,13 +1395,11 @@
   });
   $('#mergeCancel').addEventListener('click', closeMergeModal);
   $('#mergeConfirm').addEventListener('click', performMerge);
-  $('#mergeOverlay').addEventListener('click', e => {
-    if (e.target.id === 'mergeOverlay') closeMergeModal();
-  });
+  $('#mergeOverlay').addEventListener('click', e => { if (e.target.id === 'mergeOverlay') closeMergeModal(); });
 
-  // ===== MANUAL ADD (top of products section) =================================
 
-  // Product picker for manual "add UPC to existing" form
+  // ===== MANUAL ADD ===========================================================
+
   const manualExistingPicker = new ProductPicker($('#manualExistingPickerWrap'), {
     placeholder: '— type to search products —',
   });
@@ -1504,18 +1444,98 @@
         toast(`Linked ${upc} to ${prodName}`);
       }
       clearManualForm();
-      await loadProducts(1); // go back to page 1 so user can see new entry
-    } catch (e) {
-      toast('Add failed: ' + e.message, 'danger');
-    }
+      await loadProducts(1);
+    } catch (e) { toast('Add failed: ' + e.message, 'danger'); }
   }
+
+
+  // ===== DRINK LOG ============================================================
+
+  const LOG_COLS = 6;
+  const LOG_HEAD = `
+    <colgroup>
+      <col class="col-time"><col class="col-people">
+      <col class="col-name"><col class="col-abv"><col class="col-vol"><col class="col-upc">
+    </colgroup>
+    <thead><tr>
+      <th>Time</th><th>People</th>
+      <th>Drink</th><th>ABV</th><th>Vol</th><th>UPC</th>
+    </tr></thead>`;
+
+  function renderLog() {
+    const { entries, total, page, pages } = logState;
+    const q = ($('#logFilter').value || '').trim().toLowerCase();
+
+    // Client-side filter on current page
+    const rows = q
+      ? entries.filter(e =>
+          (e.name  || '').toLowerCase().includes(q) ||
+          (e.upc   || '').includes(q) ||
+          (e.from  || '').toLowerCase().includes(q) ||
+          (e.people || []).some(p => p.toLowerCase().includes(q)))
+      : entries;
+
+    $('#logShowing').textContent = q
+      ? `${rows.length} of ${entries.length} on page · ${total} total`
+      : `${total} total · page ${page}/${pages}`;
+
+    const wrap = $('#logList');
+    if (!rows.length) {
+      wrap.innerHTML = `${LOG_HEAD}<tbody><tr><td colspan="${LOG_COLS}" class="empty">${
+        total ? 'No entries match the filter.' : 'No drink log entries yet.'
+      }</td></tr></tbody>`;
+      return;
+    }
+    wrap.innerHTML = LOG_HEAD + '<tbody>' + rows.map(e => {
+      return `
+        <tr>
+          <td class="log-time-cell">${formatTime(e.receivedAt)}</td>
+          <td class="log-people-cell" title="${escape((e.people || []).join(', '))}">${(e.people || []).map(escape).join(', ') || (e.from ? escape(e.from) : '—')}</td>
+          <td class="log-name-cell">${escape(e.name || '—')}</td>
+          <td class="num">${e.abv != null ? Number(e.abv).toFixed(1) + '%' : '—'}</td>
+          <td class="num">${e.volumeMl ? Math.round(e.volumeMl) + ' ml' : '—'}</td>
+          <td class="mono">${e.upc ? escape(e.upc) : '—'}</td>
+        </tr>`;
+    }).join('') + '</tbody>';
+  }
+
+  function renderLogPagination() {
+    renderPaginationInto('#logPagination', logState, p => loadLog(p));
+  }
+
+
+  // ===== SHARED PAGINATION HELPER =============================================
+
+  function renderPaginationInto(selector, state, loadFn) {
+    const { page, pages, total } = state;
+    const wrap = $(selector);
+    if (pages <= 1) { wrap.innerHTML = ''; return; }
+    const prevDisabled = page <= 1 ? 'disabled' : '';
+    const nextDisabled = page >= pages ? 'disabled' : '';
+    const delta = 3;
+    const range = [];
+    for (let i = Math.max(1, page - delta); i <= Math.min(pages, page + delta); i++) range.push(i);
+    const pageButtons = range.map(p =>
+      `<button class="page-btn${p === page ? ' active' : ''}" data-page="${p}">${p}</button>`).join('');
+    wrap.innerHTML = `
+      <button class="page-btn" data-page="${page - 1}" ${prevDisabled}>‹ Prev</button>
+      ${range[0] > 1 ? `<button class="page-btn" data-page="1">1</button>${range[0] > 2 ? '<span class="page-info">…</span>' : ''}` : ''}
+      ${pageButtons}
+      ${range[range.length-1] < pages ? `${range[range.length-1] < pages-1 ? '<span class="page-info">…</span>' : ''}<button class="page-btn" data-page="${pages}">${pages}</button>` : ''}
+      <button class="page-btn" data-page="${page + 1}" ${nextDisabled}>Next ›</button>
+      <span class="page-info">${total} total</span>`;
+    wrap.querySelectorAll('button[data-page]').forEach(btn => {
+      if (btn.disabled) return;
+      btn.addEventListener('click', () => loadFn(Number(btn.dataset.page)));
+    });
+  }
+
 
   // ===== HELPERS ==============================================================
 
   function stripProductFromName(submitted, productName) {
     if (!submitted || !productName) return '';
-    const s = submitted.trim();
-    const p = productName.trim();
+    const s = submitted.trim(), p = productName.trim();
     if (!s.toLowerCase().includes(p.toLowerCase())) return '';
     const re = new RegExp(p.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i');
     return s.replace(re, '').replace(/^[\s\-—·,:]+|[\s\-—·,:]+$/g, '').trim();
@@ -1540,23 +1560,45 @@
     if (!iso) return '—';
     const d = new Date(iso);
     if (isNaN(d)) return '—';
-    const now = new Date();
-    const diff = (now - d) / 1000;
-    if (diff < 60)  return 'just now';
+    const diff = (Date.now() - d) / 1000;
+    if (diff < 60)    return 'just now';
     if (diff < 3600)  return Math.floor(diff / 60) + ' min ago';
     if (diff < 86400) return Math.floor(diff / 3600) + ' hr ago';
     return d.toISOString().slice(0, 16).replace('T', ' ');
   }
 
+  function shortId(id) {
+    const s = String(id || '');
+    return s.length > 12 ? `${s.slice(0, 6)}…${s.slice(-4)}` : s;
+  }
+
+
   // ===== TOP-LEVEL WIRING =====================================================
 
-  $('#btnRefresh').addEventListener('click', () => { loadAll(); loadProducts(1); });
+  // Refresh button reloads whichever tab is active
+  $('#btnDeploy').addEventListener('click', async () => {
+    const btn = $('#btnDeploy'), out = $('#deployOut');
+    btn.disabled = true; btn.textContent = 'Pulling…';
+    out.className = 'deploy-out'; out.style.display = 'none';
+    try {
+      const result = await api('/deploy', { method: 'POST', body: '{}' });
+      out.textContent = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no output)';
+      out.className = 'deploy-out ok'; out.style.display = 'block';
+      toast('Deployed');
+      await loadAll(); await loadProducts(1);
+      if (sessionsState.loaded) await loadSessions();
+      if (logState.loaded)      await loadLog(1);
+    } catch (e) {
+      out.textContent = e.message; out.className = 'deploy-out error'; out.style.display = 'block';
+      toast('Deploy failed', 'danger');
+    } finally { btn.disabled = false; btn.textContent = 'Pull latest'; }
+  });
+
   $('#btnCreateBackup').addEventListener('click', createBackup);
   $('#btnBackupsRefresh').addEventListener('click', refreshBackups);
-  $('#sessionsFilter').addEventListener('input', renderSessions);
+
   $('#pendingFilter').addEventListener('input', renderPending);
 
-  // Products filter: debounce, then server fetch from page 1
   $('#productsFilter').addEventListener('input', () => {
     clearTimeout(productsSearchTimer);
     productsSearchTimer = setTimeout(() => loadProducts(1), 300);
@@ -1564,121 +1606,30 @@
   $('#productsCuratedOnly').addEventListener('change', () => loadProducts(1));
   $('#btnProductsRefresh').addEventListener('click', () => loadProducts(productsState.page));
 
-  $('#btnDeploy').addEventListener('click', async () => {
-    const btn = $('#btnDeploy');
-    const out = $('#deployOut');
-    btn.disabled = true;
-    btn.textContent = 'Pulling…';
-    out.className = 'deploy-out';
-    out.style.display = 'none';
-    try {
-      const result = await api('/deploy', { method: 'POST', body: '{}' });
-      const text = [result.stdout, result.stderr].filter(Boolean).join('\n').trim() || '(no output)';
-      out.textContent = text;
-      out.className = 'deploy-out ok';
-      out.style.display = 'block';
-      toast('Deployed');
-      await loadAll();
-      await loadProducts(1);
-    } catch (e) {
-      out.textContent = e.message;
-      out.className = 'deploy-out error';
-      out.style.display = 'block';
-      toast('Deploy failed', 'danger');
-    } finally {
-      btn.disabled = false;
-      btn.textContent = 'Pull latest';
-    }
+  $('#sessionsFilter').addEventListener('input', renderSessions);
+  $('#btnSessionsRefresh').addEventListener('click', loadSessions);
+
+  $('#logFilter').addEventListener('input', () => {
+    // Client-side filter on current page is instant; server-side search on debounce
+    renderLog();
+    clearTimeout(logSearchTimer);
+    logSearchTimer = setTimeout(() => loadLog(1), 400);
   });
+  $('#btnLogRefresh').addEventListener('click', () => loadLog(logState.page));
 
   $$('#manualModeToggle button').forEach(b =>
     b.addEventListener('click', () => setManualMode(b.dataset.mode)));
   $('#btnManualAdd').addEventListener('click', submitManualAdd);
   $('#btnManualClear').addEventListener('click', clearManualForm);
-  $$('#manualNewForm input').forEach(el => {
-    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); } });
-  });
+  $$('#manualNewForm input').forEach(el =>
+    el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); } }));
   $('#manualExistingUpc').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); }
   });
 
-  // ===== DRINK LOG ============================================================
-
-  let logEntries = [];
-  let logTotal   = 0;
-
-  async function loadLog() {
-    try {
-      const data = await api('/log?limit=500');
-      logEntries = data.entries || [];
-      logTotal   = data.total  || 0;
-      renderLog();
-    } catch (e) {
-      toast('Log load failed: ' + e.message, 'danger');
-    }
-  }
-
-  const LOG_HEAD = `
-    <colgroup>
-      <col class="col-time">
-      <col class="col-from">
-      <col class="col-people">
-      <col class="col-name">
-      <col class="col-abv">
-      <col class="col-vol">
-      <col class="col-upc">
-    </colgroup>
-    <thead>
-      <tr>
-        <th>Time</th>
-        <th>From</th>
-        <th>People</th>
-        <th>Drink</th>
-        <th>ABV</th>
-        <th>Vol</th>
-        <th>UPC</th>
-      </tr>
-    </thead>`;
-
-  function renderLog() {
-    const filter = ($('#logFilter').value || '').trim().toLowerCase();
-    const rows = filter
-      ? logEntries.filter(e =>
-          (e.name  || '').toLowerCase().includes(filter) ||
-          (e.upc   || '').includes(filter) ||
-          (e.from  || '').toLowerCase().includes(filter) ||
-          (e.people || []).some(p => p.toLowerCase().includes(filter)))
-      : logEntries;
-
-    $('#logShowing').textContent = filter
-      ? `${rows.length} / ${logTotal} entries`
-      : `${logTotal} total · showing ${rows.length}`;
-
-    const wrap = $('#logList');
-    if (!rows.length) {
-      wrap.innerHTML = `${LOG_HEAD}<tbody><tr><td colspan="7" class="empty">${logTotal ? 'No entries match the filter.' : 'No submissions yet.'}</td></tr></tbody>`;
-      return;
-    }
-
-    wrap.innerHTML = LOG_HEAD + '<tbody>' + rows.map(e => `
-      <tr>
-        <td class="log-time-cell">${formatTime(e.receivedAt)}</td>
-        <td class="log-people-cell">${e.from ? escape(e.from) : '—'}</td>
-        <td class="log-people-cell" title="${escape((e.people || []).join(', '))}">${(e.people || []).map(escape).join(', ') || '—'}</td>
-        <td class="log-name-cell">${escape(e.name || '—')}</td>
-        <td class="num">${e.abv != null ? Number(e.abv).toFixed(1) + '%' : '—'}</td>
-        <td class="num">${e.volumeMl ? Math.round(e.volumeMl) + ' ml' : '—'}</td>
-        <td class="mono">${e.upc ? escape(e.upc) : '—'}</td>
-      </tr>
-    `).join('') + '</tbody>';
-  }
-
-  $('#logFilter').addEventListener('input', renderLog);
-  $('#btnLogRefresh').addEventListener('click', loadLog);
-
+  // Boot: always load curation tab data; sessions + log load lazily on tab open
   loadAll();
   loadProducts(1);
-  loadLog();
 </script>
 </body>
 </html>

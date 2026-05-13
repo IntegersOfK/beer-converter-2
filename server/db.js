@@ -759,6 +759,42 @@ function listSubmissions(opts = {}) {
 }
 function countSubmissions() { return stmts.countSubmissions.get().n; }
 
+function listSubmissionsPaginated({ q = '', page = 1, limit = 100 } = {}) {
+  const safe = Math.max(1, Math.floor(page));
+  const lim  = Math.min(Math.max(1, Math.floor(limit)), 500);
+  const off  = (safe - 1) * lim;
+  let rows, total;
+  if (q) {
+    const pat = `%${q}%`;
+    rows  = db.prepare(`
+      SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
+             from_name AS [from], people, user_agent AS ua, received_at AS receivedAt
+        FROM submissions
+       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
+       ORDER BY received_at DESC
+       LIMIT ? OFFSET ?
+    `).all(pat, pat, pat, pat, lim, off);
+    total = db.prepare(`
+      SELECT COUNT(*) AS n FROM submissions
+       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
+    `).get(pat, pat, pat, pat).n;
+  } else {
+    rows  = db.prepare(`
+      SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
+             from_name AS [from], people, user_agent AS ua, received_at AS receivedAt
+        FROM submissions ORDER BY received_at DESC LIMIT ? OFFSET ?
+    `).all(lim, off);
+    total = stmts.countSubmissions.get().n;
+  }
+  return {
+    entries: rows.map(rehydrateSubmission),
+    total,
+    page:  safe,
+    limit: lim,
+    pages: Math.max(1, Math.ceil(total / lim)),
+  };
+}
+
 function appendRejected(upc, reason) {
   stmts.upsertRejected.run(upc, reason || null, new Date().toISOString());
 }
@@ -1622,7 +1658,7 @@ module.exports = {
   upsertCurated,
 
   // submissions
-  appendSubmission, listSubmissions, countSubmissions,
+  appendSubmission, listSubmissions, countSubmissions, listSubmissionsPaginated,
 
   // rejected
   appendRejected, listRejected, countRejected, isRejected,
