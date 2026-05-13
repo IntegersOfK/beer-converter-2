@@ -220,6 +220,47 @@
     .upc-add-row .add-label { grid-column: 1 / -1; }
   }
 
+  /* ===== Pagination controls ============================================= */
+  .pagination {
+    display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-top: 10px;
+  }
+  .pagination button {
+    border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
+    border-radius: 6px; padding: 5px 10px; cursor: pointer; font: inherit; font-size: 12px;
+  }
+  .pagination button:hover { border-color: var(--amber-deep); color: var(--amber); }
+  .pagination button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .pagination button.active { background: var(--amber); color: #1a140d; border-color: var(--amber-bright); font-weight: 600; }
+  .pagination .page-info { font-size: 11px; color: var(--ink-soft); font-family: ui-monospace, monospace; padding: 0 4px; }
+
+  /* ===== Product Picker widget =========================================== */
+  .product-picker { position: relative; }
+  .product-picker .picker-input {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
+    padding: 8px 10px; color: var(--ink); font: inherit; width: 100%; min-width: 0;
+  }
+  .product-picker .picker-input:focus { outline: none; border-color: var(--amber); }
+  .product-picker .picker-dropdown {
+    position: absolute; top: calc(100% + 3px); left: 0; right: 0; z-index: 50;
+    background: var(--bg-elev); border: 1px solid var(--amber-deep); border-radius: 8px;
+    max-height: 260px; overflow-y: auto; box-shadow: 0 8px 24px rgba(0,0,0,0.5);
+  }
+  .product-picker .picker-dropdown.hidden { display: none; }
+  .product-picker .picker-item {
+    display: flex; justify-content: space-between; align-items: baseline;
+    gap: 8px; padding: 8px 12px; cursor: pointer; border-bottom: 1px solid var(--line-soft);
+  }
+  .product-picker .picker-item:last-child { border-bottom: none; }
+  .product-picker .picker-item:hover { background: rgba(224,163,74,0.1); }
+  .product-picker .picker-item-name { color: var(--ink); font-size: 13px; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .product-picker .picker-item-meta { color: var(--ink-soft); font-size: 11px; font-family: ui-monospace, monospace; white-space: nowrap; flex-shrink: 0; }
+  .product-picker .picker-empty { padding: 10px 12px; color: var(--ink-soft); font-style: italic; font-size: 12px; }
+  .product-picker .picker-loading { padding: 10px 12px; color: var(--ink-soft); font-size: 12px; }
+  /* Inline picker variant (inside data-table cells or form grids) */
+  .picker-inline .picker-input {
+    border-radius: 6px; font-size: 13px; padding: 5px 8px;
+  }
+
   .deploy-out {
     margin-top: 10px; padding: 10px 12px; border-radius: 8px;
     background: var(--bg-input); border: 1px solid var(--line);
@@ -349,12 +390,6 @@
     color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
     margin-bottom: 4px;
   }
-  .merge-target-picker select {
-    width: 100%;
-    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
-    padding: 7px 10px; color: var(--ink); font: inherit; font-size: 13px;
-  }
-  .merge-target-picker select:focus { outline: none; border-color: var(--amber); }
   .merge-preview-label {
     font-family: ui-monospace, monospace; font-size: 10px;
     color: var(--ink-soft); letter-spacing: 0.16em; text-transform: uppercase;
@@ -474,7 +509,10 @@
 
   <!-- Existing-product form -->
   <div class="form-grid" id="manualExistingForm" style="grid-template-columns: 2.4fr 200px 1fr; display:none;">
-    <div class="field"><label>Product</label><select id="manualExistingProduct"></select></div>
+    <div class="field">
+      <label>Product</label>
+      <div id="manualExistingPickerWrap" class="product-picker"></div>
+    </div>
     <div class="field"><label>UPC</label><input id="manualExistingUpc" type="text" inputmode="numeric" placeholder="012345678905" /></div>
     <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input id="manualExistingFlavour" type="text" placeholder="e.g. Mango" /></div>
   </div>
@@ -486,13 +524,15 @@
 </div>
 
 <div class="toolbar">
-  <input type="text" id="productsFilter" placeholder="Filter by product name, UPC, or flavour…" />
+  <input type="text" id="productsFilter" placeholder="Search by name, UPC, or flavour…" />
   <span class="pill" id="productsShowing">—</span>
   <label style="display:inline-flex; gap:6px; align-items:center; color:var(--ink-soft); font-size:12px;">
     <input type="checkbox" id="productsCuratedOnly" /> curated only
   </label>
+  <button class="btn ghost" id="btnProductsRefresh" style="margin-left:auto;">Refresh</button>
 </div>
 <table class="data-table products-table" id="productsList"></table>
+<div class="pagination" id="productsPagination"></div>
 
 <h2>Drink Log</h2>
 <div class="toolbar">
@@ -520,7 +560,7 @@
     </div>
     <div class="merge-target-picker">
       <label>Other product</label>
-      <select id="mergeOtherSelect"></select>
+      <div id="mergeOtherPickerWrap" class="product-picker"></div>
     </div>
     <div class="merge-preview-label">UPCs that will move</div>
     <div class="merge-preview" id="mergePreview"></div>
@@ -538,12 +578,13 @@
   const ADMIN_BASE = location.pathname.replace(/\/+$/, '');
   const API = ADMIN_BASE + '/api';
 
-  // Queue is the pending submissions inbox; products are the canonical
-  // catalogue; sessions are active shared tallies. Reload after mutations.
   let queueState    = { pending: [], rejectedCount: 0 };
-  let productsState = { products: [] };
+  let productsState = { products: [], total: 0, page: 1, limit: 50, pages: 1 };
   let sessionsState = { sessions: [] };
   let backupsState  = { backups: [] };
+
+  // Debounce timer for products search
+  let productsSearchTimer = null;
 
   function $(s, ctx = document) { return ctx.querySelector(s); }
   function $$(s, ctx = document) { return [...ctx.querySelectorAll(s)]; }
@@ -573,33 +614,160 @@
     return ct.includes('json') ? res.json() : res.text();
   }
 
+  // ===== PRODUCT PICKER WIDGET ================================================
+  // Search-as-you-type product picker. Replaces unwieldy <select> dropdowns.
+
+  class ProductPicker {
+    constructor(container, { placeholder = '— type to search products —', onSelect = null, inlineStyle = false } = {}) {
+      this._onSelect = onSelect;
+      this._selectedId = '';
+      this._selectedName = '';
+      this._debounceTimer = null;
+
+      container.innerHTML = `
+        <input type="text" autocomplete="off" spellcheck="false"
+               class="picker-input${inlineStyle ? '' : ''}"
+               placeholder="${escape(placeholder)}" />
+        <div class="picker-dropdown hidden"></div>
+      `;
+      if (inlineStyle) container.querySelector('.picker-input').style.cssText =
+        'border-radius:6px;font-size:13px;padding:5px 8px;';
+
+      this._container = container;
+      this._input     = container.querySelector('.picker-input');
+      this._dropdown  = container.querySelector('.picker-dropdown');
+
+      this._input.addEventListener('input', () => this._onInput());
+      this._input.addEventListener('focus', () => {
+        const q = this._input.value.trim();
+        if (q) this._search(q);
+        else   this._searchEmpty();
+      });
+      this._input.addEventListener('keydown', e => {
+        if (e.key === 'Escape') { this._hideDropdown(); this._input.blur(); }
+      });
+      document.addEventListener('click', e => {
+        if (!container.contains(e.target)) this._hideDropdown();
+      });
+    }
+
+    get selectedId()   { return this._selectedId; }
+    get selectedName() { return this._selectedName; }
+
+    _onInput() {
+      this._selectedId   = '';
+      this._selectedName = '';
+      clearTimeout(this._debounceTimer);
+      const q = this._input.value.trim();
+      if (!q) { this._searchEmpty(); return; }
+      this._debounceTimer = setTimeout(() => this._search(q), 180);
+    }
+
+    // Show top results with no query (most recently curated)
+    async _searchEmpty() {
+      try {
+        const results = await api(`/products/search?limit=12`);
+        this._showDropdown(results);
+      } catch {}
+    }
+
+    async _search(q) {
+      this._dropdown.innerHTML = '<div class="picker-loading">Searching…</div>';
+      this._dropdown.classList.remove('hidden');
+      try {
+        const results = await api(`/products/search?q=${encodeURIComponent(q)}&limit=20`);
+        this._showDropdown(results);
+      } catch { this._hideDropdown(); }
+    }
+
+    _showDropdown(items) {
+      if (!items.length) {
+        this._dropdown.innerHTML = '<div class="picker-empty">No matches</div>';
+      } else {
+        this._dropdown.innerHTML = items.map(p => `
+          <div class="picker-item" data-id="${escape(p.id)}" data-name="${escape(p.name)}">
+            <span class="picker-item-name">${escape(p.name)}</span>
+            <span class="picker-item-meta">${Number(p.abv).toFixed(1)}%${p.volumeMl ? ` · ${p.volumeMl}ml` : ''} · ${p.upcCount} UPC${p.upcCount === 1 ? '' : 's'}${p.curated ? ' · ✓' : ''}</span>
+          </div>
+        `).join('');
+        this._dropdown.querySelectorAll('.picker-item').forEach(el => {
+          el.addEventListener('mousedown', e => {
+            e.preventDefault(); // Don't lose focus before click registers
+            this._select(el.dataset.id, el.dataset.name);
+          });
+        });
+      }
+      this._dropdown.classList.remove('hidden');
+    }
+
+    _hideDropdown() { this._dropdown.classList.add('hidden'); }
+
+    _select(id, name) {
+      this._selectedId   = id;
+      this._selectedName = name;
+      this._input.value  = name;
+      this._hideDropdown();
+      if (this._onSelect) this._onSelect(id, name);
+    }
+
+    reset() {
+      this._selectedId   = '';
+      this._selectedName = '';
+      this._input.value  = '';
+      this._hideDropdown();
+    }
+
+    setSelected(id, name) {
+      this._selectedId   = id;
+      this._selectedName = name;
+      this._input.value  = name;
+    }
+  }
+
+
+  // ===== LOAD FUNCTIONS =======================================================
+
+  // Load queue, sessions, backups together. Products load separately (paginated).
   async function loadAll() {
     try {
-      const [q, p, s, b] = await Promise.all([api('/queue'), api('/products'), api('/sessions'), api('/backups')]);
+      const [q, s, b] = await Promise.all([api('/queue'), api('/sessions'), api('/backups')]);
       queueState    = q;
-      productsState = p;
       sessionsState = s;
       backupsState  = b;
-      render();
+      renderStats();
+      renderBackups();
+      renderSessions();
+      renderPending();
     } catch (e) {
       toast('Load failed: ' + e.message, 'danger');
     }
   }
 
-  function render() {
-    const products = productsState.products || [];
-    const totalUpcs = products.reduce((n, p) => n + p.upcs.length, 0);
-    $('#pillPending').textContent  = `${queueState.pending.length} pending`;
-    $('#pillProducts').textContent = `${products.length} product${products.length === 1 ? '' : 's'}`;
+  async function loadProducts(page = 1) {
+    const q           = ($('#productsFilter').value || '').trim();
+    const curatedOnly = $('#productsCuratedOnly').checked;
+    const params = new URLSearchParams({ page, limit: 50 });
+    if (q)           params.set('q', q);
+    if (curatedOnly) params.set('curated', '1');
+    try {
+      productsState = await api('/products?' + params);
+      renderProducts();
+      renderPagination();
+      // Update the pill counts from what the server returned
+      renderStats();
+    } catch (e) {
+      toast('Products load failed: ' + e.message, 'danger');
+    }
+  }
+
+  function renderStats() {
     const sessions = sessionsState.sessions || [];
-    $('#pillUpcs').textContent     = `${totalUpcs} upc${totalUpcs === 1 ? '' : 's'}`;
+    const pending  = queueState.pending || [];
+    $('#pillPending').textContent  = `${pending.length} pending`;
+    $('#pillProducts').textContent = `${productsState.total} product${productsState.total === 1 ? '' : 's'}`;
+    $('#pillUpcs').textContent     = `${productsState.total || 0} products loaded`;
     $('#pillSessions').textContent = `${sessions.length} session${sessions.length === 1 ? '' : 's'}`;
     $('#pillRejected').textContent = `${queueState.rejectedCount} rejected`;
-    renderBackups();
-    renderSessions();
-    renderPending();
-    renderProducts();
-    refreshExistingProductDropdowns();
   }
 
 
@@ -806,11 +974,12 @@
               <div class="field full"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="newFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
             </div>
 
-            <div class="form-grid mode-existing" style="display:none;">
-              <div class="field full" style="display:grid; grid-template-columns: 2.4fr 1fr; gap:8px;">
-                <div><label>Product</label><select name="existingProduct"></select></div>
-                <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
+            <div class="form-grid mode-existing" style="display:none; grid-template-columns: 2.4fr 1fr;">
+              <div class="field">
+                <label>Product</label>
+                <div class="product-picker" data-role="existingPicker"></div>
               </div>
+              <div class="field"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
             </div>
 
             <div class="actions">
@@ -823,9 +992,16 @@
     `;
   }
 
+  // Map from upc → ProductPicker instance for each pending card
+  const pendingPickers = new Map();
+
   function bindPendingCard(card) {
     const upc = card.dataset.upc;
-    populateProductSelect(card.querySelector('select[name=existingProduct]'));
+
+    // Create the product picker for "add to existing" mode
+    const pickerWrap = card.querySelector('[data-role=existingPicker]');
+    const picker = new ProductPicker(pickerWrap, { placeholder: '— type to search —' });
+    pendingPickers.set(upc, picker);
 
     const detailRow = card.querySelector('tr.detail-row');
     const mainRow   = card.querySelector('tr.main-row');
@@ -853,22 +1029,25 @@
       });
     });
 
-    // Suggestion click → switch to "existing" mode, pick that product, infer flavour.
+    // Suggestion click → switch to "existing" mode, pre-fill picker.
     card.querySelectorAll('button.suggestion').forEach(b => {
-      b.addEventListener('click', () => {
+      b.addEventListener('click', async () => {
         const name = b.dataset.suggestName;
         const matchBtn = card.querySelector('.mode-toggle button[data-mode="existing"]');
         if (matchBtn) matchBtn.click();
-        const sel = card.querySelector('select[name=existingProduct]');
-        if (sel) {
-          const opt = [...sel.options].find(o => o.dataset.name === name);
-          if (opt) sel.value = opt.value;
-        }
-        // Re-infer flavour now that the product is locked in.
-        const submitted = card.querySelector('input[name=newName]')?.value || '';
-        const flav = stripProductFromName(submitted, name);
-        const flavInput = card.querySelector('input[name=existingFlavour]');
-        if (flavInput && flav) flavInput.value = flav;
+        // Search for the product by exact name and select it
+        try {
+          const results = await api(`/products/search?q=${encodeURIComponent(name)}&limit=5`);
+          const match = results.find(r => r.name === name) || results[0];
+          if (match) {
+            picker.setSelected(match.id, match.name);
+            // Re-infer flavour
+            const submitted = card.querySelector('input[name=newName]')?.value || '';
+            const flav = stripProductFromName(submitted, match.name);
+            const flavInput = card.querySelector('input[name=existingFlavour]');
+            if (flavInput && flav) flavInput.value = flav;
+          }
+        } catch {}
       });
     });
 
@@ -890,14 +1069,17 @@
         await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl, flavour }) });
         toast(`Curated ${name}`);
       } else {
-        const productId = card.querySelector('select[name=existingProduct]').value;
+        const picker    = pendingPickers.get(upc);
+        const productId = picker ? picker.selectedId : '';
+        const prodName  = picker ? picker.selectedName : productId;
         const flavour   = card.querySelector('input[name=existingFlavour]').value.trim() || undefined;
         if (!productId) return toast('Pick a product', 'danger');
         await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId, flavour }) });
-        const prodName = productsState.products.find(p => p.id === productId)?.name || productId;
         toast(`Added to ${prodName}`);
       }
+      pendingPickers.delete(upc);
       await loadAll();
+      await loadProducts(productsState.page);
     } catch (e) {
       toast('Save failed: ' + e.message, 'danger');
     }
@@ -939,31 +1121,57 @@
     </thead>`;
 
   function renderProducts() {
-    const filter = ($('#productsFilter').value || '').trim().toLowerCase();
+    const { products, total, page, limit, pages } = productsState;
+    const q = ($('#productsFilter').value || '').trim();
     const curatedOnly = $('#productsCuratedOnly').checked;
-    const all = productsState.products || [];
-    let list = curatedOnly ? all.filter(p => p.curated) : all;
-    if (filter) {
-      list = list.filter(p =>
-        p.name.toLowerCase().includes(filter) ||
-        p.upcs.some(u => u.upc.includes(filter) || (u.flavour || '').toLowerCase().includes(filter)));
-    }
-    const totalUpcs = list.reduce((n, p) => n + p.upcs.length, 0);
-    $('#productsShowing').textContent =
-      `${list.length} / ${all.length} products · ${totalUpcs} upcs`;
+
+    const showing = q || curatedOnly
+      ? `${products.length} of ${total} products (page ${page}/${pages})`
+      : `${total} products · page ${page}/${pages}`;
+    $('#productsShowing').textContent = showing;
 
     const wrap = $('#productsList');
-    if (!all.length) {
+    if (!total && !q && !curatedOnly) {
       wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products yet. Save one from the queue or add manually.</td></tr></tbody>`;
       return;
     }
-    if (!list.length) {
-      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products match the filter.</td></tr></tbody>`;
+    if (!products.length) {
+      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products match the search.</td></tr></tbody>`;
       return;
     }
-    wrap.innerHTML = PRODUCTS_HEAD + list.map(renderProductCard).join('');
-
+    wrap.innerHTML = PRODUCTS_HEAD + products.map(renderProductCard).join('');
     $$('tbody.product-card').forEach(card => bindProductCard(card));
+  }
+
+  function renderPagination() {
+    const { page, pages } = productsState;
+    const wrap = $('#productsPagination');
+    if (pages <= 1) { wrap.innerHTML = ''; return; }
+
+    const prevDisabled = page <= 1 ? 'disabled' : '';
+    const nextDisabled = page >= pages ? 'disabled' : '';
+
+    // Show up to 7 page buttons centred on current page
+    const range = [];
+    const delta = 3;
+    for (let i = Math.max(1, page - delta); i <= Math.min(pages, page + delta); i++) range.push(i);
+
+    const pageButtons = range.map(p =>
+      `<button class="page-btn${p === page ? ' active' : ''}" data-page="${p}">${p}</button>`
+    ).join('');
+
+    wrap.innerHTML = `
+      <button class="page-btn" data-page="${page - 1}" ${prevDisabled}>‹ Prev</button>
+      ${range[0] > 1 ? `<button class="page-btn" data-page="1">1</button>${range[0] > 2 ? '<span class="page-info">…</span>' : ''}` : ''}
+      ${pageButtons}
+      ${range[range.length - 1] < pages ? `${range[range.length - 1] < pages - 1 ? '<span class="page-info">…</span>' : ''}<button class="page-btn" data-page="${pages}">${pages}</button>` : ''}
+      <button class="page-btn" data-page="${page + 1}" ${nextDisabled}>Next ›</button>
+      <span class="page-info">${productsState.total} total</span>
+    `;
+    wrap.querySelectorAll('button[data-page]').forEach(btn => {
+      if (btn.disabled) return;
+      btn.addEventListener('click', () => loadProducts(Number(btn.dataset.page)));
+    });
   }
 
   function renderProductCard(p) {
@@ -1037,13 +1245,16 @@
       try {
         await api('/product', { method: 'POST', body: JSON.stringify({ id, name, abv, volumeMl }) });
         toast(`Updated ${name}`);
-        await loadAll();
+        await loadProducts(productsState.page);
       } catch (e) {
         toast('Save failed: ' + e.message, 'danger');
       }
     });
 
-    card.querySelector('button.merge-product').addEventListener('click', () => openMergeModal(id));
+    card.querySelector('button.merge-product').addEventListener('click', () => {
+      const p = productsState.products.find(x => x.id === id);
+      if (p) openMergeModal(p);
+    });
 
     card.querySelector('button.del-product').addEventListener('click', async () => {
       const product = productsState.products.find(p => p.id === id);
@@ -1055,7 +1266,7 @@
       try {
         await api('/product/' + encodeURIComponent(id), { method: 'DELETE' });
         toast('Deleted');
-        await loadAll();
+        await loadProducts(productsState.page);
       } catch (e) {
         toast('Delete failed: ' + e.message, 'danger');
       }
@@ -1069,7 +1280,7 @@
         try {
           await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId: id, flavour }) });
           toast(`Saved`);
-          await loadAll();
+          await loadProducts(productsState.page);
         } catch (e) {
           toast('Save failed: ' + e.message, 'danger');
         }
@@ -1079,7 +1290,7 @@
         try {
           await api('/upc/' + encodeURIComponent(upc), { method: 'DELETE' });
           toast('Detached');
-          await loadAll();
+          await loadProducts(productsState.page);
         } catch (e) {
           toast('Delete failed: ' + e.message, 'danger');
         }
@@ -1098,7 +1309,7 @@
         await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId: id, flavour }) });
         toast('Linked');
         addUpcInput.value = ''; addFlavInput.value = '';
-        await loadAll();
+        await loadProducts(productsState.page);
       } catch (e) {
         toast('Add failed: ' + e.message, 'danger');
       }
@@ -1109,37 +1320,42 @@
   }
 
   // ===== MERGE PRODUCTS =======================================================
-  // Auto-orient by UPC count; ties broken by curated-wins. User can override
-  // via the swap button. The source product is deleted after its UPCs are
-  // moved to the target — each moved UPC keeps its own flavour if set, or
-  // gets one derived from the source product name with the target name
-  // stripped (e.g. "White Claw Mango" minus "White Claw" = "Mango").
 
-  let mergeState = { initialId: null, otherId: null, sourceId: null, targetId: null, busy: false };
+  let mergeState = { initialProduct: null, otherProduct: null, sourceId: null, targetId: null, busy: false };
+  let mergeOtherPicker = null;
 
   function pickMergeOrientation(a, b) {
-    // Returns [source, target] following the auto rule.
     if (a.upcs.length !== b.upcs.length) {
       return a.upcs.length < b.upcs.length ? [a, b] : [b, a];
     }
     if (a.curated !== b.curated) {
       return a.curated ? [b, a] : [a, b];
     }
-    return [a, b]; // arbitrary stable fallback
+    return [a, b];
   }
 
-  function openMergeModal(initialId) {
-    mergeState = { initialId, otherId: null, sourceId: null, targetId: null, busy: false };
+  function openMergeModal(initialProduct) {
+    mergeState = { initialProduct, otherProduct: null, sourceId: null, targetId: null, busy: false };
 
-    const sel = $('#mergeOtherSelect');
-    sel.innerHTML = '<option value="">— pick a product —</option>' +
-      productsState.products
-        .filter(p => p.id !== initialId)
-        .map(p => {
-          const tag = p.curated ? 'curated' : 'imported';
-          const upcN = p.upcs.length;
-          return `<option value="${escape(p.id)}">${escape(p.name)} · ${upcN} UPC${upcN === 1 ? '' : 's'} · ${tag}</option>`;
-        }).join('');
+    // Set up the picker
+    const wrap = $('#mergeOtherPickerWrap');
+    // Destroy previous picker by clearing the container
+    wrap.innerHTML = '';
+    mergeOtherPicker = new ProductPicker(wrap, {
+      placeholder: '— type to search products —',
+      onSelect: async (id, name) => {
+        // Fetch full product details (with UPCs) for merge preview
+        try {
+          const prod = await api('/product/' + encodeURIComponent(id));
+          mergeState.otherProduct = prod;
+          mergeState.sourceId = null;
+          mergeState.targetId = null;
+          renderMergeModal();
+        } catch (e) {
+          toast('Failed to load product: ' + e.message, 'danger');
+        }
+      },
+    });
 
     renderMergeModal();
     $('#mergeOverlay').classList.add('open');
@@ -1150,35 +1366,30 @@
   }
 
   function renderMergeModal() {
-    const initial = productsState.products.find(p => p.id === mergeState.initialId);
-    const other   = mergeState.otherId
-      ? productsState.products.find(p => p.id === mergeState.otherId)
-      : null;
+    const initial = mergeState.initialProduct;
+    const other   = mergeState.otherProduct;
 
     if (!other) {
-      // No target picked yet. Show the initial as the source (placeholder) and
-      // target empty; user must pick.
       $('#mergeSourceName').textContent = initial ? initial.name : '—';
       $('#mergeSourceMeta').textContent = initial
         ? `${initial.upcs.length} UPC${initial.upcs.length === 1 ? '' : 's'} · ${initial.curated ? 'curated' : 'imported'}`
         : '—';
       $('#mergeTargetName').textContent = '—';
-      $('#mergeTargetMeta').textContent = 'pick a product below';
-      $('#mergePreview').innerHTML = '<div class="empty">Pick another product to preview the merge.</div>';
+      $('#mergeTargetMeta').textContent = 'search for a product above';
+      $('#mergePreview').innerHTML = '<div class="empty">Search for another product to preview the merge.</div>';
       $('#mergeConfirm').disabled = true;
       $('#mergeSwap').disabled = true;
       return;
     }
 
-    // Auto-orient unless user overrode.
     if (!mergeState.sourceId || !mergeState.targetId) {
       const [src, tgt] = pickMergeOrientation(initial, other);
       mergeState.sourceId = src.id;
       mergeState.targetId = tgt.id;
     }
 
-    const source = productsState.products.find(p => p.id === mergeState.sourceId);
-    const target = productsState.products.find(p => p.id === mergeState.targetId);
+    const source = mergeState.sourceId === initial.id ? initial : other;
+    const target = mergeState.targetId === initial.id ? initial : other;
 
     $('#mergeSourceName').textContent = source.name;
     $('#mergeSourceMeta').textContent = `${source.upcs.length} UPC${source.upcs.length === 1 ? '' : 's'} · ${source.curated ? 'curated' : 'imported'}`;
@@ -1204,11 +1415,13 @@
 
   async function performMerge() {
     if (mergeState.busy) return;
-    const source = productsState.products.find(p => p.id === mergeState.sourceId);
-    const target = productsState.products.find(p => p.id === mergeState.targetId);
-    if (!source || !target) return;
+    const initial = mergeState.initialProduct;
+    const other   = mergeState.otherProduct;
+    if (!initial || !other || !mergeState.sourceId || !mergeState.targetId) return;
 
-    // Read possibly-edited flavour values from the preview.
+    const source = mergeState.sourceId === initial.id ? initial : other;
+    const target = mergeState.targetId === initial.id ? initial : other;
+
     const upcEdits = $$('#mergePreview .merge-upc-row').map(row => ({
       upc: row.dataset.upc,
       flavour: row.querySelector('input[name=flavour]').value.trim() || undefined,
@@ -1225,7 +1438,7 @@
       await api('/product/' + encodeURIComponent(source.id), { method: 'DELETE' });
       toast(`Merged into ${target.name}`);
       closeMergeModal();
-      await loadAll();
+      await loadProducts(productsState.page);
     } catch (e) {
       toast('Merge failed: ' + e.message, 'danger');
       $('#mergeConfirm').disabled = false;
@@ -1234,11 +1447,6 @@
     }
   }
 
-  $('#mergeOtherSelect').addEventListener('change', e => {
-    mergeState.otherId = e.target.value || null;
-    mergeState.sourceId = null; mergeState.targetId = null; // re-apply auto-orientation
-    renderMergeModal();
-  });
   $('#mergeSwap').addEventListener('click', () => {
     [mergeState.sourceId, mergeState.targetId] = [mergeState.targetId, mergeState.sourceId];
     renderMergeModal();
@@ -1251,36 +1459,21 @@
 
   // ===== MANUAL ADD (top of products section) =================================
 
+  // Product picker for manual "add UPC to existing" form
+  const manualExistingPicker = new ProductPicker($('#manualExistingPickerWrap'), {
+    placeholder: '— type to search products —',
+  });
+
   function setManualMode(mode) {
     $$('#manualModeToggle button').forEach(b => b.classList.toggle('active', b.dataset.mode === mode));
     $('#manualNewForm').style.display      = mode === 'new'      ? '' : 'none';
     $('#manualExistingForm').style.display = mode === 'existing' ? '' : 'none';
   }
 
-  function refreshExistingProductDropdowns() {
-    populateProductSelect($('#manualExistingProduct'));
-    // Pending cards' selects are populated when the card is bound; here we
-    // refresh existing rendered cards so newly-created products show up.
-    $$('select[name=existingProduct]').forEach(populateProductSelect);
-  }
-
-  function populateProductSelect(sel) {
-    if (!sel) return;
-    const current = sel.value;
-    const options = (productsState.products || [])
-      .slice()
-      .sort((a, b) => a.name.localeCompare(b.name));
-    sel.innerHTML = '<option value="">— pick a product —</option>' +
-      options.map(p =>
-        `<option value="${escape(p.id)}" data-name="${escape(p.name)}">${escape(p.name)} <span>· ${Number(p.abv).toFixed(1)}%${p.volumeMl ? ` · ${p.volumeMl} ml` : ''}</span></option>`
-      ).join('');
-    if (current) sel.value = current;
-  }
-
   function clearManualForm() {
     ['#manualUpc', '#manualName', '#manualAbv', '#manualVol', '#manualFlavour',
      '#manualExistingUpc', '#manualExistingFlavour'].forEach(s => { const el = $(s); if (el) el.value = ''; });
-    const sel = $('#manualExistingProduct'); if (sel) sel.value = '';
+    manualExistingPicker.reset();
   }
 
   async function submitManualAdd() {
@@ -1298,48 +1491,27 @@
         if (!Number.isFinite(abv) || abv < 0 || abv > 100) return toast('ABV must be 0–100', 'danger');
         if (volumeMl !== undefined && (!Number.isFinite(volumeMl) || volumeMl <= 0))
           return toast('Volume must be positive', 'danger');
-
-        // Warn if this UPC already exists somewhere.
-        const existingUpc = findUpcAcrossProducts(upc);
-        if (existingUpc) {
-          const product = productsState.products.find(p => p.id === existingUpc.productId);
-          if (!confirm(
-            `UPC ${upc} is already linked to "${product?.name || existingUpc.productId}". Re-link to "${name}"?`
-          )) return;
-        }
         await api('/curated', { method: 'POST', body: JSON.stringify({ upc, name, abv, volumeMl, flavour }) });
         toast(`Added ${name}`);
       } else {
-        const productId = $('#manualExistingProduct').value;
+        const productId = manualExistingPicker.selectedId;
+        const prodName  = manualExistingPicker.selectedName;
         const upc       = $('#manualExistingUpc').value.replace(/\s+/g, '');
         const flavour   = $('#manualExistingFlavour').value.trim() || undefined;
         if (!productId) return toast('Pick a product', 'danger');
         if (!/^\d{6,20}$/.test(upc)) return toast('UPC must be 6–20 digits', 'danger');
         await api('/upc', { method: 'POST', body: JSON.stringify({ upc, productId, flavour }) });
-        const prodName = productsState.products.find(p => p.id === productId)?.name || productId;
         toast(`Linked ${upc} to ${prodName}`);
       }
       clearManualForm();
-      await loadAll();
+      await loadProducts(1); // go back to page 1 so user can see new entry
     } catch (e) {
       toast('Add failed: ' + e.message, 'danger');
     }
   }
 
-  function findUpcAcrossProducts(upc) {
-    for (const p of productsState.products) {
-      const u = p.upcs.find(x => x.upc === upc);
-      if (u) return { ...u, productId: p.id };
-    }
-    return null;
-  }
-
   // ===== HELPERS ==============================================================
 
-  // Strip a product name out of a submitted full name to get a likely flavour.
-  // "White Claw Mango"          + "White Claw" → "Mango"
-  // "White Claw - Black Cherry" + "White Claw" → "Black Cherry"
-  // "Mango White Claw"          + "White Claw" → "Mango"
   function stripProductFromName(submitted, productName) {
     if (!submitted || !productName) return '';
     const s = submitted.trim();
@@ -1349,7 +1521,6 @@
     return s.replace(re, '').replace(/^[\s\-—·,:]+|[\s\-—·,:]+$/g, '').trim();
   }
 
-  // Use the highest-scoring suggestion that exists as a real product.
   function guessFlavour(submitted, suggestions) {
     for (const s of suggestions) {
       const flav = stripProductFromName(submitted, s.name);
@@ -1379,13 +1550,19 @@
 
   // ===== TOP-LEVEL WIRING =====================================================
 
-  $('#btnRefresh').addEventListener('click', loadAll);
+  $('#btnRefresh').addEventListener('click', () => { loadAll(); loadProducts(1); });
   $('#btnCreateBackup').addEventListener('click', createBackup);
   $('#btnBackupsRefresh').addEventListener('click', refreshBackups);
   $('#sessionsFilter').addEventListener('input', renderSessions);
-  $('#productsFilter').addEventListener('input', renderProducts);
-  $('#productsCuratedOnly').addEventListener('change', renderProducts);
   $('#pendingFilter').addEventListener('input', renderPending);
+
+  // Products filter: debounce, then server fetch from page 1
+  $('#productsFilter').addEventListener('input', () => {
+    clearTimeout(productsSearchTimer);
+    productsSearchTimer = setTimeout(() => loadProducts(1), 300);
+  });
+  $('#productsCuratedOnly').addEventListener('change', () => loadProducts(1));
+  $('#btnProductsRefresh').addEventListener('click', () => loadProducts(productsState.page));
 
   $('#btnDeploy').addEventListener('click', async () => {
     const btn = $('#btnDeploy');
@@ -1402,6 +1579,7 @@
       out.style.display = 'block';
       toast('Deployed');
       await loadAll();
+      await loadProducts(1);
     } catch (e) {
       out.textContent = e.message;
       out.className = 'deploy-out error';
@@ -1417,9 +1595,11 @@
     b.addEventListener('click', () => setManualMode(b.dataset.mode)));
   $('#btnManualAdd').addEventListener('click', submitManualAdd);
   $('#btnManualClear').addEventListener('click', clearManualForm);
-  // Enter on any manual field submits.
-  $$('#manualNewForm input, #manualExistingForm input, #manualExistingForm select').forEach(el => {
+  $$('#manualNewForm input').forEach(el => {
     el.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); } });
+  });
+  $('#manualExistingUpc').addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); submitManualAdd(); }
   });
 
   // ===== DRINK LOG ============================================================
@@ -1497,6 +1677,7 @@
   $('#btnLogRefresh').addEventListener('click', loadLog);
 
   loadAll();
+  loadProducts(1);
   loadLog();
 </script>
 </body>
