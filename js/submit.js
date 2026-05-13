@@ -13,7 +13,7 @@ const SUBMIT_URL = API_BASE + '/submit';
 // product when the same can is rescanned or the cached path fires again.
 const submittedThisSession = new Set();
 
-export function submitProduct({ upc, name, abv, volumeMl, flavour, from, people }) {
+export function submitProduct({ upc, name, abv, volumeMl, flavour, from, people, sessionId }) {
   if (!SUBMIT_URL) return;
   const cleanUpc  = String(upc  || '').replace(/\s+/g, '');
   const cleanName = String(name || '').trim();
@@ -39,6 +39,7 @@ export function submitProduct({ upc, name, abv, volumeMl, flavour, from, people 
   if (Array.isArray(people) && people.length) {
     body.people = people.map(p => String(p).trim().slice(0, 40)).filter(Boolean);
   }
+  if (sessionId) body.sessionId = String(sessionId).slice(0, 64);
 
   const payload = JSON.stringify(body);
   // `keepalive` lets the request survive a page-hide on mobile.

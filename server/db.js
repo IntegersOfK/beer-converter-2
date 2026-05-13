@@ -242,6 +242,14 @@ if (!presetTableInfo.some(c => c.name === 'components_json')) {
   db.exec("ALTER TABLE session_presets ADD COLUMN components_json TEXT;");
 }
 
+// ---- migration: add session_id to submissions --------------------------------
+const submissionsTableInfo = db.prepare("PRAGMA table_info(submissions)").all();
+if (!submissionsTableInfo.some(c => c.name === 'session_id')) {
+  console.log('Migration: adding session_id to submissions');
+  db.exec("ALTER TABLE submissions ADD COLUMN session_id TEXT;");
+  db.exec("CREATE INDEX IF NOT EXISTS submissions_session ON submissions(session_id);");
+}
+
 // ---- prepared statements -------------------------------------------------
 
 const stmts = {
@@ -323,9 +331,9 @@ const stmts = {
   // submissions
   insertSubmission: db.prepare(`
     INSERT INTO submissions
-      (upc, name, abv, volume_ml, flavour, from_name, people, user_agent, received_at)
+      (upc, name, abv, volume_ml, flavour, from_name, people, user_agent, session_id, received_at)
     VALUES
-      (@upc, @name, @abv, @volumeMl, @flavour, @fromName, @people, @userAgent, @receivedAt)
+      (@upc, @name, @abv, @volumeMl, @flavour, @fromName, @people, @userAgent, @sessionId, @receivedAt)
   `),
   listSubmissions: db.prepare(`
     SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
@@ -748,6 +756,7 @@ function appendSubmission(sub) {
     fromName:   sub.from || null,
     people:     Array.isArray(sub.people) ? JSON.stringify(sub.people) : null,
     userAgent:  sub.ua || null,
+    sessionId:  sub.sessionId || null,
     receivedAt: sub.receivedAt,
   });
 }
@@ -763,26 +772,31 @@ function listSubmissionsPaginated({ q = '', page = 1, limit = 100 } = {}) {
   const safe = Math.max(1, Math.floor(page));
   const lim  = Math.min(Math.max(1, Math.floor(limit)), 500);
   const off  = (safe - 1) * lim;
+  const selectCols = `
+    s.upc, s.name, s.abv, s.volume_ml AS volumeMl, s.flavour,
+    s.from_name AS [from], s.people, s.user_agent AS ua, s.received_at AS receivedAt,
+    s.session_id AS sessionId, sess.public_id AS sessionPublicId, sess.name AS sessionName`;
   let rows, total;
   if (q) {
     const pat = `%${q}%`;
     rows  = db.prepare(`
-      SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
-             from_name AS [from], people, user_agent AS ua, received_at AS receivedAt
-        FROM submissions
-       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
-       ORDER BY received_at DESC
+      SELECT ${selectCols}
+        FROM submissions s
+        LEFT JOIN sessions sess ON sess.id = s.session_id
+       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ?
+       ORDER BY s.received_at DESC
        LIMIT ? OFFSET ?
     `).all(pat, pat, pat, pat, lim, off);
     total = db.prepare(`
-      SELECT COUNT(*) AS n FROM submissions
-       WHERE name LIKE ? OR upc LIKE ? OR from_name LIKE ? OR people LIKE ?
+      SELECT COUNT(*) AS n FROM submissions s
+       WHERE s.name LIKE ? OR s.upc LIKE ? OR s.from_name LIKE ? OR s.people LIKE ?
     `).get(pat, pat, pat, pat).n;
   } else {
     rows  = db.prepare(`
-      SELECT upc, name, abv, volume_ml AS volumeMl, flavour,
-             from_name AS [from], people, user_agent AS ua, received_at AS receivedAt
-        FROM submissions ORDER BY received_at DESC LIMIT ? OFFSET ?
+      SELECT ${selectCols}
+        FROM submissions s
+        LEFT JOIN sessions sess ON sess.id = s.session_id
+       ORDER BY s.received_at DESC LIMIT ? OFFSET ?
     `).all(lim, off);
     total = stmts.countSubmissions.get().n;
   }
@@ -1618,6 +1632,7 @@ function migrateFromJsonIfNeeded() {
         fromName:   s.from || null,
         people:     Array.isArray(s.people) ? JSON.stringify(s.people) : null,
         userAgent:  s.ua || null,
+        sessionId:  null,
         receivedAt: s.receivedAt || new Date().toISOString(),
       });
     }

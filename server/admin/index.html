@@ -283,6 +283,8 @@
   .log-table col.col-abv     { width: 60px; }
   .log-table col.col-vol     { width: 70px; }
   .log-table col.col-upc     { width: 130px; }
+  .log-table col.col-session { width: 120px; }
+  .log-table .log-session-cell { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 120px; }
   .log-table tbody td { font-size: 12px; }
   .log-table .log-time-cell { font-family: ui-monospace, monospace; color: var(--ink-soft); white-space: nowrap; }
   .log-table .log-people-cell {
@@ -1451,15 +1453,15 @@
 
   // ===== DRINK LOG ============================================================
 
-  const LOG_COLS = 6;
+  const LOG_COLS = 7;
   const LOG_HEAD = `
     <colgroup>
       <col class="col-time"><col class="col-people">
-      <col class="col-name"><col class="col-abv"><col class="col-vol"><col class="col-upc">
+      <col class="col-name"><col class="col-abv"><col class="col-vol"><col class="col-upc"><col class="col-session">
     </colgroup>
     <thead><tr>
       <th>Time</th><th>People</th>
-      <th>Drink</th><th>ABV</th><th>Vol</th><th>UPC</th>
+      <th>Drink</th><th>ABV</th><th>Vol</th><th>UPC</th><th>Session</th>
     </tr></thead>`;
 
   function renderLog() {
@@ -1472,7 +1474,8 @@
           (e.name  || '').toLowerCase().includes(q) ||
           (e.upc   || '').includes(q) ||
           (e.from  || '').toLowerCase().includes(q) ||
-          (e.people || []).some(p => p.toLowerCase().includes(q)))
+          (e.people || []).some(p => p.toLowerCase().includes(q)) ||
+          (e.sessionName || '').toLowerCase().includes(q))
       : entries;
 
     $('#logShowing').textContent = q
@@ -1487,6 +1490,9 @@
       return;
     }
     wrap.innerHTML = LOG_HEAD + '<tbody>' + rows.map(e => {
+      const sessionCell = e.sessionId
+        ? `<a class="row-btn" href="../../?s=${encodeURIComponent(e.sessionId)}" target="_blank" rel="noopener noreferrer" title="${escape(e.sessionName || e.sessionId)}">${escape(e.sessionName || shortId(e.sessionId))}</a>`
+        : '—';
       return `
         <tr>
           <td class="log-time-cell">${formatTime(e.receivedAt)}</td>
@@ -1495,6 +1501,7 @@
           <td class="num">${e.abv != null ? Number(e.abv).toFixed(1) + '%' : '—'}</td>
           <td class="num">${e.volumeMl ? Math.round(e.volumeMl) + ' ml' : '—'}</td>
           <td class="mono">${e.upc ? escape(e.upc) : '—'}</td>
+          <td class="log-session-cell">${sessionCell}</td>
         </tr>`;
     }).join('') + '</tbody>';
   }

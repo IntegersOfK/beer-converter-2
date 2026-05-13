@@ -256,6 +256,9 @@ function normaliseSubmission(raw) {
       .slice(0, 20);
     if (ps.length) out.people = ps;
   }
+  if (typeof raw.sessionId === 'string' && SID_RE.test(raw.sessionId.trim())) {
+    out.sessionId = raw.sessionId.trim();
+  }
   return out;
 }
 
