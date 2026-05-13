@@ -120,46 +120,82 @@
   .btn.danger:hover { border-color: var(--danger); background: rgba(212,82,58,0.1); }
   .btn.ghost { background: transparent; color: var(--ink-soft); }
 
-  /* Products list (the new home of curated data). */
-  .products-list { display: grid; gap: 14px; }
-  .product-card {
+  /* ===== Shared admin-table styling ====================================== */
+  .data-table {
+    width: 100%; border-collapse: separate; border-spacing: 0;
     background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-    padding: 12px 14px;
+    overflow: hidden; font-size: 13px;
   }
-  .product-head {
-    display: grid;
-    grid-template-columns: 2.4fr 80px 90px auto;
-    gap: 8px; align-items: end;
-    padding-bottom: 10px; margin-bottom: 8px;
-    border-bottom: 1px dashed var(--line-soft);
-  }
-  @media (max-width: 720px) { .product-head { grid-template-columns: 1fr 1fr; } }
-  .product-head label {
-    font-family: ui-monospace, monospace; font-size: 10px; letter-spacing: 0.16em;
-    color: var(--ink-soft); text-transform: uppercase; display: block; margin-bottom: 3px;
-  }
-  .product-head input {
-    background: var(--bg-input); border: 1px solid var(--line); border-radius: 8px;
-    padding: 7px 10px; color: var(--ink); font: inherit; font-size: 14px; width: 100%;
-  }
-  .product-head input:focus { outline: none; border-color: var(--amber); }
-  .product-head .name input { font-weight: 600; }
-  .product-head .head-actions { display: flex; gap: 6px; align-items: center; justify-content: flex-end; }
-  .product-meta {
+  .data-table thead th {
+    text-align: left; font-weight: 600; color: var(--ink-soft);
     font-family: ui-monospace, monospace; font-size: 10px;
-    color: var(--ink-soft); margin-bottom: 8px;
+    letter-spacing: 0.16em; text-transform: uppercase;
+    padding: 10px 12px; background: var(--bg-card);
+    border-bottom: 1px solid var(--line);
+    white-space: nowrap;
   }
+  .data-table tbody td {
+    padding: 8px 12px; border-bottom: 1px solid var(--line-soft);
+    vertical-align: middle;
+  }
+  .data-table tbody tr:last-child td { border-bottom: none; }
+  .data-table input, .data-table select {
+    background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
+    padding: 5px 8px; color: var(--ink); font: inherit; font-size: 13px;
+    width: 100%; min-width: 0;
+  }
+  .data-table input:focus, .data-table select:focus {
+    outline: none; border-color: var(--amber);
+  }
+  .data-table .row-btn {
+    border: 1px solid var(--line); background: var(--bg-card); color: var(--ink);
+    border-radius: 6px; padding: 4px 9px; cursor: pointer; font: inherit;
+    font-size: 12px; line-height: 1.2;
+  }
+  .data-table .row-btn:hover { border-color: var(--amber-deep); color: var(--amber); }
+  .data-table .row-btn.primary { background: var(--amber); color: #1a140d; border-color: var(--amber-bright); font-weight: 600; }
+  .data-table .row-btn.primary:hover { background: var(--amber-bright); }
+  .data-table .row-btn.danger { color: var(--danger); }
+  .data-table .row-btn.danger:hover { border-color: var(--danger); background: rgba(212,82,58,0.1); }
+  .data-table .cell-actions { display: flex; gap: 4px; justify-content: flex-end; white-space: nowrap; }
+  .data-table td.num    { font-family: ui-monospace, monospace; }
+  .data-table td.mono   { font-family: ui-monospace, monospace; color: var(--ink-soft); font-size: 12px; }
+  .data-table .expand-btn {
+    background: none; border: none; color: var(--amber); cursor: pointer;
+    font: inherit; font-size: 12px; padding: 0;
+  }
+  .data-table .expand-btn:hover { color: var(--amber-bright); text-decoration: underline; }
+  .data-table .detail-row > td {
+    padding: 12px 16px 14px; background: var(--bg-input);
+    border-top: 1px dashed var(--line-soft);
+  }
+  .data-table .detail-row.hidden { display: none; }
+  .source-badge {
+    display: inline-block; font-family: ui-monospace, monospace;
+    font-size: 10px; letter-spacing: 0.08em; padding: 2px 7px; border-radius: 999px;
+    border: 1px solid var(--line-soft); color: var(--ink-soft);
+  }
+  .source-badge.curated { color: var(--amber); border-color: var(--amber-deep); }
+
+  /* Products-specific column widths and UPC editor inside detail row. */
+  .products-table col.col-name    { }
+  .products-table col.col-abv     { width: 80px; }
+  .products-table col.col-vol     { width: 90px; }
+  .products-table col.col-upcs    { width: 90px; }
+  .products-table col.col-source  { width: 90px; }
+  .products-table col.col-actions { width: 130px; }
+  .products-table input[name=name] { font-weight: 600; }
 
   .upc-row {
     display: grid; grid-template-columns: 160px 1fr auto;
     gap: 8px; align-items: center;
-    padding: 6px 4px; font-size: 13px;
+    padding: 5px 0; font-size: 13px;
   }
   .upc-row + .upc-row { border-top: 1px dashed var(--line-soft); }
   .upc-row .upc-cell { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); }
   .upc-row input {
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
-    padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
+    padding: 5px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
   }
   .upc-row input:focus { outline: none; border-color: var(--amber); }
   .upc-row .row-actions { display: flex; gap: 4px; }
@@ -167,12 +203,12 @@
   .upc-add-row {
     display: grid; grid-template-columns: 160px 1fr auto;
     gap: 8px; align-items: center;
-    padding: 8px 4px 2px;
-    margin-top: 6px; border-top: 1px dashed var(--line-soft);
+    padding: 8px 0 0; margin-top: 4px;
+    border-top: 1px dashed var(--line-soft);
   }
   .upc-add-row input {
     background: var(--bg-input); border: 1px solid var(--line); border-radius: 6px;
-    padding: 6px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
+    padding: 5px 8px; color: var(--ink); font: inherit; font-size: 13px; width: 100%;
   }
   .upc-add-row .add-label {
     font-family: ui-monospace, monospace; font-size: 10px;
@@ -229,22 +265,40 @@
     .session-actions { justify-content: flex-start; }
   }
 
-  .log-wrap {
-    background: var(--bg-elev); border: 1px solid var(--line); border-radius: 12px;
-    overflow: hidden;
+  /* Drink Log table column widths. */
+  .log-table col.col-time    { width: 90px; }
+  .log-table col.col-from    { width: 110px; }
+  .log-table col.col-people  { width: 140px; }
+  .log-table col.col-name    { }
+  .log-table col.col-abv     { width: 60px; }
+  .log-table col.col-vol     { width: 70px; }
+  .log-table col.col-upc     { width: 130px; }
+  .log-table tbody td { font-size: 12px; }
+  .log-table .log-time-cell { font-family: ui-monospace, monospace; color: var(--ink-soft); white-space: nowrap; }
+  .log-table .log-people-cell {
+    color: var(--ink-soft); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; max-width: 140px;
   }
-  .log-row {
-    display: grid; grid-template-columns: 72px 1fr auto;
-    gap: 8px 12px; padding: 9px 14px; font-size: 13px;
-    border-bottom: 1px solid var(--line-soft);
-    align-items: start;
+  .log-table .log-name-cell {
+    color: var(--ink); white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis;
   }
-  .log-row:last-child { border-bottom: none; }
-  .log-time { font-family: ui-monospace, monospace; font-size: 11px; color: var(--ink-soft); padding-top: 1px; }
-  .log-main { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-  .log-name { color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .log-sub  { font-size: 11px; color: var(--ink-soft); }
-  .log-tags { display: flex; gap: 4px; flex-wrap: wrap; align-items: center; }
+
+  /* Pending submissions table. */
+  .pending-table col.col-upc       { width: 140px; }
+  .pending-table col.col-topname   { }
+  .pending-table col.col-subs      { width: 90px; }
+  .pending-table col.col-last      { width: 110px; }
+  .pending-table col.col-actions   { width: 110px; }
+  .pending-table tbody tr.main-row { cursor: pointer; }
+  .pending-table tbody tr.main-row:hover td { background: rgba(224,163,74,0.04); }
+  .pending-table tbody tr.main-row.expanded td { background: rgba(224,163,74,0.08); }
+  .pending-table .top-name { color: var(--ink); }
+  .pending-table .sub-count { color: var(--amber); font-family: ui-monospace, monospace; }
+  .pending-detail .samples { font-size: 12px; color: var(--ink-dim); display: grid; gap: 4px; margin: 0 0 10px; }
+  .pending-detail .samples b { color: var(--ink); font-weight: 600; }
+  .pending-detail .samples .sample-row { display: flex; gap: 10px; align-items: baseline; }
+  .pending-detail .samples .count { font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); min-width: 24px; text-align: right; }
 
   .toast {
     position: fixed; bottom: 20px; right: 20px;
@@ -302,7 +356,11 @@
 <div id="sessionsList"><div class="empty">Loading…</div></div>
 
 <h2>Pending submissions</h2>
-<div id="pendingList"><div class="empty">Loading…</div></div>
+<div class="toolbar">
+  <input type="text" id="pendingFilter" placeholder="Filter by UPC or submitted name…" />
+  <span class="pill" id="pendingShowing">—</span>
+</div>
+<table class="data-table pending-table" id="pendingList"></table>
 
 <h2>Products</h2>
 
@@ -345,8 +403,11 @@
 <div class="toolbar">
   <input type="text" id="productsFilter" placeholder="Filter by product name, UPC, or flavour…" />
   <span class="pill" id="productsShowing">—</span>
+  <label style="display:inline-flex; gap:6px; align-items:center; color:var(--ink-soft); font-size:12px;">
+    <input type="checkbox" id="productsCuratedOnly" /> curated only
+  </label>
 </div>
-<div class="products-list" id="productsList"></div>
+<table class="data-table products-table" id="productsList"></table>
 
 <h2>Drink Log</h2>
 <div class="toolbar">
@@ -354,7 +415,7 @@
   <span class="pill" id="logShowing">—</span>
   <button class="btn ghost" id="btnLogRefresh">Refresh</button>
 </div>
-<div id="logList"><div class="empty">Loading…</div></div>
+<table class="data-table log-table" id="logList"></table>
 
 <div class="toast" id="toast"></div>
 
@@ -535,15 +596,48 @@
 
   // ===== PENDING SUBMISSIONS QUEUE ============================================
 
+  const PENDING_COLUMNS = 5;
+  const PENDING_HEAD = `
+    <colgroup>
+      <col class="col-upc">
+      <col class="col-topname">
+      <col class="col-subs">
+      <col class="col-last">
+      <col class="col-actions">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>UPC</th>
+        <th>Top submission</th>
+        <th>Subs</th>
+        <th>Last seen</th>
+        <th></th>
+      </tr>
+    </thead>`;
+
   function renderPending() {
     const wrap = $('#pendingList');
-    const items = queueState.pending;
-    if (!items.length) {
-      wrap.innerHTML = `<div class="empty">Inbox zero. Nothing to triage.</div>`;
+    const all = queueState.pending || [];
+    const filter = ($('#pendingFilter')?.value || '').trim().toLowerCase();
+    const items = filter
+      ? all.filter(it =>
+          it.upc.includes(filter) ||
+          it.names.some(n => n.name.toLowerCase().includes(filter)))
+      : all;
+
+    const showingEl = $('#pendingShowing');
+    if (showingEl) showingEl.textContent = filter ? `${items.length} / ${all.length}` : `${all.length} pending`;
+
+    if (!all.length) {
+      wrap.innerHTML = `${PENDING_HEAD}<tbody><tr><td colspan="${PENDING_COLUMNS}" class="empty">Inbox zero. Nothing to triage.</td></tr></tbody>`;
       return;
     }
-    wrap.innerHTML = items.map(renderPendingCard).join('');
-    $$('.card.pending').forEach(card => bindPendingCard(card));
+    if (!items.length) {
+      wrap.innerHTML = `${PENDING_HEAD}<tbody><tr><td colspan="${PENDING_COLUMNS}" class="empty">No pending submissions match the filter.</td></tr></tbody>`;
+      return;
+    }
+    wrap.innerHTML = PENDING_HEAD + items.map(renderPendingCard).join('');
+    $$('tbody.card.pending').forEach(card => bindPendingCard(card));
   }
 
   function renderPendingCard(item) {
@@ -560,58 +654,78 @@
         `<span class="pill">${v.volumeMl} ml <span style="color:var(--ink-soft); margin-left:4px;">(${v.n})</span></span>`)),
     ].join(' ');
     const suggestions = (item.suggestions || []).map(s =>
-      `<button class="btn suggestion" data-suggest-name="${escape(s.name)}">
+      `<button class="suggestion" data-suggest-name="${escape(s.name)}">
         ${escape(s.name)} <span class="score">${(s.score * 100).toFixed(0)}%</span>
       </button>`
     ).join('');
 
-    // Pre-fill flavour by stripping the most-common product-style prefix.
     const inferredFlavour = guessFlavour(topName, item.suggestions || []);
 
     return `
-      <div class="card pending" data-upc="${escape(item.upc)}">
-        <div class="card-head">
-          <span class="upc">${escape(item.upc)}</span>
-          <span class="meta">${item.count} submission${item.count === 1 ? '' : 's'} · last ${formatTime(item.lastSeen)}</span>
-        </div>
-        <div class="samples">
-          ${sampleNames}
-          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${samplePills}</div>
-        </div>
-        ${suggestions ? `<div class="suggestions">${suggestions}</div>` : ''}
+      <tbody class="card pending" data-upc="${escape(item.upc)}">
+        <tr class="main-row">
+          <td class="mono">${escape(item.upc)}</td>
+          <td class="top-name">${escape(topName) || '—'}</td>
+          <td class="num"><span class="sub-count">${item.count}</span></td>
+          <td class="mono">${formatTime(item.lastSeen)}</td>
+          <td class="cell-actions">
+            <button class="row-btn primary triage-btn">Triage ▾</button>
+          </td>
+        </tr>
+        <tr class="detail-row hidden pending-detail">
+          <td colspan="${PENDING_COLUMNS}">
+            <div class="samples">
+              ${sampleNames}
+              <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:4px;">${samplePills}</div>
+            </div>
+            ${suggestions ? `<div class="suggestions" style="display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px;">${suggestions}</div>` : ''}
 
-        <div class="mode-toggle">
-          <button data-mode="new"      class="active">New product</button>
-          <button data-mode="existing">Add to existing</button>
-        </div>
+            <div class="mode-toggle">
+              <button data-mode="new"      class="active">New product</button>
+              <button data-mode="existing">Add to existing</button>
+            </div>
 
-        <!-- New-product form -->
-        <div class="form-grid mode-new">
-          <div class="field"><label>Name</label><input name="newName" value="${escape(topName)}" placeholder="Product name" /></div>
-          <div class="field"><label>ABV %</label><input name="newAbv" type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
-          <div class="field"><label>Vol. (ml)</label><input name="newVol" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
-          <div class="field full"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="newFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
-        </div>
+            <div class="form-grid mode-new">
+              <div class="field"><label>Name</label><input name="newName" value="${escape(topName)}" placeholder="Product name" /></div>
+              <div class="field"><label>ABV %</label><input name="newAbv" type="number" step="0.1" min="0" max="100" value="${escape(topAbv)}" /></div>
+              <div class="field"><label>Vol. (ml)</label><input name="newVol" type="number" step="1" min="0" value="${escape(topVol)}" placeholder="optional" /></div>
+              <div class="field full"><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="newFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
+            </div>
 
-        <!-- Existing-product form -->
-        <div class="form-grid mode-existing" style="display:none;">
-          <div class="field full" style="display:grid; grid-template-columns: 2.4fr 1fr; gap:8px;">
-            <div><label>Product</label><select name="existingProduct"></select></div>
-            <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
-          </div>
-        </div>
+            <div class="form-grid mode-existing" style="display:none;">
+              <div class="field full" style="display:grid; grid-template-columns: 2.4fr 1fr; gap:8px;">
+                <div><label>Product</label><select name="existingProduct"></select></div>
+                <div><label>Flavour <span style="text-transform:none;letter-spacing:0;color:var(--ink-soft);">(optional)</span></label><input name="existingFlavour" type="text" value="${escape(inferredFlavour)}" placeholder="e.g. Mango" /></div>
+              </div>
+            </div>
 
-        <div class="actions">
-          <button class="btn primary save">Save</button>
-          <button class="btn danger reject">Reject</button>
-        </div>
-      </div>
+            <div class="actions">
+              <button class="row-btn primary save">Save</button>
+              <button class="row-btn danger reject">Reject</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
     `;
   }
 
   function bindPendingCard(card) {
     const upc = card.dataset.upc;
     populateProductSelect(card.querySelector('select[name=existingProduct]'));
+
+    const detailRow = card.querySelector('tr.detail-row');
+    const mainRow   = card.querySelector('tr.main-row');
+    const triageBtn = card.querySelector('button.triage-btn');
+    const toggleDetail = () => {
+      const open = detailRow.classList.toggle('hidden') === false;
+      mainRow.classList.toggle('expanded', open);
+      triageBtn.textContent = open ? 'Triage ▴' : 'Triage ▾';
+    };
+    triageBtn.addEventListener('click', e => { e.stopPropagation(); toggleDetail(); });
+    mainRow.addEventListener('click', e => {
+      if (e.target.closest('button, input, select, a')) return;
+      toggleDetail();
+    });
 
     // Mode toggle.
     const newGrid = card.querySelector('.mode-new');
@@ -689,30 +803,53 @@
 
   // ===== PRODUCTS LIST ========================================================
 
+  const PRODUCTS_COLUMNS = 6;
+  const PRODUCTS_HEAD = `
+    <colgroup>
+      <col class="col-name">
+      <col class="col-abv">
+      <col class="col-vol">
+      <col class="col-upcs">
+      <col class="col-source">
+      <col class="col-actions">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>ABV %</th>
+        <th>Vol (ml)</th>
+        <th>UPCs</th>
+        <th>Source</th>
+        <th></th>
+      </tr>
+    </thead>`;
+
   function renderProducts() {
     const filter = ($('#productsFilter').value || '').trim().toLowerCase();
+    const curatedOnly = $('#productsCuratedOnly').checked;
     const all = productsState.products || [];
-    const list = filter
-      ? all.filter(p =>
-          p.name.toLowerCase().includes(filter) ||
-          p.upcs.some(u => u.upc.includes(filter) || (u.flavour || '').toLowerCase().includes(filter)))
-      : all;
+    let list = curatedOnly ? all.filter(p => p.curated) : all;
+    if (filter) {
+      list = list.filter(p =>
+        p.name.toLowerCase().includes(filter) ||
+        p.upcs.some(u => u.upc.includes(filter) || (u.flavour || '').toLowerCase().includes(filter)));
+    }
     const totalUpcs = list.reduce((n, p) => n + p.upcs.length, 0);
     $('#productsShowing').textContent =
       `${list.length} / ${all.length} products · ${totalUpcs} upcs`;
 
     const wrap = $('#productsList');
     if (!all.length) {
-      wrap.innerHTML = `<div class="empty">No products yet. Save one from the queue or add manually.</div>`;
+      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products yet. Save one from the queue or add manually.</td></tr></tbody>`;
       return;
     }
     if (!list.length) {
-      wrap.innerHTML = `<div class="empty">No products match the filter.</div>`;
+      wrap.innerHTML = `${PRODUCTS_HEAD}<tbody><tr><td colspan="${PRODUCTS_COLUMNS}" class="empty">No products match the filter.</td></tr></tbody>`;
       return;
     }
-    wrap.innerHTML = list.map(renderProductCard).join('');
+    wrap.innerHTML = PRODUCTS_HEAD + list.map(renderProductCard).join('');
 
-    $$('.product-card').forEach(card => bindProductCard(card));
+    $$('tbody.product-card').forEach(card => bindProductCard(card));
   }
 
   function renderProductCard(p) {
@@ -721,48 +858,59 @@
         <div class="upc-cell">${escape(u.upc)}</div>
         <input name="flavour" value="${escape(u.flavour || '')}" placeholder="flavour (optional)" />
         <div class="row-actions">
-          <button class="btn save-upc" title="Save flavour">Save</button>
-          <button class="btn danger del-upc" title="Detach UPC">×</button>
+          <button class="row-btn save-upc" title="Save flavour">Save</button>
+          <button class="row-btn danger del-upc" title="Detach UPC">×</button>
         </div>
       </div>
     `).join('') : `<div class="empty" style="margin-bottom:6px;">No UPCs linked yet.</div>`;
 
+    const upcCount  = p.upcs.length;
+    const upcLabel  = `${upcCount} UPC${upcCount === 1 ? '' : 's'}`;
+    const source    = p.curated
+      ? '<span class="source-badge curated">curated</span>'
+      : '<span class="source-badge">imported</span>';
+
     return `
-      <div class="product-card" data-product-id="${escape(p.id)}">
-        <div class="product-head">
-          <div class="name">
-            <label>Name</label>
-            <input name="name" value="${escape(p.name)}" />
-          </div>
-          <div>
-            <label>ABV %</label>
-            <input name="abv" type="number" step="0.1" min="0" max="100" value="${escape(Number(p.abv).toFixed(1))}" />
-          </div>
-          <div>
-            <label>Vol. (ml)</label>
-            <input name="volumeMl" type="number" step="1" min="0" value="${escape(p.volumeMl ?? '')}" placeholder="optional" />
-          </div>
-          <div class="head-actions">
-            <button class="btn primary save-product">Save</button>
-            <button class="btn danger del-product">Delete</button>
-          </div>
-        </div>
-        <div class="product-meta">${escape(p.id)} · ${p.upcs.length} UPC${p.upcs.length === 1 ? '' : 's'}</div>
-        ${upcRows}
-        <div class="upc-add-row">
-          <span class="add-label">+ Add UPC</span>
-          <div style="display:grid; grid-template-columns: 200px 1fr; gap:8px; min-width:0;">
-            <input name="newUpc" type="text" inputmode="numeric" placeholder="012345678905" />
-            <input name="newFlavour" type="text" placeholder="flavour (optional)" />
-          </div>
-          <button class="btn add-upc">Add</button>
-        </div>
-      </div>
+      <tbody class="product-card" data-product-id="${escape(p.id)}">
+        <tr class="main-row">
+          <td><input name="name" value="${escape(p.name)}" /></td>
+          <td><input name="abv" type="number" step="0.1" min="0" max="100" value="${escape(Number(p.abv).toFixed(1))}" /></td>
+          <td><input name="volumeMl" type="number" step="1" min="0" value="${escape(p.volumeMl ?? '')}" placeholder="—" /></td>
+          <td><button class="expand-btn" data-toggle-detail>${upcLabel} ▾</button></td>
+          <td>${source}</td>
+          <td class="cell-actions">
+            <button class="row-btn primary save-product">Save</button>
+            <button class="row-btn danger del-product" title="Delete product">×</button>
+          </td>
+        </tr>
+        <tr class="detail-row hidden">
+          <td colspan="${PRODUCTS_COLUMNS}">
+            <div style="font-family: ui-monospace, monospace; font-size: 10px; color: var(--ink-soft); margin-bottom: 8px;">${escape(p.id)} · ${upcLabel}</div>
+            ${upcRows}
+            <div class="upc-add-row">
+              <span class="add-label">+ Add UPC</span>
+              <div style="display:grid; grid-template-columns: 200px 1fr; gap:8px; min-width:0;">
+                <input name="newUpc" type="text" inputmode="numeric" placeholder="012345678905" />
+                <input name="newFlavour" type="text" placeholder="flavour (optional)" />
+              </div>
+              <button class="row-btn add-upc">Add</button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
     `;
   }
 
   function bindProductCard(card) {
     const id = card.dataset.productId;
+
+    const detailRow = card.querySelector('tr.detail-row');
+    const expandBtn = card.querySelector('button[data-toggle-detail]');
+    expandBtn.addEventListener('click', () => {
+      const open = detailRow.classList.toggle('hidden') === false;
+      card.querySelector('tr.main-row').classList.toggle('expanded', open);
+      expandBtn.textContent = expandBtn.textContent.replace(/[▾▴]/, open ? '▴' : '▾');
+    });
 
     card.querySelector('button.save-product').addEventListener('click', async () => {
       const name     = card.querySelector('input[name=name]').value.trim();
@@ -978,6 +1126,8 @@
   $('#btnBackupsRefresh').addEventListener('click', refreshBackups);
   $('#sessionsFilter').addEventListener('input', renderSessions);
   $('#productsFilter').addEventListener('input', renderProducts);
+  $('#productsCuratedOnly').addEventListener('change', renderProducts);
+  $('#pendingFilter').addEventListener('input', renderPending);
 
   $('#btnDeploy').addEventListener('click', async () => {
     const btn = $('#btnDeploy');
@@ -1030,6 +1180,28 @@
     }
   }
 
+  const LOG_HEAD = `
+    <colgroup>
+      <col class="col-time">
+      <col class="col-from">
+      <col class="col-people">
+      <col class="col-name">
+      <col class="col-abv">
+      <col class="col-vol">
+      <col class="col-upc">
+    </colgroup>
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>From</th>
+        <th>People</th>
+        <th>Drink</th>
+        <th>ABV</th>
+        <th>Vol</th>
+        <th>UPC</th>
+      </tr>
+    </thead>`;
+
   function renderLog() {
     const filter = ($('#logFilter').value || '').trim().toLowerCase();
     const rows = filter
@@ -1046,33 +1218,21 @@
 
     const wrap = $('#logList');
     if (!rows.length) {
-      wrap.innerHTML = `<div class="empty">${logTotal ? 'No entries match the filter.' : 'No submissions yet.'}</div>`;
+      wrap.innerHTML = `${LOG_HEAD}<tbody><tr><td colspan="7" class="empty">${logTotal ? 'No entries match the filter.' : 'No submissions yet.'}</td></tr></tbody>`;
       return;
     }
 
-    wrap.innerHTML = `<div class="log-wrap">${rows.map(e => {
-      const pills = [
-        e.abv != null ? `<span class="pill">${Number(e.abv).toFixed(1)}%</span>` : '',
-        e.volumeMl    ? `<span class="pill">${Math.round(e.volumeMl)} ml</span>` : '',
-        e.upc         ? `<span class="pill amber">${escape(e.upc)}</span>` : '',
-      ].filter(Boolean).join('');
-
-      const ctx = [
-        e.from   ? `from <b style="color:var(--ink)">${escape(e.from)}</b>` : '',
-        e.people ? `[${e.people.map(escape).join(', ')}]` : '',
-      ].filter(Boolean).join(' · ');
-
-      return `
-        <div class="log-row">
-          <div class="log-time">${formatTime(e.receivedAt)}</div>
-          <div class="log-main">
-            <div class="log-name">${escape(e.name || '—')}</div>
-            ${ctx ? `<div class="log-sub">${ctx}</div>` : ''}
-          </div>
-          <div class="log-tags">${pills}</div>
-        </div>
-      `;
-    }).join('')}</div>`;
+    wrap.innerHTML = LOG_HEAD + '<tbody>' + rows.map(e => `
+      <tr>
+        <td class="log-time-cell">${formatTime(e.receivedAt)}</td>
+        <td class="log-people-cell">${e.from ? escape(e.from) : '—'}</td>
+        <td class="log-people-cell" title="${escape((e.people || []).join(', '))}">${(e.people || []).map(escape).join(', ') || '—'}</td>
+        <td class="log-name-cell">${escape(e.name || '—')}</td>
+        <td class="num">${e.abv != null ? Number(e.abv).toFixed(1) + '%' : '—'}</td>
+        <td class="num">${e.volumeMl ? Math.round(e.volumeMl) + ' ml' : '—'}</td>
+        <td class="mono">${e.upc ? escape(e.upc) : '—'}</td>
+      </tr>
+    `).join('') + '</tbody>';
   }
 
   $('#logFilter').addEventListener('input', renderLog);
