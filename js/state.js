@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api, ApiError } from './api.js?v=55';
+import { api } from './api.js?v=55';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -35,7 +35,7 @@ export function getUnitPref() {
   try { return localStorage.getItem(UNIT_KEY) === 'oz' ? 'oz' : 'ml'; } catch { return 'ml'; }
 }
 export function setUnitPref(u) {
-  try { localStorage.setItem(UNIT_KEY, u === 'oz' ? 'oz' : 'ml'); } catch {}
+  try { localStorage.setItem(UNIT_KEY, u === 'oz' ? 'oz' : 'ml'); } catch { /* ignore */ }
 }
 
 // ---- defaults (used when seeding a brand-new server session) ------------
@@ -77,12 +77,12 @@ export function rememberSession(sid, name, extras = {}) {
   const next = list.filter(s => s.sid !== sid);
   next.unshift(merged);
   while (next.length > 20) next.pop();
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch {}
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(next)); } catch { /* ignore */ }
 }
 
 export function forgetSessionLocal(sid) {
   const list = getRecentSessions().filter(s => s.sid !== sid);
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+  try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* ignore */ }
 }
 
 // ---- in-memory state mirror --------------------------------------------
@@ -115,7 +115,6 @@ export const state = {
 let inFlight = 0;
 let pollTimer = null;
 let pollMs = 5000;
-let lastFetchedAt = 0;
 
 function hydrate(serverPayload) {
   const s = serverPayload || {};
@@ -213,7 +212,6 @@ function optimisticDrinkEvent(type, person, drink) {
 export async function loadSession(sid) {
   const data = await api.get(`/api/sessions/${encodeURIComponent(sid)}`);
   hydrate(data);
-  lastFetchedAt = Date.now();
   return state;
 }
 
@@ -281,7 +279,7 @@ export async function renameSession(sid, name) {
     const e = list.find(s => s.sid === sid);
     if (!e) return false;
     e.name = name;
-    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch {}
+    try { localStorage.setItem(RECENT_KEY, JSON.stringify(list)); } catch { /* ignore */ }
     return true;
   }
   const trimmed = String(name == null ? '' : name).trim().slice(0, 60);
@@ -317,9 +315,8 @@ export function startPolling(onChange) {
       if (!data) return;
       if (data.updatedAt && data.updatedAt === state.updatedAt) return;
       hydrate(data);
-      lastFetchedAt = Date.now();
       onChange?.();
-    } catch (e) { /* network blip — quiet, try again next tick */ }
+    } catch { /* network blip — quiet, try again next tick */ }
   }, pollMs);
 }
 
@@ -397,7 +394,7 @@ export function addPreset({ name, volumeMl, abv, kcalPer100ml = null, inputKind 
   const existing = findMatchingPreset({ name, volumeMl, abv, inputKind: isCocktail ? 'cocktail' : 'whole', components: componentsCopy });
   if (existing) {
     existing.lastUsedAt = Date.now();
-    touchPreset(existing.id).catch(() => {});
+    touchPreset(existing.id).catch(() => { /* ignore */ });
     return existing;
   }
   const presetKey = 'u' + Date.now();
@@ -440,7 +437,7 @@ export async function removePreset(id) {
     await api.del(`/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(id)}`);
     if (state.benchmarkPresetId !== prevBench) {
       // Best-effort: tell the server the benchmark moved too.
-      try { await api.patch(`/api/sessions/${encodeURIComponent(state.sid)}`, { benchmarkPresetKey: state.benchmarkPresetId }); } catch {}
+      try { await api.patch(`/api/sessions/${encodeURIComponent(state.sid)}`, { benchmarkPresetKey: state.benchmarkPresetId }); } catch { /* ignore */ }
     }
     return true;
   } catch (e) {
@@ -497,7 +494,7 @@ export async function updatePresetAndDrinks(id, { name, volumeMl, abv, inputKind
   } catch (e) {
     console.error('updatePresetAndDrinks failed', e); alert('Save failed; refreshing.');
     Object.assign(preset, prev);
-    refreshSession().catch(() => {});
+    refreshSession().catch(() => { /* ignore */ });
   } finally { inFlight--; }
 }
 
@@ -508,7 +505,7 @@ export async function touchPreset(presetId) {
   p.lastUsedAt = Date.now();
   inFlight++;
   try { await api.post(`/api/sessions/${encodeURIComponent(state.sid)}/presets/${encodeURIComponent(presetId)}/touch`); }
-  catch (e) { /* recency hint; non-critical */ }
+  catch { /* recency hint; non-critical */ }
   finally { inFlight--; }
 }
 

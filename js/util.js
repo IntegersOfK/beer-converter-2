@@ -12,10 +12,10 @@ export function fmt(n, digits = 1) {
 
 export function escapeHtml(s = '') {
   return String(s).replace(/[&<>"']/g, c => ({
-    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;'
   }[c]));
 }
 
 export function vibe(ms = 10) {
-  try { navigator.vibrate && navigator.vibrate(ms); } catch {}
+  try { navigator.vibrate && navigator.vibrate(ms); } catch { /* ignore */ }
 }

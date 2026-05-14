@@ -63,7 +63,7 @@ export async function startScanner(videoEl, { onFound, onError }) {
   }
 
   videoEl.srcObject = stream;
-  try { await videoEl.play(); } catch (e) { /* user gesture required on some browsers */ }
+  try { await videoEl.play(); } catch { /* user gesture required on some browsers */ }
 
   const detector = new BarcodeDetector({
     formats: ['upc_a', 'upc_e', 'ean_8', 'ean_13', 'code_128', 'code_39'],
@@ -85,7 +85,7 @@ export async function startScanner(videoEl, { onFound, onError }) {
           return;
         }
       }
-    } catch (e) {
+    } catch {
       // transient decode errors are normal; keep going
     }
     rafId = requestAnimationFrame(tick);
@@ -95,9 +95,9 @@ export async function startScanner(videoEl, { onFound, onError }) {
   function cleanup() {
     stopped = true;
     if (rafId) cancelAnimationFrame(rafId);
-    try { videoEl.pause(); } catch {}
+    try { videoEl.pause(); } catch { /* ignore */ }
     videoEl.srcObject = null;
-    stream.getTracks().forEach(t => { try { t.stop(); } catch {} });
+    stream.getTracks().forEach(t => { try { t.stop(); } catch { /* ignore */ } });
   }
 
   return { stop: cleanup };

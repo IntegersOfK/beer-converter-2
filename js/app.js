@@ -7,16 +7,16 @@
 
 import { $, $$, escapeHtml, vibe } from './util.js?v=55';
 import {
-  state, getBenchmark, getUnitPref, setUnitPref,
+  state, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
 } from './state.js?v=55';
 import {
-  render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
+  render, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
-  prefillCustomForm, logDrink, getAddModalPersonIdx,
+  prefillCustomForm,
   updateSaveAsPresetCopy, toggleCompareDetail,
-  openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
+  submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal, setCustomInputMode, addCocktailComponent, addEditCocktailComponent,
 } from './ui.js?v=55';
 import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=55';
@@ -53,7 +53,7 @@ applyTheme(localStorage.getItem(THEME_KEY) || 'bar');
 $('#btnTheme').addEventListener('click', () => {
   const next = document.documentElement.getAttribute('data-theme') === 'beach' ? 'bar' : 'beach';
   applyTheme(next);
-  try { localStorage.setItem(THEME_KEY, next); } catch {}
+  try { localStorage.setItem(THEME_KEY, next); } catch { /* ignore */ }
   vibe(8);
 });
 
@@ -311,8 +311,8 @@ async function handleUpcFound(upc) {
     const containerIsDrink = info.curated || cat === 'beer' || cat === 'refreshment beverages';
     const pourHint =
       cat === 'spirits' ? 44 :   // ~1.5 oz shot
-      cat === 'wine'    ? 142 :  // ~5 oz pour
-      null;
+        cat === 'wine'    ? 142 :  // ~5 oz pour
+          null;
 
     prefillCustomForm({
       name: info.name || '',
@@ -341,7 +341,7 @@ async function handleUpcFound(upc) {
 
   // Not found anywhere — user fills it in. Saving as a drink type adds it
   // to this session's preset list so other contributors can use it too.
-  setScannerStatus("Not in the catalogue. Fill it in below — saving as a type makes it available to everyone in this session.", 'err');
+  setScannerStatus('Not in the catalogue. Fill it in below — saving as a type makes it available to everyone in this session.', 'err');
   prefillCustomForm({ upc });
   $('#saveAsPreset').checked = true;
   setTimeout(closeScannerOnly, 1400);
@@ -424,10 +424,10 @@ function sessionGateList(recents, { markLatest = false } = {}) {
   return `
     <div class="session-list session-gate-list">
       ${recents.map((rec, idx) => {
-        const opt = sessionOption(rec);
-        const people = sessionPeopleLine(opt);
-        const badge = markLatest && idx === 0 ? ' <span class="session-badge">latest</span>' : '';
-        return `
+    const opt = sessionOption(rec);
+    const people = sessionPeopleLine(opt);
+    const badge = markLatest && idx === 0 ? ' <span class="session-badge">latest</span>' : '';
+    return `
           <div class="session-item session-gate-item">
             <div class="session-item-info">
               <div class="session-item-name">${escapeHtml(opt.name)}${badge}</div>
@@ -437,7 +437,7 @@ function sessionGateList(recents, { markLatest = false } = {}) {
             <button class="btn btn-ghost session-switch-btn" data-gate-open-session="${escapeHtml(opt.sid)}">open</button>
           </div>
         `;
-      }).join('')}
+  }).join('')}
     </div>
   `;
 }
