@@ -5,12 +5,12 @@
 // cached modules in one go, which is essential when shipping data-source or
 // behaviour changes from a static host. Bump on any breaking change.
 
-import { $, $$, escapeHtml, vibe } from './util.js?v=54';
+import { $, $$, escapeHtml, vibe } from './util.js?v=55';
 import {
   state, getBenchmark, getUnitPref, setUnitPref,
   loadSession, createSession, switchSession, startPolling,
   fetchSessionSnapshot, getRecentSessions, forgetSessionLocal,
-} from './state.js?v=54';
+} from './state.js?v=55';
 import {
   render, openAddModal, openPresetsModal, openSessionsModal, closeModal,
   submitCustomDrink, submitNewPreset, updateEthanolPreview,
@@ -18,11 +18,11 @@ import {
   updateSaveAsPresetCopy, toggleCompareDetail,
   openEditModal, submitEditDrink, saveEditFlavourOnly, updateEditEthanolPreview,
   openNewSessionModal, setCustomInputMode, addCocktailComponent, addEditCocktailComponent,
-} from './ui.js?v=54';
-import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=54';
-import { startScanner, barcodeScannerAvailable } from './scanner.js?v=54';
-import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=54';
-import { ML_PER_OZ } from './calc.js?v=54';
+} from './ui.js?v=55';
+import { hydrateCommentForm, submitMainComment, updateCommentTextarea } from './ui.js?v=55';
+import { startScanner, barcodeScannerAvailable } from './scanner.js?v=55';
+import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=55';
+import { ML_PER_OZ } from './calc.js?v=55';
 
 console.log('Beer Converter build v54 (catalogue served from SQLite, no CSV asset)');
 

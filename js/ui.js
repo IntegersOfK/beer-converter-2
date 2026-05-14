@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=54';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=54';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=55';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=55';
 import {
   state, getBenchmark, getUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
@@ -13,9 +13,9 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=54';
-import { submitProduct } from './submit.js?v=54';
-import { getFlavoursForName } from './products.js?v=54';
+} from './state.js?v=55';
+import { submitProduct } from './submit.js?v=55';
+import { getFlavoursForName } from './products.js?v=55';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -726,11 +726,18 @@ function renderCompare() {
     } else {
       // 3+ drinkers — leaderboard style.
       if (tied) {
+        const tiedLeaders = drinkers.filter(p => Math.abs(leader.s.ethanolMl / p.s.ethanolMl - 1) < 0.03);
+        const nameList = tiedLeaders.map((p, i) => {
+          const tag = `<b>${escapeHtml(p.name)}</b>`;
+          if (i === 0) return tag;
+          if (i === tiedLeaders.length - 1) return ` &amp; ${tag}`;
+          return `, ${tag}`;
+        }).join('');
         if (bench) {
           const equiv = leader.s.ethanolMl / be;
-          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
+          sentence = `${nameList} are tied at the top — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
         } else {
-          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+          sentence = `${nameList} are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
         }
       } else {
         if (bench) {
