@@ -79,8 +79,8 @@ const ALLOW_ORIGINS = (process.env.ALLOW_ORIGIN ||
 function corsHeadersFor(reqOrigin) {
   const allow =
     ALLOW_ORIGINS.includes('*') ? '*' :
-    (reqOrigin && ALLOW_ORIGINS.includes(reqOrigin)) ? reqOrigin :
-    null;
+      (reqOrigin && ALLOW_ORIGINS.includes(reqOrigin)) ? reqOrigin :
+        null;
   const headers = {
     'Access-Control-Allow-Methods': 'GET, POST, PATCH, DELETE, OPTIONS',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -224,7 +224,7 @@ function migrateLegacyCuratedIfNeeded() {
   }
   fs.writeFileSync(PRODUCTS_JSON, JSON.stringify([...productsByName.values()], null, 2));
   fs.writeFileSync(UPCS_JSON,     JSON.stringify(upcs, null, 2));
-  try { fs.renameSync(CURATED_JSON, CURATED_ARCHIVED); } catch {}
+  try { fs.renameSync(CURATED_JSON, CURATED_ARCHIVED); } catch { /* ignore */ }
   console.log(`legacy migration: ${productsByName.size} products, ${upcs.length} upcs.`);
 }
 
@@ -360,9 +360,9 @@ function serveAdminFile(req, res, relPath) {
     if (err) { send(res, 404, 'admin asset not found'); return; }
     const ext = path.extname(file).toLowerCase();
     const ct = ext === '.html' ? 'text/html; charset=utf-8'
-             : ext === '.css'  ? 'text/css; charset=utf-8'
-             : ext === '.js'   ? 'application/javascript; charset=utf-8'
-             : 'application/octet-stream';
+      : ext === '.css'  ? 'text/css; charset=utf-8'
+        : ext === '.js'   ? 'application/javascript; charset=utf-8'
+          : 'application/octet-stream';
     res.writeHead(200, { 'Content-Type': ct, 'Cache-Control': 'no-store' });
     res.end(buf);
   });
@@ -688,12 +688,12 @@ function serveStatic(req, res, relPath, origin) {
     }
     const ext = path.extname(file).toLowerCase();
     const ct = ext === '.html' ? 'text/html; charset=utf-8'
-             : ext === '.css'  ? 'text/css; charset=utf-8'
-             : ext === '.js'   ? 'application/javascript; charset=utf-8'
-             : ext === '.png'  ? 'image/png'
-             : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
-             : ext === '.svg'  ? 'image/svg+xml'
-             : 'application/octet-stream';
+      : ext === '.css'  ? 'text/css; charset=utf-8'
+        : ext === '.js'   ? 'application/javascript; charset=utf-8'
+          : ext === '.png'  ? 'image/png'
+            : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg'
+              : ext === '.svg'  ? 'image/svg+xml'
+                : 'application/octet-stream';
     res.writeHead(200, {
       'Content-Type': ct,
       'Cache-Control': 'no-cache',
@@ -1061,7 +1061,7 @@ const server = http.createServer(async (req, res) => {
 
       execFile('git', ['-c', `safe.directory=${REPO_ROOT}`, '-C', REPO_ROOT, 'pull', '--ff-only'], { timeout: 30000 }, (err, stdout, stderr) => {
         for (const { f, buf } of snapshots) {
-          if (buf !== null) try { fs.writeFileSync(f, buf); } catch {}
+          if (buf !== null) try { fs.writeFileSync(f, buf); } catch { /* ignore */ }
         }
 
         const restarting = !err && RESTART_ON_DEPLOY;

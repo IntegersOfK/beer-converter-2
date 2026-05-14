@@ -3,7 +3,7 @@
 import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=55';
 import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=55';
 import {
-  state, getBenchmark, getUnitPref, getDeviceId,
+  state, getBenchmark, getUnitPref, setUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
   addDrink, removeDrink, updateDrink, updatePresetAndDrinks, setPersonName,
   addPerson, removePerson,
@@ -323,13 +323,13 @@ function renderCommentReactions(c) {
   return `
     <div class="comment-reactions" aria-label="Comment reactions">
       ${groups.map(group => {
-        const title = reactionTitle(group);
-        const deviceId = getDeviceId();
-        const active = state.reactions.some(r => r.commentId === c.id && r.emoji === group.emoji && r.deviceId === deviceId);
-        return `<button class="comment-reaction${active ? ' is-active' : ''}" data-react-comment="${c.id}" data-reaction-emoji="${escapeHtml(group.emoji)}" type="button" aria-label="React with ${escapeHtml(group.emoji)}"${title ? ` title="${escapeHtml(title)}"` : ''}>
+    const title = reactionTitle(group);
+    const deviceId = getDeviceId();
+    const active = state.reactions.some(r => r.commentId === c.id && r.emoji === group.emoji && r.deviceId === deviceId);
+    return `<button class="comment-reaction${active ? ' is-active' : ''}" data-react-comment="${c.id}" data-reaction-emoji="${escapeHtml(group.emoji)}" type="button" aria-label="React with ${escapeHtml(group.emoji)}"${title ? ` title="${escapeHtml(title)}"` : ''}>
           <span class="comment-reaction-emoji">${escapeHtml(group.emoji)}</span>${group.count ? `<span class="comment-reaction-count">${group.count}</span>` : ''}
         </button>`;
-      }).join('')}
+  }).join('')}
     </div>
   `;
 }
@@ -355,7 +355,7 @@ function activityText(e) {
 export function hydrateCommentForm() {
   const author = $('#commentAuthor');
   if (!author) return;
-  try { author.value = localStorage.getItem(AUTHOR_KEY) || ''; } catch {}
+  try { author.value = localStorage.getItem(AUTHOR_KEY) || ''; } catch { /* ignore */ }
 }
 
 export function updateCommentTextarea() {
@@ -473,7 +473,7 @@ export async function submitMainComment() {
   setCommentStatus('Posting...');
   try {
     const name = author?.value.trim() || '';
-    try { localStorage.setItem(AUTHOR_KEY, name); } catch {}
+    try { localStorage.setItem(AUTHOR_KEY, name); } catch { /* ignore */ }
     await addComment(body, { authorName: name || null });
     text.value = '';
     updateCommentTextarea();
@@ -539,8 +539,8 @@ function renderPeople() {
       </div>
       <div class="drinks" data-drinks="${idx}">
         ${person.drinks.length === 0
-          ? `<div class="drinks-empty">No drinks logged yet</div>`
-          : person.drinks.map((d, di) => `
+    ? '<div class="drinks-empty">No drinks logged yet</div>'
+    : person.drinks.map((d, di) => `
             <div class="drink">
               <button class="drink-info drink-edit-btn" data-edit="${idx}:${di}" title="Edit this drink" aria-label="Edit drink">
                 <div class="drink-name">${escapeHtml(d.name)}</div>
@@ -578,7 +578,7 @@ function renderPeople() {
   // "+ Add person" tile, full-width below the cards.
   const addRow = document.createElement('div');
   addRow.className = 'add-person-row';
-  addRow.innerHTML = `<button class="btn btn-add-person" id="btnAddPerson">+ Add person</button>`;
+  addRow.innerHTML = '<button class="btn btn-add-person" id="btnAddPerson">+ Add person</button>';
   grid.appendChild(addRow);
 
   // Events
@@ -650,7 +650,7 @@ function renderPeople() {
   // Restore focus if needed.
   if (activeNameIdx !== null) {
     const el = $(`[data-person-name="${activeNameIdx}"]`);
-    if (el) { el.focus(); if (activeSelStart !== null) try { el.setSelectionRange(activeSelStart, activeSelStart); } catch {} }
+    if (el) { el.focus(); if (activeSelStart !== null) try { el.setSelectionRange(activeSelStart, activeSelStart); } catch { /* ignore */ } }
   }
 }
 
@@ -698,8 +698,8 @@ function renderCompare() {
     const only = drinkers[0];
     const dryCount = state.people.length - 1;
     const tail = dryCount === 0 ? ''
-               : dryCount === 1 ? ` ${escapeHtml(peopleStats.find(p => p.s.ethanolMl === 0).name)} is still dry.`
-               : ` Everyone else is still dry.`;
+      : dryCount === 1 ? ` ${escapeHtml(peopleStats.find(p => p.s.ethanolMl === 0).name)} is still dry.`
+        : ' Everyone else is still dry.';
     if (bench) {
       const equiv = only.s.ethanolMl / be;
       sentence = `<b>${escapeHtml(only.name)}</b> has had <span class="big" title="${fmt(only.s.ethanolMl,1)} ml ethanol · ${fmt(only.s.standardDrinks,1)} standard drinks">${fmt(equiv,1)}</span> ${bmUnit}.${tail}`;
@@ -812,26 +812,26 @@ function renderCompareDetail(peopleStats) {
     breakdown = `
       <div class="compare-breakdown">
         ${peopleStats.map(p => {
-          const std = fmt(p.s.standardDrinks, 1);
-          let tail;
-          if (p.s.ethanolMl === 0) {
-            tail = `<span class="vs-dry">still dry</span>`;
-          } else if (p === leader || Math.abs(leader.s.ethanolMl / p.s.ethanolMl - 1) < 0.03) {
-            tail = sortedDrinkers.length === 1 || p === leader
-              ? `<span class="vs-leader">leading</span>`
-              : `<span class="vs-leader">tied with ${escapeHtml(leader.name)}</span>`;
-          } else {
-            const behind = leader.s.ethanolMl / p.s.ethanolMl;
-            tail = `<span class="vs-behind"><span class="num" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(p.s.ethanolMl,1)} ml ethanol">${fmt(behind, 2)}×</span> behind ${escapeHtml(leader.name)}</span>`;
-          }
-          return `
+    const std = fmt(p.s.standardDrinks, 1);
+    let tail;
+    if (p.s.ethanolMl === 0) {
+      tail = '<span class="vs-dry">still dry</span>';
+    } else if (p === leader || Math.abs(leader.s.ethanolMl / p.s.ethanolMl - 1) < 0.03) {
+      tail = sortedDrinkers.length === 1 || p === leader
+        ? '<span class="vs-leader">leading</span>'
+        : `<span class="vs-leader">tied with ${escapeHtml(leader.name)}</span>`;
+    } else {
+      const behind = leader.s.ethanolMl / p.s.ethanolMl;
+      tail = `<span class="vs-behind"><span class="num" title="${fmt(leader.s.ethanolMl,1)} ml vs ${fmt(p.s.ethanolMl,1)} ml ethanol">${fmt(behind, 2)}×</span> behind ${escapeHtml(leader.name)}</span>`;
+    }
+    return `
             <div class="compare-breakdown-row">
               <span class="who">${escapeHtml(p.name)}</span>
               <span class="std" title="${fmt(p.s.ethanolMl,1)} ml ethanol"><span class="num">${std}</span> std</span>
               ${tail}
             </div>
           `;
-        }).join('')}
+  }).join('')}
       </div>
     `;
   }
@@ -852,16 +852,16 @@ function renderCompareDetail(peopleStats) {
             <tr>
               <th title="${escapeHtml(row.name)}">${escapeHtml(row.name)}</th>
               ${peopleStats.map((col, ci) => {
-                if (ri === ci) return `<td class="self" title="Same person">—</td>`;
-                if (row.s.ethanolMl === 0 && col.s.ethanolMl === 0) return `<td class="dry" title="Both dry">·</td>`;
-                if (row.s.ethanolMl === 0) return `<td class="lead" title="${escapeHtml(col.name)} has had infinitely more">∞</td>`;
-                if (col.s.ethanolMl === 0) return `<td class="dry" title="${escapeHtml(col.name)} is dry">0</td>`;
-                const r = col.s.ethanolMl / row.s.ethanolMl;
-                const cls = Math.abs(r - 1) < 0.03 ? 'tie'
-                          : r > 1 ? 'lead'
-                          : 'behind';
-                return `<td class="${cls}" title="${escapeHtml(col.name)}: ${fmt(col.s.ethanolMl,1)} ml · ${escapeHtml(row.name)}: ${fmt(row.s.ethanolMl,1)} ml ethanol">${fmt(r, 2)}×</td>`;
-              }).join('')}
+    if (ri === ci) return '<td class="self" title="Same person">—</td>';
+    if (row.s.ethanolMl === 0 && col.s.ethanolMl === 0) return '<td class="dry" title="Both dry">·</td>';
+    if (row.s.ethanolMl === 0) return `<td class="lead" title="${escapeHtml(col.name)} has had infinitely more">∞</td>`;
+    if (col.s.ethanolMl === 0) return `<td class="dry" title="${escapeHtml(col.name)} is dry">0</td>`;
+    const r = col.s.ethanolMl / row.s.ethanolMl;
+    const cls = Math.abs(r - 1) < 0.03 ? 'tie'
+      : r > 1 ? 'lead'
+        : 'behind';
+    return `<td class="${cls}" title="${escapeHtml(col.name)}: ${fmt(col.s.ethanolMl,1)} ml · ${escapeHtml(row.name)}: ${fmt(row.s.ethanolMl,1)} ml ethanol">${fmt(r, 2)}×</td>`;
+  }).join('')}
             </tr>
           `).join('')}
         </tbody>
@@ -1519,8 +1519,8 @@ function renderNewSessionSourceList() {
     <p class="new-session-note">Choose the session to copy from.</p>
     <div class="session-list import-session-list">
       ${sources.map(rec => {
-        const { drinks, peopleStr, date } = sessionOptionMeta(rec);
-        return `
+    const { drinks, peopleStr, date } = sessionOptionMeta(rec);
+    return `
           <div class="session-item">
             <div class="session-item-info">
               <div class="session-item-name">${escapeHtml(rec.name || rec.sid)}${rec.isCurrent ? ' <span class="session-badge">current</span>' : ''}</div>
@@ -1530,7 +1530,7 @@ function renderNewSessionSourceList() {
             <button class="btn btn-ghost session-switch-btn" data-import-source="${escapeHtml(rec.sid)}">choose</button>
           </div>
         `;
-      }).join('')}
+  }).join('')}
     </div>
     <div class="actions">
       <button class="btn btn-ghost" data-new-session-back>Back</button>
@@ -1612,8 +1612,8 @@ function renderNewSessionTypeList() {
     </div>
     <div class="import-type-list">
       ${types.map(p => {
-        const key = String(p.presetKey);
-        return `
+    const key = String(p.presetKey);
+    return `
           <label class="import-type-item">
             <input type="checkbox" data-import-type="${escapeHtml(key)}"${newSessionSelectedPresetKeys.has(key) ? ' checked' : ''}>
             <span class="import-type-main">
@@ -1622,7 +1622,7 @@ function renderNewSessionTypeList() {
             </span>
           </label>
         `;
-      }).join('')}
+  }).join('')}
     </div>
     <div class="actions">
       <button class="btn btn-ghost" data-new-session-back>Back</button>

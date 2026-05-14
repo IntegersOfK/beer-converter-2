@@ -162,7 +162,7 @@ db.exec(`
 // be disabled for the swap or the upcs rows would cascade-delete. Existing
 // rows are flagged curated=1 because they all came from the hand-curated
 // admin path; the CSV importer below inserts new rows with curated=0.
-const productsTableInfo = db.prepare("PRAGMA table_info(products)").all();
+const productsTableInfo = db.prepare('PRAGMA table_info(products)').all();
 if (!productsTableInfo.some(c => c.name === 'category') || !productsTableInfo.some(c => c.name === 'curated')) {
   console.log('Migration: adding category + curated to products, dropping UNIQUE(name)');
   db.pragma('foreign_keys = OFF');
@@ -190,27 +190,27 @@ if (!productsTableInfo.some(c => c.name === 'category') || !productsTableInfo.so
 }
 
 // ---- migration: add author_name to session_comments -----------------------
-const tableInfo = db.prepare("PRAGMA table_info(session_comments)").all();
+const tableInfo = db.prepare('PRAGMA table_info(session_comments)').all();
 if (!tableInfo.some(c => c.name === 'author_name')) {
   console.log('Migration: adding author_name to session_comments');
-  db.exec("ALTER TABLE session_comments ADD COLUMN author_name TEXT;");
+  db.exec('ALTER TABLE session_comments ADD COLUMN author_name TEXT;');
 }
 
-const reactionTableInfo = db.prepare("PRAGMA table_info(session_comment_reactions)").all();
+const reactionTableInfo = db.prepare('PRAGMA table_info(session_comment_reactions)').all();
 if (!reactionTableInfo.some(c => c.name === 'author_name')) {
   console.log('Migration: adding author_name to session_comment_reactions');
-  db.exec("ALTER TABLE session_comment_reactions ADD COLUMN author_name TEXT;");
+  db.exec('ALTER TABLE session_comment_reactions ADD COLUMN author_name TEXT;');
 }
 
-const sessionTableInfo = db.prepare("PRAGMA table_info(sessions)").all();
+const sessionTableInfo = db.prepare('PRAGMA table_info(sessions)').all();
 if (!sessionTableInfo.some(c => c.name === 'public_id')) {
   console.log('Migration: adding public_id to sessions');
-  db.exec("ALTER TABLE sessions ADD COLUMN public_id TEXT;");
+  db.exec('ALTER TABLE sessions ADD COLUMN public_id TEXT;');
 }
-const missingPublicIds = db.prepare("SELECT id FROM sessions WHERE public_id IS NULL OR public_id = ''").all();
+const missingPublicIds = db.prepare(`SELECT id FROM sessions WHERE public_id IS NULL OR public_id = ''`).all();
 if (missingPublicIds.length) {
-  const updatePublicId = db.prepare("UPDATE sessions SET public_id = ? WHERE id = ?");
-  const existingPublicId = db.prepare("SELECT 1 FROM sessions WHERE public_id = ?");
+  const updatePublicId = db.prepare('UPDATE sessions SET public_id = ? WHERE id = ?');
+  const existingPublicId = db.prepare('SELECT 1 FROM sessions WHERE public_id = ?');
   const tx = db.transaction((rows) => {
     for (const row of rows) {
       let publicId;
@@ -220,34 +220,34 @@ if (missingPublicIds.length) {
   });
   tx(missingPublicIds);
 }
-db.exec("CREATE UNIQUE INDEX IF NOT EXISTS sessions_public_id ON sessions(public_id);");
+db.exec('CREATE UNIQUE INDEX IF NOT EXISTS sessions_public_id ON sessions(public_id);');
 
-const drinkTableInfo = db.prepare("PRAGMA table_info(session_drinks)").all();
+const drinkTableInfo = db.prepare('PRAGMA table_info(session_drinks)').all();
 if (!drinkTableInfo.some(c => c.name === 'input_kind')) {
   console.log('Migration: adding input_kind to session_drinks');
-  db.exec("ALTER TABLE session_drinks ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';");
+  db.exec(`ALTER TABLE session_drinks ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';`);
 }
 if (!drinkTableInfo.some(c => c.name === 'components_json')) {
   console.log('Migration: adding components_json to session_drinks');
-  db.exec("ALTER TABLE session_drinks ADD COLUMN components_json TEXT;");
+  db.exec('ALTER TABLE session_drinks ADD COLUMN components_json TEXT;');
 }
 
-const presetTableInfo = db.prepare("PRAGMA table_info(session_presets)").all();
+const presetTableInfo = db.prepare('PRAGMA table_info(session_presets)').all();
 if (!presetTableInfo.some(c => c.name === 'input_kind')) {
   console.log('Migration: adding input_kind to session_presets');
-  db.exec("ALTER TABLE session_presets ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';");
+  db.exec(`ALTER TABLE session_presets ADD COLUMN input_kind TEXT NOT NULL DEFAULT 'whole';`);
 }
 if (!presetTableInfo.some(c => c.name === 'components_json')) {
   console.log('Migration: adding components_json to session_presets');
-  db.exec("ALTER TABLE session_presets ADD COLUMN components_json TEXT;");
+  db.exec('ALTER TABLE session_presets ADD COLUMN components_json TEXT;');
 }
 
 // ---- migration: add session_id to submissions --------------------------------
-const submissionsTableInfo = db.prepare("PRAGMA table_info(submissions)").all();
+const submissionsTableInfo = db.prepare('PRAGMA table_info(submissions)').all();
 if (!submissionsTableInfo.some(c => c.name === 'session_id')) {
   console.log('Migration: adding session_id to submissions');
-  db.exec("ALTER TABLE submissions ADD COLUMN session_id TEXT;");
-  db.exec("CREATE INDEX IF NOT EXISTS submissions_session ON submissions(session_id);");
+  db.exec('ALTER TABLE submissions ADD COLUMN session_id TEXT;');
+  db.exec('CREATE INDEX IF NOT EXISTS submissions_session ON submissions(session_id);');
 }
 
 // ---- prepared statements -------------------------------------------------
@@ -273,7 +273,7 @@ const stmts = {
        FROM products WHERE name = ? COLLATE NOCASE
        ORDER BY curated DESC, updated_at DESC LIMIT 1`
   ),
-  productsCount: db.prepare(`SELECT COUNT(*) AS n FROM products`),
+  productsCount: db.prepare('SELECT COUNT(*) AS n FROM products'),
   insertProduct: db.prepare(
     `INSERT INTO products (id, name, abv, volume_ml, category, curated, created_at, updated_at)
      VALUES (@id, @name, @abv, @volumeMl, @category, @curated, @createdAt, @updatedAt)`
@@ -285,7 +285,7 @@ const stmts = {
             updated_at = @updatedAt
       WHERE id = @id`
   ),
-  deleteProductById: db.prepare(`DELETE FROM products WHERE id = ?`),
+  deleteProductById: db.prepare('DELETE FROM products WHERE id = ?'),
 
   // upcs
   listUpcs: db.prepare(
@@ -311,8 +311,8 @@ const stmts = {
        flavour    = excluded.flavour,
        updated_at = excluded.updated_at`
   ),
-  deleteUpc: db.prepare(`DELETE FROM upcs WHERE upc = ?`),
-  countUpcsForProduct: db.prepare(`SELECT COUNT(*) AS n FROM upcs WHERE product_id = ?`),
+  deleteUpc: db.prepare('DELETE FROM upcs WHERE upc = ?'),
+  countUpcsForProduct: db.prepare('SELECT COUNT(*) AS n FROM upcs WHERE product_id = ?'),
 
   // joined catalogue (the public /catalog.json shape)
   joinedCatalogue: db.prepare(`
@@ -348,7 +348,7 @@ const stmts = {
      ORDER BY received_at DESC
      LIMIT ?
   `),
-  countSubmissions: db.prepare(`SELECT COUNT(*) AS n FROM submissions`),
+  countSubmissions: db.prepare('SELECT COUNT(*) AS n FROM submissions'),
 
   // rejected
   upsertRejected: db.prepare(`
@@ -361,8 +361,8 @@ const stmts = {
   listRejected: db.prepare(`
     SELECT upc, reason, rejected_at AS rejectedAt FROM rejected_upcs
   `),
-  countRejected: db.prepare(`SELECT COUNT(*) AS n FROM rejected_upcs`),
-  isRejected: db.prepare(`SELECT 1 FROM rejected_upcs WHERE upc = ?`),
+  countRejected: db.prepare('SELECT COUNT(*) AS n FROM rejected_upcs'),
+  isRejected: db.prepare('SELECT 1 FROM rejected_upcs WHERE upc = ?'),
 
   // ---- sessions ---------------------------------------------------------
   insertSession: db.prepare(`
@@ -396,7 +396,7 @@ const stmts = {
   touchSession: db.prepare(`
     UPDATE sessions SET updated_at = ? WHERE id = ?
   `),
-  deleteSessionStmt: db.prepare(`DELETE FROM sessions WHERE id = ?`),
+  deleteSessionStmt: db.prepare('DELETE FROM sessions WHERE id = ?'),
 
   // admin overview: sessions + counts (one query thanks to LEFT JOIN + COUNT).
   listSessionsAdmin: db.prepare(`
@@ -432,7 +432,7 @@ const stmts = {
   updatePersonName: db.prepare(`
     UPDATE session_people SET name = ? WHERE id = ?
   `),
-  deletePersonStmt: db.prepare(`DELETE FROM session_people WHERE id = ?`),
+  deletePersonStmt: db.prepare('DELETE FROM session_people WHERE id = ?'),
   countPeople: db.prepare(`
     SELECT COUNT(*) AS n FROM session_people WHERE session_id = ?
   `),
@@ -534,7 +534,7 @@ const stmts = {
            input_kind = @inputKind, components_json = @componentsJson
      WHERE session_id = @sessionId AND preset_key = @presetKey
   `),
-  deleteDrinkStmt: db.prepare(`DELETE FROM session_drinks WHERE id = ?`),
+  deleteDrinkStmt: db.prepare('DELETE FROM session_drinks WHERE id = ?'),
 
   // ---- session_events ---------------------------------------------------
   insertEvent: db.prepare(`
@@ -567,7 +567,7 @@ const stmts = {
   updateCommentStmt: db.prepare(`
     UPDATE session_comments SET text = ?, t = ? WHERE id = ?
   `),
-  deleteCommentStmt: db.prepare(`DELETE FROM session_comments WHERE id = ?`),
+  deleteCommentStmt: db.prepare('DELETE FROM session_comments WHERE id = ?'),
 
   // ---- session_comment_reactions ----------------------------------------
   insertReaction: db.prepare(`
@@ -626,7 +626,7 @@ function listProductsPaginated({ q = '', page = 1, limit = 50, curatedOnly = fal
   if (curatedOnly) { whereParts.push('curated = 1'); }
   if (q) {
     whereParts.push(
-      `(name LIKE ? COLLATE NOCASE OR id IN (SELECT product_id FROM upcs WHERE upc LIKE ?))`
+      '(name LIKE ? COLLATE NOCASE OR id IN (SELECT product_id FROM upcs WHERE upc LIKE ?))'
     );
     whereParams.push(`%${q}%`, `%${q}%`);
   }
@@ -641,9 +641,9 @@ function listProductsPaginated({ q = '', page = 1, limit = 50, curatedOnly = fal
   const ids = rows.map(r => r.id);
   const upcRows = ids.length
     ? db.prepare(
-        `SELECT upc, product_id AS productId, flavour, added_at AS addedAt, updated_at AS updatedAt
+      `SELECT upc, product_id AS productId, flavour, added_at AS addedAt, updated_at AS updatedAt
            FROM upcs WHERE product_id IN (${ids.map(() => '?').join(',')})`
-      ).all(...ids)
+    ).all(...ids)
     : [];
   const upcsByProduct = new Map();
   for (const u of upcRows) {
@@ -667,7 +667,7 @@ function searchProductsSimple(q, { limit = 20, curatedOnly = false } = {}) {
   if (curatedOnly) { whereParts.push('p.curated = 1'); }
   if (q) {
     whereParts.push(
-      `(p.name LIKE ? COLLATE NOCASE OR EXISTS (SELECT 1 FROM upcs u WHERE u.product_id = p.id AND u.upc LIKE ?))`
+      '(p.name LIKE ? COLLATE NOCASE OR EXISTS (SELECT 1 FROM upcs u WHERE u.product_id = p.id AND u.upc LIKE ?))'
     );
     whereParams.push(`%${q}%`, `%${q}%`);
   }
@@ -1063,14 +1063,14 @@ function parseDrinkComponents(row) {
 function rowWithComponents(row) {
   if (!row) return row;
   const components = parseDrinkComponents(row);
-  const { componentsJson, ...rest } = row;
+  const { componentsJson: _unused, ...rest } = row;
   return { ...rest, components };
 }
 
 function rowWithPresetComponents(row) {
   if (!row) return row;
   const components = parseDrinkComponents(row);
-  const { componentsJson, ...rest } = row;
+  const { componentsJson: _unused, ...rest } = row;
   return { ...rest, inputKind: rest.inputKind || 'whole', components };
 }
 
@@ -1221,8 +1221,8 @@ function updateDrink(sessionId, drinkId, fields) {
     id: drinkId,
     name:      fields.name     != null ? String(fields.name).slice(0, 60) : cur.name,
     flavour:   fields.flavour !== undefined
-                  ? (fields.flavour ? String(fields.flavour).slice(0, 60) : null)
-                  : (cur.flavour || null),
+      ? (fields.flavour ? String(fields.flavour).slice(0, 60) : null)
+      : (cur.flavour || null),
     volumeMl:  effective.volumeMl,
     abv:       effective.abv,
     inputKind: effective.inputKind,
