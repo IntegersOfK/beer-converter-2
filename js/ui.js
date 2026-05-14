@@ -957,6 +957,20 @@ function showFlavourPicker(personIdx, preset, flavours) {
     closeModal();
   });
   tray.appendChild(noBtn);
+
+  const newInput = $('#addFlavourNewInput');
+  const newText  = $('#newFlavourText');
+  newText.value  = '';
+  newInput.style.display = '';
+
+  function submitNew() {
+    const flavour = newText.value.trim();
+    logDrink(personIdx, flavour ? { ...presetToDrink(preset), flavour } : presetToDrink(preset));
+    closeModal();
+  }
+  $('#btnNewFlavour').onclick = submitNew;
+  newText.onkeydown = e => { if (e.key === 'Enter') { e.preventDefault(); submitNew(); } };
+  newText.focus();
 }
 
 export function openAddModal(personIdx) {
@@ -966,6 +980,7 @@ export function openAddModal(personIdx) {
   $('#addModalTitle').textContent = `Add drink · ${state.people[personIdx].name}`;
   $('#btnAddCustom').textContent = 'Add drink';
   $('#addModalScanCustom').style.display = '';
+  $('#addFlavourNewInput').style.display = 'none';
   const tray = $('#addPresetTray');
   tray.style.display = '';
   tray.innerHTML = '';
