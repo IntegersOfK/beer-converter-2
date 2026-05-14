@@ -726,11 +726,18 @@ function renderCompare() {
     } else {
       // 3+ drinkers — leaderboard style.
       if (tied) {
+        const tiedLeaders = drinkers.filter(p => Math.abs(leader.s.ethanolMl / p.s.ethanolMl - 1) < 0.03);
+        const nameList = tiedLeaders.map((p, i) => {
+          const tag = `<b>${escapeHtml(p.name)}</b>`;
+          if (i === 0) return tag;
+          if (i === tiedLeaders.length - 1) return ` &amp; ${tag}`;
+          return `, ${tag}`;
+        }).join('');
         if (bench) {
           const equiv = leader.s.ethanolMl / be;
-          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
+          sentence = `${nameList} are tied at the top — <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol each">${fmt(equiv,1)}</span> ${bmUnit} each.`;
         } else {
-          sentence = `<b>${escapeHtml(leader.name)}</b> &amp; <b>${escapeHtml(second.name)}</b> are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
+          sentence = `${nameList} are tied at the top with <span class="big" title="${fmt(leader.s.ethanolMl,1)} ml ethanol">${fmt(leader.s.standardDrinks,1)}</span> std drinks.`;
         }
       } else {
         if (bench) {
