@@ -1021,6 +1021,8 @@ function openPresetEditFlow(id) {
   $('#addModalTitle').textContent = `Edit drink type · ${preset.name}`;
   $('#addPresetTray').innerHTML = '';
   $('#addPresetTray').style.display = 'none';
+  $('#addModalScanCustom').style.display = '';
+  $('#addFlavourNewInput').style.display = 'none';
   resetCustomForm();
   if (preset.inputKind === 'cocktail' && Array.isArray(preset.components) && preset.components.length) {
     $('#customName').value = preset.name || '';
