@@ -10,7 +10,7 @@
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
-import { api } from './api.js?v=55';
+import { api } from './api.js?v=56';
 
 const RECENT_KEY = 'beerConverter.recentSessions';
 const UNIT_KEY   = 'beerConverter.unit';
@@ -628,6 +628,20 @@ export async function removeDrink(personIdx, drinkIdx) {
     state.events = state.events.filter(ev => !(ev.drinkId === removed.id && ev.type === 'drink_removed'));
     person.drinks.splice(drinkIdx, 0, removed);
   } finally { inFlight--; }
+}
+
+export function getFlavoursForPreset(presetId) {
+  const seen = new Set();
+  const result = [];
+  for (const person of state.people) {
+    for (const drink of person.drinks) {
+      if (drink.presetId === presetId && drink.flavour) {
+        const f = drink.flavour.trim();
+        if (f && !seen.has(f)) { seen.add(f); result.push(f); }
+      }
+    }
+  }
+  return result;
 }
 
 // Per-drink flavour update (no n/v/a change). Doesn't unlink from preset.

@@ -1,7 +1,7 @@
 // All rendering + modal management. Reads/writes via state.js.
 
-import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=55';
-import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=55';
+import { $, $$, fmt, escapeHtml, vibe } from './util.js?v=56';
+import { ethanolOf, personStats, STD_DRINK_ML, ML_PER_OZ } from './calc.js?v=56';
 import {
   state, getBenchmark, getUnitPref, setUnitPref, getDeviceId,
   addPreset, removePreset, setBenchmark,
@@ -13,9 +13,10 @@ import {
   setDrinkFlavour,
   addComment, updateComment, removeComment, toggleCommentReaction,
   presetSignature,
-} from './state.js?v=55';
-import { submitProduct } from './submit.js?v=55';
-import { getFlavoursForName } from './products.js?v=55';
+  getFlavoursForPreset,
+} from './state.js?v=56';
+import { submitProduct } from './submit.js?v=56';
+import { getFlavoursForName } from './products.js?v=56';
 
 function fmtVol(ml) {
   return getUnitPref() === 'oz'
@@ -931,12 +932,40 @@ export function logDrink(personIdx, drink, { upc } = {}) {
 }
 
 // --- Add-drink modal -------------------------------------------------------
+
+function showFlavourPicker(personIdx, preset, flavours) {
+  $('#addModalTitle').textContent = `${preset.name} — pick a flavour`;
+  $('#addModalScanCustom').style.display = 'none';
+  const tray = $('#addPresetTray');
+  tray.style.display = '';
+  tray.innerHTML = '';
+  flavours.forEach(flavour => {
+    const btn = document.createElement('button');
+    btn.className = 'preset-chip';
+    btn.textContent = flavour;
+    btn.addEventListener('click', () => {
+      logDrink(personIdx, { ...presetToDrink(preset), flavour });
+      closeModal();
+    });
+    tray.appendChild(btn);
+  });
+  const noBtn = document.createElement('button');
+  noBtn.className = 'preset-chip';
+  noBtn.textContent = 'No flavour';
+  noBtn.addEventListener('click', () => {
+    logDrink(personIdx, presetToDrink(preset));
+    closeModal();
+  });
+  tray.appendChild(noBtn);
+}
+
 export function openAddModal(personIdx) {
   addModalMode = 'drink';
   presetEditId = null;
   addModalPersonIdx = personIdx;
   $('#addModalTitle').textContent = `Add drink · ${state.people[personIdx].name}`;
   $('#btnAddCustom').textContent = 'Add drink';
+  $('#addModalScanCustom').style.display = '';
   const tray = $('#addPresetTray');
   tray.style.display = '';
   tray.innerHTML = '';
@@ -946,8 +975,13 @@ export function openAddModal(personIdx) {
     chip.innerHTML = `${escapeHtml(preset.name)} <span class="meta">${fmtVol(preset.volumeMl)}·${fmt(preset.abv,1)}%</span>`;
     chip.title = presetChipTitle(preset);
     chip.addEventListener('click', () => {
-      logDrink(personIdx, presetToDrink(preset));
-      closeModal();
+      const flavours = getFlavoursForPreset(preset.id);
+      if (flavours.length > 0) {
+        showFlavourPicker(personIdx, preset, flavours);
+      } else {
+        logDrink(personIdx, presetToDrink(preset));
+        closeModal();
+      }
     });
     tray.appendChild(chip);
   });
