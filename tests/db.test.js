@@ -209,6 +209,38 @@ test('Session lifecycle', async (t) => {
     assert.strictEqual(linked.components[0].volumeMl, 60);
   });
 
+  await t.test('deleting a preset unlinks existing drinks', () => {
+    const sid = dbLayer.genSessionId();
+    const session = dbLayer.createSession({
+      id: sid,
+      name: 'Preset Delete Test',
+      people: [{ name: 'Alice' }],
+      presets: [
+        { presetKey: 'u_lager', name: 'House lager', volumeMl: 473, abv: 5 },
+        { presetKey: 'u_wine', name: 'House wine', volumeMl: 142, abv: 12 },
+      ],
+      benchmarkPresetKey: 'u_lager',
+    });
+
+    const drink = dbLayer.addDrink(sid, {
+      personId: session.people[0].id,
+      presetKey: 'u_lager',
+      name: 'House lager',
+      volumeMl: 473,
+      abv: 5,
+      t: 99,
+    });
+
+    assert.strictEqual(dbLayer.removePreset(sid, 'u_lager'), true);
+
+    const full = dbLayer.getSessionFull(sid);
+    assert.deepStrictEqual(full.presets.map(p => p.presetKey), ['u_wine']);
+    const unlinked = full.drinks.find(d => d.id === drink.id);
+    assert.ok(unlinked);
+    assert.strictEqual(unlinked.presetKey, null);
+    assert.strictEqual(unlinked.name, 'House lager');
+  });
+
   await t.test('create and list database backups', async () => {
     const backupDir = fs.mkdtempSync(path.join(os.tmpdir(), 'beer-converter-backups-'));
     process.env.BACKUP_DIR = backupDir;

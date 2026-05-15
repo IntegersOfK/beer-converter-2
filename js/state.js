@@ -139,6 +139,7 @@ function hydrate(serverPayload) {
   // Sort presets by their original creation order (insertion order is preserved
   // by SQLite default; presetKey 'pstd', 'p1'..'p7', 'u<ts>' sorts naturally
   // for the seeded ones, but recency is what the chip tray actually uses).
+  const validPresetIds = new Set(state.presets.map(p => p.id));
   const drinksByPerson = new Map();
   for (const d of (s.drinks || [])) {
     if (!drinksByPerson.has(d.personId)) drinksByPerson.set(d.personId, []);
@@ -148,7 +149,7 @@ function hydrate(serverPayload) {
       flavour:   d.flavour || undefined,
       volumeMl:  d.volumeMl,
       abv:       d.abv,
-      presetId:  d.presetKey || null,
+      presetId:  d.presetKey && validPresetIds.has(d.presetKey) ? d.presetKey : null,
       inputKind: d.inputKind || 'whole',
       components: Array.isArray(d.components) ? d.components : [],
       t:         d.t,
@@ -431,6 +432,12 @@ export async function removePreset(id) {
   const idx = state.presets.findIndex(p => p.id === id);
   if (idx < 0) return false;
   const removed = state.presets.splice(idx, 1)[0];
+  const relinkedDrinks = [];
+  state.people.forEach(person => person.drinks.forEach(drink => {
+    if (drink.presetId !== id) return;
+    relinkedDrinks.push(drink);
+    drink.presetId = null;
+  }));
   // If we removed the benchmark, snap to the first remaining.
   let prevBench = state.benchmarkPresetId;
   if (state.benchmarkPresetId === id) {
@@ -447,6 +454,7 @@ export async function removePreset(id) {
   } catch (e) {
     console.error('removePreset failed', e); alert('Delete failed');
     state.presets.splice(idx, 0, removed);
+    relinkedDrinks.forEach(drink => { drink.presetId = id; });
     state.benchmarkPresetId = prevBench;
     return false;
   } finally { inFlight--; }
