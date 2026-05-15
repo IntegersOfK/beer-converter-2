@@ -1895,7 +1895,10 @@ function updateEditModeVisibility() {
   // Scope toggle inside the linked section: only shown when there's an n/v/a
   // change to scope. The "Linked to..." label itself stays visible regardless.
   const scopeToggle = $('#editScopeToggle');
-  if (scopeToggle) scopeToggle.style.display = (drink.presetId && nvaChanged) ? '' : 'none';
+  if (scopeToggle) {
+    const linkedPreset = drink.presetId ? state.presets.find(p => p.id === drink.presetId) : null;
+    scopeToggle.style.display = (linkedPreset && nvaChanged) ? '' : 'none';
+  }
   // Inline flavour save: only shown when flavour is the *only* change so the
   // user can commit the flavour without going through the n/v/a save flow.
   $('#btnSaveEditFlavour').style.display = (flavourChanged && !nvaChanged) ? '' : 'none';
@@ -1943,7 +1946,8 @@ export function submitEditDrink() {
     alert('Enter a valid volume and ABV (0–100%).'); return;
   }
 
-  if (drink.presetId && $('#editScopeAll').checked) {
+  const linkedPreset = drink.presetId ? state.presets.find(p => p.id === drink.presetId) : null;
+  if (linkedPreset && $('#editScopeAll').checked) {
     // "All drinks of this type" path — bulk-update the preset and every linked
     // drink, then set this drink's flavour separately. Using setDrinkFlavour
     // avoids breaking the preset link (updateDrink would null presetId, but

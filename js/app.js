@@ -24,7 +24,7 @@ import { startScanner, barcodeScannerAvailable } from './scanner.js?v=56';
 import { loadProducts, lookupUpc as lookupBcLiquor, productsLoaded } from './products.js?v=56';
 import { ML_PER_OZ } from './calc.js?v=56';
 
-console.log('Beer Converter build v54 (catalogue served from SQLite, no CSV asset)');
+console.log('Beer Converter build v56 (catalogue served from SQLite, no CSV asset)');
 
 const SESSION_AUTO_OPEN_MS = 8 * 60 * 60 * 1000;
 

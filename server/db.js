@@ -493,6 +493,11 @@ const stmts = {
   deletePresetStmt: db.prepare(`
     DELETE FROM session_presets WHERE session_id = ? AND preset_key = ?
   `),
+  unlinkPresetDrinksStmt: db.prepare(`
+    UPDATE session_drinks
+       SET preset_key = NULL
+     WHERE session_id = ? AND preset_key = ?
+  `),
 
   // ---- session_drinks ---------------------------------------------------
   insertDrink: db.prepare(`
@@ -1045,11 +1050,16 @@ function touchPreset(sessionId, presetKey) {
   stmts.touchSession.run(nowIso(), sessionId);
 }
 
-function removePreset(sessionId, presetKey) {
+const removePresetTx = db.transaction((sessionId, presetKey) => {
   const info = stmts.deletePresetStmt.run(sessionId, presetKey);
   if (info.changes === 0) return false;
+  stmts.unlinkPresetDrinksStmt.run(sessionId, presetKey);
   stmts.touchSession.run(nowIso(), sessionId);
   return true;
+});
+
+function removePreset(sessionId, presetKey) {
+  return removePresetTx(sessionId, presetKey);
 }
 
 function parseDrinkComponents(row) {
