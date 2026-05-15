@@ -6,7 +6,7 @@
 // optimistic-then-server (sync local update, async API call, revert on error).
 //
 // localStorage is reduced to:
-//   beerConverter.recentSessions  — [{ sid, name, lastSeen }] for the picker
+//   beerConverter.recentSessions  — [{ sid, name, startedAt, lastSeen }] for the picker
 //   beerConverter.unit            — 'ml' | 'oz' display preference
 //   beerConverter.theme           — handled by app.js, not here
 
@@ -67,12 +67,14 @@ export function rememberSession(sid, name, extras = {}) {
   if (!sid) return;
   const list = getRecentSessions();
   const existing = list.find(s => s.sid === sid) || {};
+  const { startedAt: extrasStartedAt, ...restExtras } = extras;
   const merged = {
     ...existing,
+    ...restExtras,
     sid,
     name: name || existing.name || sid,
+    startedAt: existing.startedAt || extrasStartedAt || Date.now(),
     lastSeen: Date.now(),
-    ...extras,
   };
   const next = list.filter(s => s.sid !== sid);
   next.unshift(merged);
@@ -121,6 +123,7 @@ function hydrate(serverPayload) {
   state.sid = s.id || null;
   state.publicId = s.publicId || null;
   state.name = s.name || '';
+  state.createdAt = s.createdAt || null;
   state.updatedAt = s.updatedAt || null;
   state.benchmarkPresetId = s.benchmarkPresetKey || null;
   state.presets = (s.presets || []).map(p => ({
@@ -182,6 +185,7 @@ function hydrate(serverPayload) {
   // switcher can show context without re-fetching every session.
   rememberSession(state.sid, state.name, {
     publicId: state.publicId,
+    startedAt: state.createdAt ? Date.parse(state.createdAt) : undefined,
     peopleNames: state.people.map(p => p.name),
     drinkCount:  state.people.reduce((n, p) => n + p.drinks.length, 0),
   });
