@@ -400,12 +400,14 @@ function sessionOption(raw = {}) {
     : Array.isArray(raw.drinks)
       ? raw.drinks.length
       : 0;
+  const startedAt = Number(raw.startedAt) || Date.parse(raw.createdAt || '') || 0;
   const lastSeen = Number(raw.lastSeen) || Date.parse(raw.updatedAt || raw.createdAt || '') || Date.now();
   return {
     sid,
     name: raw.name || sid || 'Session',
     peopleNames,
     drinkCount,
+    startedAt: startedAt || lastSeen,
     lastSeen,
   };
 }
@@ -416,7 +418,7 @@ function sessionPeopleLine(opt) {
 
 function sessionMetaLine(opt) {
   const drinks = Number(opt.drinkCount) || 0;
-  return `${sessionDisplayTime(opt.lastSeen)} · ${drinks} drink${drinks === 1 ? '' : 's'}`;
+  return `${sessionDisplayTime(opt.startedAt)} · ${drinks} drink${drinks === 1 ? '' : 's'}`;
 }
 
 function sessionGateList(recents, { markLatest = false } = {}) {

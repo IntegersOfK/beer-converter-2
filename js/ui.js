@@ -1396,7 +1396,7 @@ function renderSessionList() {
   recents.forEach(rec => {
     const isActive = rec.sid === state.sid;
     const drinks = rec.drinkCount || 0;
-    const date = new Date(rec.lastSeen || Date.now()).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
+    const date = new Date(rec.startedAt || rec.lastSeen || Date.now()).toLocaleDateString('en-CA', { month: 'short', day: 'numeric', year: 'numeric' });
     const peopleNames = (rec.peopleNames || []).filter(Boolean);
     const peopleStr = peopleNames.length ? peopleNames.join(' · ') : '(no one yet)';
     const item = document.createElement('div');
@@ -1539,7 +1539,7 @@ function sessionOptionMeta(rec) {
   const drinks = Number(rec.drinkCount) || 0;
   const peopleNames = (rec.peopleNames || []).filter(Boolean);
   const peopleStr = peopleNames.length ? peopleNames.join(' · ') : '(no one yet)';
-  const date = new Date(rec.lastSeen || Date.now()).toLocaleDateString('en-CA', {
+  const date = new Date(rec.startedAt || rec.lastSeen || Date.now()).toLocaleDateString('en-CA', {
     month: 'short',
     day: 'numeric',
     year: 'numeric',
